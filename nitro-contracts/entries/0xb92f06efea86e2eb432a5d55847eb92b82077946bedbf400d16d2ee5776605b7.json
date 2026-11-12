@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xb92f06efea86e2eb432a5d55847eb92b82077946bedbf400d16d2ee5776605b7",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/challengeV2/libraries/EdgeChallengeManagerLib.sol:EdgeChallengeManagerLib"
+  ],
+  "codeLength": 158,
+  "immutables": [
+    {
+      "name": "<library address>",
+      "type": "address",
+      "offsets": [
+        1
+      ],
+      "length": 20
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x3de356c3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

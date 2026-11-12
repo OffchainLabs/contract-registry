@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x4de15f4d8be09c19405cd4e5a0203ad2ea978746be64982c2883affe82998688",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/RollupCreator.sol:RollupCreator"
+  ],
+  "codeLength": 23538,
+  "immutables": [],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "bridgeCreator()",
+      "selector": "0xf860cefa",
+      "kind": "single"
+    },
+    {
+      "signature": "challengeManagerTemplate()",
+      "selector": "0x9c683d10",
+      "kind": "single"
+    },
+    {
+      "signature": "l2FactoriesDeployer()",
+      "selector": "0xac0425bc",
+      "kind": "single"
+    },
+    {
+      "signature": "osp()",
+      "selector": "0xf26a62c6",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "rollupAdminLogic()",
+      "selector": "0x9dba3241",
+      "kind": "single"
+    },
+    {
+      "signature": "rollupUserLogic()",
+      "selector": "0x9d4798e3",
+      "kind": "single"
+    },
+    {
+      "signature": "upgradeExecutorLogic()",
+      "selector": "0x030cb85e",
+      "kind": "single"
+    },
+    {
+      "signature": "validatorWalletCreator()",
+      "selector": "0xbc45e0ae",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x030cb85e",
+    "0x2d12e32c",
+    "0x715018a6",
+    "0x8da5cb5b",
+    "0x9c683d10",
+    "0x9d4798e3",
+    "0x9dba3241",
+    "0xac0425bc",
+    "0xbc45e0ae",
+    "0xf0dae494",
+    "0xf26a62c6",
+    "0xf2fde38b",
+    "0xf860cefa"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

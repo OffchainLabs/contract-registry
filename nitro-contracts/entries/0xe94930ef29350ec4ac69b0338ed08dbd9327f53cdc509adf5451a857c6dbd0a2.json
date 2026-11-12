@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xe94930ef29350ec4ac69b0338ed08dbd9327f53cdc509adf5451a857c6dbd0a2",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
+  ],
+  "codeLength": 7536,
+  "immutables": [],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x007bdcb5",
+    "0x01ffc9a7",
+    "0x248a9ca3",
+    "0x2b05bb39",
+    "0x2f2ff15d",
+    "0x36568abe",
+    "0x4a451bc1",
+    "0x8a672da4",
+    "0x9010d07c",
+    "0x91d14854",
+    "0xa217fddf",
+    "0xade6e2aa",
+    "0xb6549f75",
+    "0xc843ba5d",
+    "0xca15c873",
+    "0xcc0d556a",
+    "0xce493ea6",
+    "0xd547741f",
+    "0xdf8aee23",
+    "0xec87621c",
+    "0xff6c7cbc"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "cd1f823d68d419512c16e8f53a8b810f8650442c",
+  "firstBranch": "develop"
+}

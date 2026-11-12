@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x0e0b1caab485f28643c9f9f8ba816dac5916c36766608b93b23c99856d1b4602",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/express-lane-auction/ExpressLaneAuction.sol:ExpressLaneAuction"
+  ],
+  "codeLength": 18350,
+  "immutables": [
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        5945
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "beneficiary()",
+      "selector": "0x38af3eed",
+      "kind": "single"
+    },
+    {
+      "signature": "biddingToken()",
+      "selector": "0x639d7566",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x007be2fe",
+    "0x0152682d",
+    "0x01ffc9a7",
+    "0x02b62938",
+    "0x04c584ad",
+    "0x0d253fbe",
+    "0x14d96316",
+    "0x1682e50b",
+    "0x1c31f710",
+    "0x248a9ca3",
+    "0x2d668ce7",
+    "0x2f2ff15d",
+    "0x336a5b5e",
+    "0x36568abe",
+    "0x38af3eed",
+    "0x447a709e",
+    "0x5633c337",
+    "0x639d7566",
+    "0x6a514beb",
+    "0x6ad72517",
+    "0x6dc4fc4e",
+    "0x6e8cace5",
+    "0x70a08231",
+    "0x7b617f94",
+    "0x83af0a1f",
+    "0x8948cc4e",
+    "0x8a19c8bc",
+    "0x9010d07c",
+    "0x91d14854",
+    "0x9a1fadd3",
+    "0xa217fddf",
+    "0xb3ee252f",
+    "0xb51d1d4f",
+    "0xb6b55f25",
+    "0xbef0ec74",
+    "0xc5b6aa2f",
+    "0xca15c873",
+    "0xce9c7c0d",
+    "0xcfe9232b",
+    "0xd547741f",
+    "0xdb2e1eed",
+    "0xe2fc6f68",
+    "0xe3f7bb55",
+    "0xe460d2c5",
+    "0xe4d20c1d",
+    "0xf698da25",
+    "0xfed87be8"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

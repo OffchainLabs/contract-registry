@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 1321,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x82563675b204e286df6858a8fa548e5697ee4f30ca45074e458403044efcf9c7",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/extra/ERC20MigrationOutbox.sol:ERC20MigrationOutbox"
+      ],
+      "codeLength": 1321,
+      "immutables": [
+        {
+          "name": "destination",
+          "type": "address",
+          "offsets": [
+            96,
+            583,
+            834
+          ],
+          "length": 32
+        },
+        {
+          "name": "nativeToken",
+          "type": "address",
+          "offsets": [
+            176,
+            353
+          ],
+          "length": 32
+        },
+        {
+          "name": "bridge",
+          "type": "address",
+          "offsets": [
+            215,
+            310,
+            649
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 12,
+      "getters": [
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "destination()",
+          "selector": "0xb269681d",
+          "kind": "single"
+        },
+        {
+          "signature": "nativeToken()",
+          "selector": "0xe1758bd8",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x8fd3ab80",
+        "0xb269681d",
+        "0xe1758bd8",
+        "0xe78cea92"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}

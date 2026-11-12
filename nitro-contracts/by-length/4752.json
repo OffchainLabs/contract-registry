@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 4752,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x2202ca4076779c94486b8b3543ad3074591f936067ea0054100203640e4f3301",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/GasRefunder.sol:GasRefunder"
+      ],
+      "codeLength": 4752,
+      "immutables": [],
+      "cborMetadataLength": 12,
+      "getters": [
+        {
+          "signature": "disallower()",
+          "selector": "0xefe12b01",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x25416bc9",
+        "0x2ccb03f2",
+        "0x500de431",
+        "0x51e0e26b",
+        "0x715018a6",
+        "0x7edddf45",
+        "0x86b98895",
+        "0x8da5cb5b",
+        "0xa89d2173",
+        "0xbffe1780",
+        "0xca101295",
+        "0xcd499da3",
+        "0xd5138948",
+        "0xe3db8a49",
+        "0xe5207453",
+        "0xefe12b01",
+        "0xf1e845ca",
+        "0xf2fde38b",
+        "0xf3fef3a3",
+        "0xf52128eb"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}

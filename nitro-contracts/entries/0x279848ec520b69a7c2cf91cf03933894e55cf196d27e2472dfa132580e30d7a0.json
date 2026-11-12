@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x279848ec520b69a7c2cf91cf03933894e55cf196d27e2472dfa132580e30d7a0",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/assertionStakingPool/EdgeStakingPoolCreator.sol:EdgeStakingPoolCreator"
+  ],
+  "codeLength": 4617,
+  "immutables": [],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x9b505aa1",
+    "0xdc082ad3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

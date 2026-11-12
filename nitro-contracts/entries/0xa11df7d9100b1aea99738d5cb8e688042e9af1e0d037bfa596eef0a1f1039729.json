@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xa11df7d9100b1aea99738d5cb8e688042e9af1e0d037bfa596eef0a1f1039729",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/BOLDUpgradeAction.sol:ConstantArrayStorage"
+  ],
+  "codeLength": 236,
+  "immutables": [],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0xb0ec2ae1"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

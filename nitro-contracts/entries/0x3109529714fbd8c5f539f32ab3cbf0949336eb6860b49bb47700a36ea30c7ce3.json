@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x3109529714fbd8c5f539f32ab3cbf0949336eb6860b49bb47700a36ea30c7ce3",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/assertionStakingPool/EdgeStakingPool.sol:EdgeStakingPool"
+  ],
+  "codeLength": 3362,
+  "immutables": [
+    {
+      "name": "challengeManager",
+      "type": "address",
+      "offsets": [
+        146,
+        935,
+        1156,
+        1244
+      ],
+      "length": 32
+    },
+    {
+      "name": "stakeToken",
+      "type": "address",
+      "offsets": [
+        243,
+        615,
+        827,
+        1122
+      ],
+      "length": 32
+    },
+    {
+      "name": "edgeId",
+      "type": "bytes32",
+      "offsets": [
+        347,
+        1368,
+        1452
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "challengeManager()",
+      "selector": "0x023a96fe",
+      "kind": "single"
+    },
+    {
+      "signature": "stakeToken()",
+      "selector": "0x51ed6a30",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x023a96fe",
+    "0x26c0e5c5",
+    "0x30fc43ed",
+    "0x51ed6a30",
+    "0x7476083b",
+    "0x956501bb",
+    "0x9cfa2a2a",
+    "0xbd3eec7d"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

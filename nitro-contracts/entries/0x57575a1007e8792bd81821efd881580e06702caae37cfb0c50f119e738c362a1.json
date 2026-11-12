@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x57575a1007e8792bd81821efd881580e06702caae37cfb0c50f119e738c362a1",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/DelayBuffer.sol:DelayBuffer"
+  ],
+  "codeLength": 95,
+  "immutables": [
+    {
+      "name": "<library address>",
+      "type": "address",
+      "offsets": [
+        1
+      ],
+      "length": 20
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x528cfa98"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

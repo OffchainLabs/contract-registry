@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 10483,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x13e152729d3a3a0f4076547cb2290c826bc9de6fb0968b41f61ec4b129248adc",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/ERC20Inbox.sol:ERC20Inbox"
+      ],
+      "codeLength": 10483,
+      "immutables": [
+        {
+          "name": "maxDataSize",
+          "type": "uint256",
+          "offsets": [
+            773,
+            1086,
+            1171,
+            6141,
+            6230
+          ],
+          "length": 32
+        },
+        {
+          "name": "deployTimeChainId",
+          "type": "uint256",
+          "offsets": [
+            936,
+            3128
+          ],
+          "length": 32
+        },
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            1835
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 12,
+      "getters": [
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "getProxyAdmin()",
+          "selector": "0x8b3240a0",
+          "kind": "single"
+        },
+        {
+          "signature": "sequencerInbox()",
+          "selector": "0xee35f327",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x1fe927cf",
+        "0x22bd5c1c",
+        "0x3f4ba83a",
+        "0x485cc955",
+        "0x5075788b",
+        "0x549e8426",
+        "0x5c975abb",
+        "0x8456cb59",
+        "0x8a631aa6",
+        "0x8b3240a0",
+        "0xa66b327d",
+        "0xb75436bb",
+        "0xb79092fd",
+        "0xb9b9a688",
+        "0xbabcc539",
+        "0xe3de72a5",
+        "0xe78cea92",
+        "0xe8eb1dc3",
+        "0xee35f327",
+        "0xefeadb6d"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xe3ecc6531d9a0501572af7b7e6e2d67ecba59f0d7093d18be9ce4d6a64b63695",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/Bridge.sol:Bridge"
+  ],
+  "codeLength": 6725,
+  "immutables": [
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        3879
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "activeOutbox()",
+      "selector": "0xab5d8943",
+      "kind": "single"
+    },
+    {
+      "signature": "allowedDelayedInboxList(uint256)",
+      "selector": "0xe76f5c8d",
+      "kind": "list"
+    },
+    {
+      "signature": "allowedOutboxList(uint256)",
+      "selector": "0x945e1147",
+      "kind": "list"
+    },
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x0084120c",
+    "0x16bf5579",
+    "0x413b35bd",
+    "0x47fb24c5",
+    "0x4f61f850",
+    "0x5fca4a16",
+    "0x7a88b107",
+    "0x86598a56",
+    "0x8db5993b",
+    "0x919cc706",
+    "0x945e1147",
+    "0x9e5d4c49",
+    "0xab5d8943",
+    "0xae60bd13",
+    "0xc4d66de8",
+    "0xcb23bcb5",
+    "0xcee3d728",
+    "0xd5719dc2",
+    "0xe76f5c8d",
+    "0xe77145f4",
+    "0xeca067ad",
+    "0xee35f327",
+    "0xf81ff3b3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

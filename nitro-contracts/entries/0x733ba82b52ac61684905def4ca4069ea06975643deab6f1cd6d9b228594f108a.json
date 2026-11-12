@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x733ba82b52ac61684905def4ca4069ea06975643deab6f1cd6d9b228594f108a",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/challengeV2/EdgeChallengeManager.sol:EdgeChallengeManager"
+  ],
+  "codeLength": 23502,
+  "immutables": [],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "assertionChain()",
+      "selector": "0x48dd2924",
+      "kind": "single"
+    },
+    {
+      "signature": "excessStakeReceiver()",
+      "selector": "0xe94e051e",
+      "kind": "single"
+    },
+    {
+      "signature": "oneStepProofEntry()",
+      "selector": "0x48923bc5",
+      "kind": "single"
+    },
+    {
+      "signature": "stakeToken()",
+      "selector": "0x51ed6a30",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x004d8efe",
+    "0x05fae141",
+    "0x1a72d54c",
+    "0x1c1b4f3a",
+    "0x1dce5166",
+    "0x3e35f5e8",
+    "0x416e6657",
+    "0x42e1aaa8",
+    "0x432bb78a",
+    "0x46c2781a",
+    "0x48923bc5",
+    "0x48dd2924",
+    "0x51ed6a30",
+    "0x54b64151",
+    "0x5a48e0f4",
+    "0x5d9e2444",
+    "0x655b42f3",
+    "0x748926f3",
+    "0x750e0c0f",
+    "0x8826a370",
+    "0x8c1b3a40",
+    "0x908517e9",
+    "0xb2a1408e",
+    "0xbce6f54f",
+    "0xc32d8c63",
+    "0xc8bc4e43",
+    "0xe5b123da",
+    "0xe94e051e",
+    "0xeae0328b",
+    "0xedaab54a",
+    "0xf8ee77d6",
+    "0xfda2892e"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

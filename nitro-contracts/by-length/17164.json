@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 17164,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x2e3024498b4324c948e1d95dd550472a212c30945cbe65f647aa9dd84f3fc7dc",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/RollupUserLogic.sol:RollupUserLogic"
+      ],
+      "codeLength": 17164,
+      "immutables": [
+        {
+          "name": "_hostChainIsArbitrum",
+          "type": "bool",
+          "offsets": [
+            3086,
+            10606
+          ],
+          "length": 32
+        },
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            4694,
+            6367,
+            6500
+          ],
+          "length": 32
+        },
+        {
+          "name": "deployTimeChainId",
+          "type": "uint256",
+          "offsets": [
+            6258
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 12,
+      "getters": [
+        {
+          "signature": "anyTrustFastConfirmer()",
+          "selector": "0x55840a58",
+          "kind": "single"
+        },
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "challengeManager()",
+          "selector": "0x023a96fe",
+          "kind": "single"
+        },
+        {
+          "signature": "inbox()",
+          "selector": "0xfb0e722b",
+          "kind": "single"
+        },
+        {
+          "signature": "loserStakeEscrow()",
+          "selector": "0xf065de3f",
+          "kind": "single"
+        },
+        {
+          "signature": "outbox()",
+          "selector": "0xce11e6ab",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        },
+        {
+          "signature": "rollupEventInbox()",
+          "selector": "0xaa38a6e7",
+          "kind": "single"
+        },
+        {
+          "signature": "sequencerInbox()",
+          "selector": "0xee35f327",
+          "kind": "single"
+        },
+        {
+          "signature": "stakeToken()",
+          "selector": "0x51ed6a30",
+          "kind": "single"
+        },
+        {
+          "signature": "validatorWalletCreator()",
+          "selector": "0xbc45e0ae",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x023a96fe",
+        "0x04972af9",
+        "0x10b98a35",
+        "0x11715585",
+        "0x12ab3d3b",
+        "0x13c56ca7",
+        "0x18baaab9",
+        "0x1b1689e9",
+        "0x1e83d30f",
+        "0x2abdd230",
+        "0x2e7acfa6",
+        "0x2f30cabd",
+        "0x30836228",
+        "0x33635fc2",
+        "0x353325e0",
+        "0x3b86de19",
+        "0x3be680ea",
+        "0x45e38b64",
+        "0x50f32f68",
+        "0x51ed6a30",
+        "0x52d1902d",
+        "0x55840a58",
+        "0x56bbc9e6",
+        "0x57ef4ab9",
+        "0x588c7a16",
+        "0x5c975abb",
+        "0x6096686d",
+        "0x61373919",
+        "0x6177fd18",
+        "0x6420fb9f",
+        "0x65f7f80d",
+        "0x68129b14",
+        "0x685f5ecc",
+        "0x6ddd3744",
+        "0x71ef232c",
+        "0x7300201c",
+        "0x76e7e23b",
+        "0x84728cd0",
+        "0x88302884",
+        "0x8da5cb5b",
+        "0x8ee1a126",
+        "0x9a8a0592",
+        "0xa23c44b1",
+        "0xaa38a6e7",
+        "0xb7ab4db5",
+        "0xbc45e0ae",
+        "0xc2c2e68e",
+        "0xc4d66de8",
+        "0xce11e6ab",
+        "0xdff69787",
+        "0xe51019a6",
+        "0xe531d8c7",
+        "0xe6b3082c",
+        "0xe78cea92",
+        "0xe8bd4922",
+        "0xee35f327",
+        "0xef40a670",
+        "0xf065de3f",
+        "0xfacd743b",
+        "0xfb0e722b"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 20
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}
