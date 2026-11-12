@@ -16,11 +16,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
+      # Node, npm ci and forge (the publish bookkeeping test builds a tiny repo with forge).
+      - uses: ./.github/actions/setup
       - run: npm run typecheck
       - run: npm test
       - name: Schema, generated files, append-only

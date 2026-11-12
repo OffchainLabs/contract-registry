@@ -1,5 +1,5 @@
 // The publish run's bookkeeping, end to end, on a tiny local source repo built with forge (no
-// network, no test chains): exact first commits through merges, tag on an unpublished commit,
+// test chains; network only if forge has to download solc 0.8.17): exact first commits through merges, tag on an unpublished commit,
 // tag/version mismatch, nested and deleted branches, build failures, reruns with no diff.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -26,7 +26,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   // --- Source repo ---
   const srcDir = path.join(tmp, 'src-repo')
   fs.mkdirSync(path.join(srcDir, 'src/mocks'), { recursive: true })
-  fs.writeFileSync(path.join(srcDir, 'foundry.toml'), "[profile.default]\nsrc = 'src'\nout = 'out'\nsolc_version = '0.8.17'\nbytecode_hash = 'none'\noptimizer = true\noptimizer_runs = 200\nevm_version = 'london'\noffline = true\n")
+  fs.writeFileSync(path.join(srcDir, 'foundry.toml'), "[profile.default]\nsrc = 'src'\nout = 'out'\nsolc_version = '0.8.17'\nbytecode_hash = 'none'\noptimizer = true\noptimizer_runs = 200\nevm_version = 'london'\n")
   const write = (f: string, s: string) => fs.writeFileSync(path.join(srcDir, f), s)
   const pkg = (v: string) => write('package.json', JSON.stringify({ name: 'x', version: v }) + '\n')
   const commit = (m: string) => { git(srcDir, 'add', '-A'); git(srcDir, 'commit', '-qm', m); return git(srcDir, 'rev-parse', 'HEAD') }
