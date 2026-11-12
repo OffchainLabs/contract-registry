@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { openSource, Registry } from '../src/walker/registry.ts'
-import { Rpc, ExecutionError } from '../src/walker/rpc.ts'
+import { Rpc } from '../src/walker/rpc.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 
 const { values: a } = parseArgs({
@@ -74,7 +74,8 @@ for (const chain of CHAINS) {
   let chainId: number
   try { chainId = await rpc.chainId() } catch (e) { report.push({ chain: chain.name, skipped: (e as Error).message.slice(0, 80) }); continue }
   let isArbitrum = false
-  try { await rpc.call('0x0000000000000000000000000000000000000064', '0x051038f2', 'latest'); isArbitrum = true } catch (e) { if (!(e instanceof ExecutionError)) throw e }
+  // Arbitrum chains answer ArbSys.arbOSVersion(); anything else (revert, no code, other precompile) isn't Arbitrum.
+  try { isArbitrum = (await rpc.call('0x0000000000000000000000000000000000000064', '0x051038f2', 'latest')).length >= 66 } catch { /* not Arbitrum */ }
   const parent = L1_CHAIN_IDS.has(chainId) ? 'l1' : isArbitrum ? 'arbitrum' : 'other'
   const rows: any[] = []
   const bufferable: Record<string, boolean[]> = { eth: [], erc20: [] }

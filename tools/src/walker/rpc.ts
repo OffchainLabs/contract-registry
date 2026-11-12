@@ -82,7 +82,7 @@ export class Rpc {
 }
 
 function isExecutionFailure(code: number | undefined, msg: string): boolean {
-  return code === 3 || /revert|invalid opcode|out of gas|stack (underflow|overflow)|invalid jump|execution|bad instruction|opcode/i.test(msg)
+  return code === 3 || /revert|invalid opcode|out of gas|stack (underflow|overflow)|invalid jump|execution|bad instruction|opcode|EVM error|precompile/i.test(msg)
 }
 
 function isRetryable(code: number | undefined, msg: string): boolean {
