@@ -24,6 +24,8 @@ export interface PublishOptions {
   skipTestChains?: boolean
   /** Identity for the data repo commit. */
   committer?: { name: string; email: string }
+  /** Read the source repo from here instead of the configured URL (tests use a local repo). */
+  sourceUrl?: string
   now?: number
   log?: (s: string) => void
 }
@@ -58,7 +60,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const lock = acquireLock(opts.workDir, opts.source)
   const checkouts: Checkout[] = []
   try {
-    const src = new SourceRepo(cfg, opts.workDir)
+    const src = new SourceRepo(opts.sourceUrl ? { ...cfg, url: opts.sourceUrl } : cfg, opts.workDir)
     log(`syncing ${cfg.url}`)
     src.sync(log)
     const data = new SourceData(opts.dataRepo, cfg.directory, cfg.repo)
