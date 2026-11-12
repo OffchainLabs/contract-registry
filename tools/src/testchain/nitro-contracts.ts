@@ -5,7 +5,7 @@
 // come from that commit's deploy scripts and build artifacts. The checkout needs `node_modules`,
 // the Hardhat build (`build/contracts`, `build/types`) and the Yul build (`out/yul`).
 
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { rmSync } from 'node:fs'
 import { access, copyFile, mkdtemp, readFile, rm } from 'node:fs/promises'
@@ -107,10 +107,10 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
   const outFile = path.join(tmp, 'out.json')
   const scriptRel = path.join('scripts', `.registry-testchain-${randomBytes(4).toString('hex')}.ts`)
   const scriptAbs = path.join(checkoutDir, scriptRel)
-  let hardhat: ChildProcess | undefined
+  let killHardhat: (() => void) | undefined
   // A signal would skip the cleanup below and leave the script copy in the checkout.
   const onSignal = (signal: NodeJS.Signals) => {
-    hardhat?.kill()
+    killHardhat?.()
     anvil.kill()
     rmSync(scriptAbs, { force: true })
     rmSync(tmp, { recursive: true, force: true })
@@ -135,7 +135,7 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
       HARDHAT_TIMEOUT_MS,
       log
     )
-    hardhat = run.child
+    killHardhat = run.kill
     await run.done
     const out = parseOutput(JSON.parse(await readFile(outFile, 'utf8')))
     if (out.chainId !== PARENT_CHAIN_ID) {
@@ -279,12 +279,22 @@ function start(
   env: Record<string, string>,
   timeoutMs: number,
   log: (s: string) => void
-): { child: ChildProcess; done: Promise<void> } {
+): { kill: () => void; done: Promise<void> } {
+  // `hardhat run` executes the script in a child node process, so give it its own process group
+  // and kill the whole group.
   const child = spawn(cmd, args, {
     cwd,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   })
+  const kill = () => {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid)
+    } catch {
+      // already gone
+    }
+  }
   const done = new Promise<void>((resolve, reject) => {
     const tail: string[] = []
     const onData = (buf: Buffer) => {
@@ -300,7 +310,7 @@ function start(
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill()
+      kill()
     }, timeoutMs)
     child.once('error', err => {
       clearTimeout(timer)
@@ -314,7 +324,7 @@ function start(
       else resolve()
     })
   })
-  return { child, done }
+  return { kill, done }
 }
 
 type ScriptOutput = Pick<TestChainDeployment, 'chainId' | 'creator' | 'templates' | 'chains'>

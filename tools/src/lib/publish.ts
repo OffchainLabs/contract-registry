@@ -86,7 +86,8 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     }
     const tags = src.publishedTags()
     const newTags = [...tags].filter(([t, c]) => !data.hasTag(t) && inRange(c)).sort((a, b) => compareTags(a[0], b[0]))
-    for (const [t, c] of tags) if (!data.hasTag(t) && !inRange(c)) log(`skip tag ${t}: before ${cfg.start.tag}`)
+    const skippedTags = [...tags].filter(([t, c]) => !data.hasTag(t) && !inRange(c)).map(([t]) => t)
+    if (skippedTags.length) log(`${skippedTags.length} tag(s) not descended from ${cfg.start.tag} are out of range (not published)`)
     log(`plan: ${plan.length} new branch commit(s), ${changedBranches.length} changed branch(es), ${newTags.length} new tag(s), ${deleted.length} deleted branch(es)`)
 
     if (opts.reconcile) {
@@ -232,7 +233,8 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   } catch (e) {
     fail('publish-error', { key: 'run', message: (e as Error).message.split('\n')[0], details: (e as Error).stack })
     // Discard the run's uncommitted changes so a failure midway publishes nothing.
-    try { git(['checkout', '--', cfg.directory], opts.dataRepo); git(['clean', '-fdq', '--', cfg.directory], opts.dataRepo) } catch { /* nothing to discard */ }
+    try { git(['checkout', '--', cfg.directory], opts.dataRepo) } catch { /* nothing committed there yet */ }
+    try { git(['clean', '-fdq', '--', cfg.directory], opts.dataRepo) } catch { /* nothing to discard */ }
     outcome.alerts = await reconcileAlerts(opts.alerts, cfg, null, null, failures, [], false, '').catch(() => [])
   } finally {
     for (const c of checkouts) c.remove()

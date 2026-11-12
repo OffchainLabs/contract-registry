@@ -1,0 +1,25 @@
+name: Set up registry tooling
+description: Node, yarn, Foundry (forge and anvil) and the registry's work caches
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: npm
+    # Toolchain versions match config/nitro-contracts/sources.json (profile hardhat-foundry-0.8.17).
+    # When a later backfill adds profiles with other toolchains, install them per profile here.
+    - uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: v1.9.0
+        cache: false
+    - shell: bash
+      run: npm install -g yarn@1.22.22 && npm ci
+    - uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ runner.temp }}/registry-work/results
+          ${{ runner.temp }}/registry-work/checks
+          ${{ runner.temp }}/registry-work/sources
+        key: registry-work-${{ github.run_id }}
+        restore-keys: registry-work-

@@ -186,6 +186,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
           if (!c2.length) warnings.push({ kind: 'no-implementation-code', address: node.address, implementation: checksum(impl2) })
         }
       }
+      for (const p of pieces) if (p.id.status === 'unknown') p.id.closest = await closestEntry(registry, p.code)
       node.name = nodeName(node)
 
       // Getters to call: every getter of every matched piece, plus every getter the registry
@@ -222,7 +223,6 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       for (const p of unknownPieces) {
         if (p.id.status !== 'unknown') continue
         p.id.answeredGetters = answered.filter(s => !outOfScope.has(s))
-        p.id.closest = await closestEntry(registry, p.code)
       }
     }))
     frontier = [...new Map(next.map(n => [n.address, n])).values()]
@@ -294,8 +294,14 @@ function shortName(id: CodeId | undefined): string | null {
 
 /** Readable node name: the implementation's contract for a one-implementation proxy, else the code's. */
 function nodeName(n: WalkNode): string {
-  if (n.implementation && !n.secondaryImplementation) return shortName(n.implementation.code) ?? `unknown@${n.address}`
-  return shortName(n.code) ?? `unknown@${n.address}`
+  const logic = n.implementation && !n.secondaryImplementation ? n.implementation.code : n.code
+  const known = shortName(logic)
+  if (known) return known
+  // Unknown: hint with the closest entry of the code, else of an implementation.
+  for (const id of [logic, n.implementation?.code, n.secondaryImplementation?.code]) {
+    if (id?.status === 'unknown' && id.closest) return `unknown(~${id.closest.contracts[0].split(':').pop()})`
+  }
+  return `unknown@${n.address}`
 }
 
 function slotAddress(word: string): string | null {
@@ -353,7 +359,9 @@ async function closestEntry(registry: Registry, code: Uint8Array): Promise<Close
     const shared = e.selectors.filter(s => mineSet.has(s)).length
     if (!shared) continue
     const score = shared / new Set([...e.selectors, ...mine]).size
-    if (!best || score > best.score || (score === best.score && (e.firstCommit ?? '') > (best.e.firstCommit ?? ''))) best = { e, shared, score }
+    // Ties (e.g. the provers all expose one selector) go to the entry closest in code length.
+    const closer = best && Math.abs(e.codeLength - code.length) < Math.abs(best.e.codeLength - code.length)
+    if (!best || score > best.score || (score === best.score && closer)) best = { e, shared, score }
   }
   if (!best) return null
   return {

@@ -1,0 +1,53 @@
+# Publish run (spec §5.7): builds new commits and tags of every source repo, writes entries,
+# tags/ and branches/ files, regenerates by-length/, runs the test-chain walks, and lands
+# everything as one commit on main. Source repos are read anonymously; the only credential is
+# this workflow's own token (contents: write to push, issues: write for alerts).
+name: publish
+
+on:
+  schedule:
+    # O3 (open): polling interval not decided yet; ~15 minutes was suggested.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Only this source repo (directory name, e.g. nitro-contracts); empty for all'
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+
+# Updates are serialized; a push rejected by a concurrent change is retried on the new tip.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Publish
+        env:
+          REGISTRY_WORK_DIR: ${{ runner.temp }}/registry-work
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name contract-registry-bot
+          git config user.email contract-registry-bot@users.noreply.github.com
+          args=(--push --alerts "github:${GITHUB_REPOSITORY}" --work-dir "$REGISTRY_WORK_DIR")
+          if [ -n "${{ inputs.source }}" ]; then args+=(--source "${{ inputs.source }}"); fi
+          node tools/src/cli/publish.ts "${args[@]}"
+      - name: Save caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/registry-work/results
+            ${{ runner.temp }}/registry-work/checks
+            ${{ runner.temp }}/registry-work/sources
+          key: registry-work-${{ github.run_id }}-${{ github.run_attempt }}

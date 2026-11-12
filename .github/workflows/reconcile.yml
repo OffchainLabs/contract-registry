@@ -1,0 +1,40 @@
+# Reconcile job (spec §5.7): verifies that every matching tag in each source repo has a tags/
+# file and every published branch head has been processed, alerts on gaps, and backfills them.
+name: reconcile
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Reconcile
+        env:
+          REGISTRY_WORK_DIR: ${{ runner.temp }}/registry-work
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node tools/src/cli/publish.ts --reconcile --push --alerts "github:${GITHUB_REPOSITORY}" --work-dir "$REGISTRY_WORK_DIR"
+      - name: Save caches
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/registry-work/results
+            ${{ runner.temp }}/registry-work/checks
+            ${{ runner.temp }}/registry-work/sources
+          key: registry-work-${{ github.run_id }}-${{ github.run_attempt }}
