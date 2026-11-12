@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/index.schema.json",
+  "title": "Generated summary (<source-repo>/index.json): the code lengths that have a by-length file, and every getter any entry has. The walker uses the getters for unknown code. Never hand-edited.",
+  "type": "object",
+  "required": ["schemaVersion", "repo", "codeLengths", "getters"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "codeLengths": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+    "getters": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/getter" } }
+  }
+}

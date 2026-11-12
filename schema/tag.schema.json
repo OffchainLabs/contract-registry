@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/tag.schema.json",
+  "title": "Tag build (<source-repo>/tags/<tag>.json). Write-once.",
+  "type": "object",
+  "required": ["schemaVersion", "repo", "tag", "commit", "prerelease", "packageVersion", "contracts"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "tag": { "type": "string", "minLength": 1 },
+    "commit": { "$ref": "common.schema.json#/$defs/commit" },
+    "prerelease": { "type": "boolean" },
+    "packageVersion": { "type": ["string", "null"], "description": "package.json version at the tag's commit, recorded even when it doesn't match the tag" },
+    "contracts": { "$ref": "common.schema.json#/$defs/contractsMap" }
+  }
+}

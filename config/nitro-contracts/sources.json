@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "url": "https://github.com/OffchainLabs/nitro-contracts.git",
+  "directory": "nitro-contracts",
+  "start": { "tag": "v3.2.0" },
+  "publishedRefs": {
+    "tags": ["v*"],
+    "branches": ["main", "hotfix*", "release-*", "develop"]
+  },
+  "tagValidation": {
+    "rule": "tag-equals-v-package-version",
+    "allowlist": { "v3.1.0-qol": "package.json says 3.1.0; tag predates the start ref" }
+  },
+  "outOfScopeGetters": "config/nitro-contracts/out-of-scope-getters.json",
+  "testChains": { "deployer": "nitro-contracts" },
+  "reconcileGraceMinutes": 60,
+  "builds": [
+    {
+      "name": "hardhat-foundry-0.8.17",
+      "when": { "descendantOf": ["v3.2.0"] },
+      "toolchain": { "node": "24", "foundry": "v1.9.0", "yarn": "1.22.22" },
+      "setup": [
+        "git submodule update --init --recursive",
+        "yarn install --frozen-lockfile --ignore-engines --non-interactive"
+      ],
+      "outputs": [
+        {
+          "name": "hardhat",
+          "commands": ["npx hardhat compile --force --quiet"],
+          "buildInfo": "build/contracts/build-info",
+          "layout": "hardhat",
+          "artifacts": "build/contracts",
+          "deployed": true
+        },
+        {
+          "name": "foundry",
+          "commands": ["forge build --skip '*.yul' --build-info --force"],
+          "buildInfo": "out/build-info",
+          "layout": "standard-json",
+          "deployed": false,
+          "parityWith": "hardhat"
+        },
+        {
+          "name": "foundry-yul",
+          "env": { "FOUNDRY_PROFILE": "yul" },
+          "commands": ["forge build --build-info --force"],
+          "buildInfo": "out/yul/build-info",
+          "layout": "standard-json",
+          "deployed": true
+        }
+      ],
+      "include": ["**"],
+      "exclude": ["src/mocks/**", "src/test-helpers/**", "test/**", "forge-std/**", "lib/**"]
+    }
+  ]
+}

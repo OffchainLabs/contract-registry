@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/branch.schema.json",
+  "title": "Published branch head (<source-repo>/branches/<branch>.json). Overwritten on each update; removed when the branch is deleted.",
+  "type": "object",
+  "required": ["schemaVersion", "repo", "branch", "commit", "contracts"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "branch": { "type": "string", "minLength": 1 },
+    "commit": { "$ref": "common.schema.json#/$defs/commit" },
+    "contracts": { "$ref": "common.schema.json#/$defs/contractsMap" }
+  }
+}
