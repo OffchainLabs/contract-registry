@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 451,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x2ac996c15fe155a00cc4c4179912f14b62994bc0bf1c7d52f63f2f91ad73eb4d",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/express-lane-auction/Burner.sol:Burner"
+      ],
+      "role": "logic",
+      "codeLength": 451,
+      "maskedRanges": [
+        {
+          "name": "token",
+          "type": "address",
+          "offsets": [
+            74,
+            195
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 12,
+      "getters": [
+        {
+          "signature": "token()",
+          "selector": "0xfc0c546a",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x44df8e70",
+        "0xfc0c546a"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}

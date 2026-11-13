@@ -1,0 +1,584 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xd7dfda22183c5ac5546fa8db92d85c796a7eb6f92a513113ccd21db462c59f11",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/BOLDUpgradeAction.sol:BOLDUpgradeAction"
+  ],
+  "role": "logic",
+  "codeLength": 23670,
+  "maskedRanges": [
+    {
+      "name": "MINIMUM_ASSERTION_PERIOD",
+      "type": "uint256",
+      "offsets": [
+        826,
+        7761
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_NEW_ROLLUP_ADMIN",
+      "type": "address",
+      "offsets": [
+        885,
+        3304
+      ],
+      "length": 32
+    },
+    {
+      "name": "PROXY_ADMIN_OUTBOX",
+      "type": "address",
+      "offsets": [
+        950,
+        9228
+      ],
+      "length": 32
+    },
+    {
+      "name": "PROXY_ADMIN_BRIDGE",
+      "type": "address",
+      "offsets": [
+        990,
+        2923,
+        8351
+      ],
+      "length": 32
+    },
+    {
+      "name": "CONFIRM_PERIOD_BLOCKS",
+      "type": "uint64",
+      "offsets": [
+        1030,
+        7369
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_CHALLENGE_MANAGER",
+      "type": "address",
+      "offsets": [
+        1096,
+        2890
+      ],
+      "length": 32
+    },
+    {
+      "name": "OUTBOX",
+      "type": "address",
+      "offsets": [
+        1136,
+        3195,
+        9145,
+        9325
+      ],
+      "length": 32
+    },
+    {
+      "name": "STAKE_TOKEN",
+      "type": "address",
+      "offsets": [
+        1176,
+        7417
+      ],
+      "length": 32
+    },
+    {
+      "name": "BIGSTEP_LEAF_SIZE",
+      "type": "uint256",
+      "offsets": [
+        1216,
+        8033
+      ],
+      "length": 32
+    },
+    {
+      "name": "PROXY_ADMIN_SEQUENCER_INBOX",
+      "type": "address",
+      "offsets": [
+        1279,
+        9585,
+        10111
+      ],
+      "length": 32
+    },
+    {
+      "name": "PROXY_ADMIN_REI",
+      "type": "address",
+      "offsets": [
+        1328,
+        8912
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_NEW_ROLLUP_USER",
+      "type": "address",
+      "offsets": [
+        1368,
+        3351
+      ],
+      "length": 32
+    },
+    {
+      "name": "PROXY_ADMIN_INBOX",
+      "type": "address",
+      "offsets": [
+        1408,
+        8712
+      ],
+      "length": 32
+    },
+    {
+      "name": "VALIDATOR_AFK_BLOCKS",
+      "type": "uint64",
+      "offsets": [
+        1448,
+        7799
+      ],
+      "length": 32
+    },
+    {
+      "name": "NUM_BIGSTEP_LEVEL",
+      "type": "uint8",
+      "offsets": [
+        1488,
+        8137
+      ],
+      "length": 32
+    },
+    {
+      "name": "BLOCK_LEAF_SIZE",
+      "type": "uint256",
+      "offsets": [
+        1547,
+        7995
+      ],
+      "length": 32
+    },
+    {
+      "name": "EXCESS_STAKE_RECEIVER",
+      "type": "address",
+      "offsets": [
+        1587,
+        3731,
+        7655
+      ],
+      "length": 32
+    },
+    {
+      "name": "THRESHOLD",
+      "type": "uint64",
+      "offsets": [
+        1627,
+        9677
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_INBOX",
+      "type": "address",
+      "offsets": [
+        1667,
+        8671
+      ],
+      "length": 32
+    },
+    {
+      "name": "CHAIN_ID",
+      "type": "uint256",
+      "offsets": [
+        1707,
+        7702
+      ],
+      "length": 32
+    },
+    {
+      "name": "OLD_ROLLUP",
+      "type": "address",
+      "offsets": [
+        1747,
+        3398,
+        4253,
+        4897,
+        5497,
+        5616,
+        5864,
+        6044,
+        6311,
+        6486,
+        6533,
+        7502
+      ],
+      "length": 32
+    },
+    {
+      "name": "CHALLENGE_PERIOD_BLOCKS",
+      "type": "uint64",
+      "offsets": [
+        1787,
+        3642
+      ],
+      "length": 32
+    },
+    {
+      "name": "OSP",
+      "type": "address",
+      "offsets": [
+        1852,
+        3675
+      ],
+      "length": 32
+    },
+    {
+      "name": "DISABLE_VALIDATOR_WHITELIST",
+      "type": "bool",
+      "offsets": [
+        1892,
+        4707,
+        4784
+      ],
+      "length": 32
+    },
+    {
+      "name": "MINI_STAKE_AMOUNTS_STORAGE",
+      "type": "address",
+      "offsets": [
+        1949,
+        7847
+      ],
+      "length": 32
+    },
+    {
+      "name": "INBOX",
+      "type": "address",
+      "offsets": [
+        1989,
+        3148,
+        8630
+      ],
+      "length": 32
+    },
+    {
+      "name": "REI",
+      "type": "address",
+      "offsets": [
+        2029,
+        3242,
+        8829,
+        9009
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_REI",
+      "type": "address",
+      "offsets": [
+        2069,
+        8870
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_SEQUENCER_INBOX",
+      "type": "address",
+      "offsets": [
+        2109,
+        9633,
+        10071
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_OUTBOX",
+      "type": "address",
+      "offsets": [
+        2149,
+        9186
+      ],
+      "length": 32
+    },
+    {
+      "name": "PREIMAGE_LOOKUP",
+      "type": "address",
+      "offsets": [
+        2189,
+        6853,
+        7055
+      ],
+      "length": 32
+    },
+    {
+      "name": "SEQ_INBOX",
+      "type": "address",
+      "offsets": [
+        2229,
+        3101,
+        9513,
+        10214,
+        10444,
+        10606
+      ],
+      "length": 32
+    },
+    {
+      "name": "MAX",
+      "type": "uint64",
+      "offsets": [
+        2269,
+        9725
+      ],
+      "length": 32
+    },
+    {
+      "name": "IMPL_BRIDGE",
+      "type": "address",
+      "offsets": [
+        2309,
+        8310
+      ],
+      "length": 32
+    },
+    {
+      "name": "IS_DELAY_BUFFERABLE",
+      "type": "bool",
+      "offsets": [
+        2349,
+        9546
+      ],
+      "length": 32
+    },
+    {
+      "name": "REPLENISH_RATE_IN_BASIS",
+      "type": "uint64",
+      "offsets": [
+        2389,
+        9773
+      ],
+      "length": 32
+    },
+    {
+      "name": "CHALLENGE_GRACE_PERIOD_BLOCKS",
+      "type": "uint64",
+      "offsets": [
+        2452,
+        8178
+      ],
+      "length": 32
+    },
+    {
+      "name": "BRIDGE",
+      "type": "address",
+      "offsets": [
+        2492,
+        3054,
+        8269,
+        8501
+      ],
+      "length": 32
+    },
+    {
+      "name": "SMALLSTEP_LEAF_SIZE",
+      "type": "uint256",
+      "offsets": [
+        2532,
+        8071
+      ],
+      "length": 32
+    },
+    {
+      "name": "STAKE_AMOUNT",
+      "type": "uint256",
+      "offsets": [
+        2572,
+        7464
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "BRIDGE()",
+      "selector": "0xee9a31a2",
+      "kind": "single"
+    },
+    {
+      "signature": "EXCESS_STAKE_RECEIVER()",
+      "selector": "0x64f4992a",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_BRIDGE()",
+      "selector": "0xdae7cb8b",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_CHALLENGE_MANAGER()",
+      "selector": "0x10a662e2",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_INBOX()",
+      "selector": "0x817cd312",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_NEW_ROLLUP_ADMIN()",
+      "selector": "0x00f9731e",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_NEW_ROLLUP_USER()",
+      "selector": "0x4692de5d",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_OUTBOX()",
+      "selector": "0xc897f55e",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_REI()",
+      "selector": "0xc21c4233",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_SEQUENCER_INBOX()",
+      "selector": "0xc519d151",
+      "kind": "single"
+    },
+    {
+      "signature": "INBOX()",
+      "selector": "0xb7010697",
+      "kind": "single"
+    },
+    {
+      "signature": "MINI_STAKE_AMOUNTS_STORAGE()",
+      "selector": "0xb5e00c3f",
+      "kind": "single"
+    },
+    {
+      "signature": "OLD_ROLLUP()",
+      "selector": "0x8765240f",
+      "kind": "single"
+    },
+    {
+      "signature": "OSP()",
+      "selector": "0x9f9854e5",
+      "kind": "single"
+    },
+    {
+      "signature": "OUTBOX()",
+      "selector": "0x1b142ea7",
+      "kind": "single"
+    },
+    {
+      "signature": "PREIMAGE_LOOKUP()",
+      "selector": "0xcc8089bb",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_BRIDGE()",
+      "selector": "0x0a54257d",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_INBOX()",
+      "selector": "0x4b2f51ef",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_OUTBOX()",
+      "selector": "0x0787484b",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_REI()",
+      "selector": "0x3c2b7840",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_SEQUENCER_INBOX()",
+      "selector": "0x2cfb7ca3",
+      "kind": "single"
+    },
+    {
+      "signature": "REI()",
+      "selector": "0xbe41b367",
+      "kind": "single"
+    },
+    {
+      "signature": "SEQ_INBOX()",
+      "selector": "0xd384cb95",
+      "kind": "single"
+    },
+    {
+      "signature": "STAKE_TOKEN()",
+      "selector": "0x1c39b672",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x003c78fb",
+    "0x00f9731e",
+    "0x0787484b",
+    "0x0a54257d",
+    "0x1047fc52",
+    "0x10a662e2",
+    "0x1b142ea7",
+    "0x1c39b672",
+    "0x1ccc2cd1",
+    "0x28fb228c",
+    "0x2cfb7ca3",
+    "0x304b9071",
+    "0x3c2b7840",
+    "0x4692de5d",
+    "0x4b2f51ef",
+    "0x4ceccfe5",
+    "0x5d9e2444",
+    "0x609fb503",
+    "0x64f4992a",
+    "0x785ffb37",
+    "0x817cd312",
+    "0x85e1f4d0",
+    "0x8765240f",
+    "0x91ddb285",
+    "0x999f20db",
+    "0x9f9854e5",
+    "0xb38d57f0",
+    "0xb5e00c3f",
+    "0xb7010697",
+    "0xbe41b367",
+    "0xc21c4233",
+    "0xc519d151",
+    "0xc897f55e",
+    "0xcc8089bb",
+    "0xd384cb95",
+    "0xd49d5181",
+    "0xdae7cb8b",
+    "0xe8180c29",
+    "0xeb657a4e",
+    "0xebe03a93",
+    "0xec4f74ce",
+    "0xee9a31a2",
+    "0xfa287420",
+    "0xfaf5625f"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

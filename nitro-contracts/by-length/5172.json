@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 5172,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x38072d11f89e4e62a34fd74de3b02b0b49c4d3a8730d124ab52bb8fa778dff84",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/RollupProxy.sol:RollupProxy"
+      ],
+      "role": "proxy",
+      "implementationSlots": [
+        "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+        "0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d"
+      ],
+      "codeLength": 5172,
+      "maskedRanges": [],
+      "cborMetadataLength": 12,
+      "getters": [],
+      "selectors": [
+        "0x8a7e55a2"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": "london",
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": "none",
+          "appendCBOR": true
+        }
+      },
+      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+      "firstBranch": "main",
+      "tags": [
+        "v3.2.0"
+      ]
+    }
+  ]
+}

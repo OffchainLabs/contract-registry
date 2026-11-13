@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xa16bc2264129cce4c4c45c737f194b3970f06b7211b513b48c6dceaba0bc674d",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/osp/OneStepProverMath.sol:OneStepProverMath"
+  ],
+  "role": "logic",
+  "codeLength": 10197,
+  "maskedRanges": [],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0xa92cb501"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

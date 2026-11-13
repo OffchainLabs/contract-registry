@@ -1,0 +1,37 @@
+{
+  "name": "contract-registry",
+  "private": true,
+  "type": "module",
+  "description": "Registry of deployed-contract fingerprints built from Offchain Labs contract repos",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "publish-run": "node tools/src/cli/publish.ts",
+    "reconcile": "node tools/src/cli/publish.ts --reconcile",
+    "generate": "node tools/src/cli/generate.ts",
+    "ci-check": "node tools/src/cli/ci-check.ts",
+    "walk": "node tools/src/cli/walk.ts",
+    "lookup": "node tools/src/cli/lookup.ts",
+    "test": "node --test tools/test/*.test.ts",
+    "build:walker": "tsc -p tsconfig.build.json",
+    "check": "node tools/src/cli/check.ts",
+    "test:integration": "node --test tools/test/integration/*.test.ts"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "viem": "^2.57.19"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    "./walker": {
+      "types": "./dist/walker/index.d.ts",
+      "default": "./dist/walker/index.js"
+    }
+  }
+}

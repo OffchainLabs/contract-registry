@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/common.schema.json",
+  "title": "Shared definitions",
+  "$defs": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "fingerprint": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "selector": { "type": "string", "pattern": "^0x[0-9a-f]{8}$" },
+    "fqName": { "type": "string", "pattern": "^[^:]+:[A-Za-z0-9_$]+$" },
+    "slot": { "type": "string", "pattern": "^0x[0-9a-f]{64}$", "description": "A storage slot, as 32 bytes of lowercase hex" },
+    "implementationSlots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/slot" },
+      "description": "Storage slots holding a proxy's implementation addresses, in order: first the implementation (EIP-1967), then any secondary one (AdminFallbackProxy's user-logic implementation)"
+    },
+    "role": {
+      "enum": ["logic", "proxy", "proxy-admin"],
+      "description": "logic: implements the system, on its own or behind a proxy. proxy: delegates to the implementation(s) in its implementationSlots. proxy-admin: administers proxies. Upgrades replace logic, never proxies or their admins."
+    },
+    "packageAtVersion": { "type": "string", "pattern": "^(@[^/@\\s]+/)?[^/@\\s]+@[^@\\s]+$", "description": "<package name>@<version>, e.g. @openzeppelin/contracts@4.7.3" },
+    "contractsMap": {
+      "type": "object",
+      "description": "Fully qualified contract name to fingerprint",
+      "propertyNames": { "$ref": "#/$defs/fqName" },
+      "additionalProperties": { "$ref": "#/$defs/fingerprint" }
+    },
+    "getter": {
+      "type": "object",
+      "required": ["signature", "selector", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "signature": { "type": "string", "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*\\((uint256)?\\)$" },
+        "selector": { "$ref": "#/$defs/selector" },
+        "kind": { "enum": ["single", "list"] }
+      }
+    },
+    "maskedRange": {
+      "type": "object",
+      "description": "Bytes filled in at deploy time and zeroed before hashing: a Solidity immutable (by its source name), a linked library's address ('<link <file>:<library>>') or a library's own address ('<library address>'). Synthetic names start with '<'.",
+      "required": ["name", "type", "offsets", "length"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "offsets": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 0 } },
+        "length": { "type": "integer", "minimum": 1, "maximum": 32 }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "required": ["language", "version", "evmVersion", "optimizer", "viaIR", "metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "language": { "type": "string" },
+        "version": { "type": "string" },
+        "evmVersion": { "type": ["string", "null"] },
+        "optimizer": {
+          "type": "object",
+          "required": ["enabled", "runs"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "runs": { "type": ["integer", "null"] },
+            "details": {}
+          },
+          "additionalProperties": false
+        },
+        "viaIR": { "type": "boolean" },
+        "metadata": {
+          "type": "object",
+          "required": ["bytecodeHash", "appendCBOR"],
+          "additionalProperties": false,
+          "properties": {
+            "bytecodeHash": { "type": ["string", "null"] },
+            "appendCBOR": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["schemaVersion", "fingerprint", "repo", "contracts", "role", "codeLength", "maskedRanges", "cborMetadataLength", "getters", "selectors", "compiler", "firstCommit", "firstBranch"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "fingerprint": { "$ref": "#/$defs/fingerprint" },
+        "repo": { "$ref": "#/$defs/repo" },
+        "contracts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/fqName" } },
+        "packages": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/fqName" },
+          "additionalProperties": { "$ref": "#/$defs/packageAtVersion" },
+          "description": "The contracts (a subset of contracts) compiled from an installed dependency package, with its name and version. Contracts not listed are the source repo's own code; absent when every contract is. Like firstCommit, from the first build that produced the fingerprint."
+        },
+        "role": { "$ref": "#/$defs/role" },
+        "implementationSlots": { "$ref": "#/$defs/implementationSlots" },
+        "codeLength": { "type": "integer", "minimum": 1 },
+        "maskedRanges": { "type": "array", "items": { "$ref": "#/$defs/maskedRange" }, "description": "The ranges zeroed before hashing, besides the trailing CBOR metadata (cborMetadataLength)" },
+        "cborMetadataLength": { "type": "integer", "minimum": 0 },
+        "getters": { "type": "array", "items": { "$ref": "#/$defs/getter" } },
+        "selectors": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/selector" } },
+        "compiler": { "oneOf": [{ "$ref": "#/$defs/compiler" }, { "type": "null" }] },
+        "firstCommit": { "oneOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] },
+        "firstBranch": { "type": ["string", "null"] },
+        "label": { "type": "string", "minLength": 1, "description": "Manual entries: a human-readable name, e.g. 'Arbitrum One Bridge (patched v3.0.0)'" },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "firstCommit": { "type": "null" } } },
+          "then": { "required": ["label"], "properties": { "firstBranch": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "proxy" } }, "required": ["role"] },
+          "then": { "required": ["implementationSlots"] },
+          "else": { "not": { "required": ["implementationSlots"] } }
+        }
+      ]
+    }
+  }
+}

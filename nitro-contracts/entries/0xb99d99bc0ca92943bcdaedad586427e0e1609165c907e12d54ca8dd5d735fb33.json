@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xb99d99bc0ca92943bcdaedad586427e0e1609165c907e12d54ca8dd5d735fb33",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/ValidatorWallet.sol:ValidatorWallet"
+  ],
+  "role": "logic",
+  "codeLength": 7190,
+  "maskedRanges": [
+    {
+      "name": "gasPerBlob",
+      "type": "uint256",
+      "offsets": [
+        1378,
+        4457
+      ],
+      "length": 32
+    },
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        2618
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x097da1f8",
+    "0x0a2435f8",
+    "0x193c8edd",
+    "0x3a7c721a",
+    "0x715018a6",
+    "0x72f45866",
+    "0x77a24f36",
+    "0x8da5cb5b",
+    "0x9ac2a011",
+    "0x9be7bbd2",
+    "0xa158657c",
+    "0xc179f1d9",
+    "0xce1d571f",
+    "0xf2fde38b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

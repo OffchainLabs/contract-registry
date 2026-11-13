@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLengths": [
+    91,
+    94,
+    95,
+    158,
+    236,
+    451,
+    540,
+    802,
+    1321,
+    1892,
+    2201,
+    2228,
+    2493,
+    2532,
+    2665,
+    3160,
+    3362,
+    3391,
+    4594,
+    4617,
+    4660,
+    4752,
+    5172,
+    6306,
+    6414,
+    6702,
+    6725,
+    6756,
+    7084,
+    7187,
+    7190,
+    7451,
+    7459,
+    7536,
+    7538,
+    7602,
+    7680,
+    7681,
+    7700,
+    7727,
+    8303,
+    8375,
+    8748,
+    10197,
+    10483,
+    11006,
+    13359,
+    13402,
+    17164,
+    18350,
+    19592,
+    21892,
+    22343,
+    23502,
+    23538,
+    23670
+  ],
+  "getters": [
+    {
+      "signature": "activeOutbox()",
+      "selector": "0xab5d8943",
+      "kind": "single"
+    },
+    {
+      "signature": "allowedDelayedInboxList(uint256)",
+      "selector": "0xe76f5c8d",
+      "kind": "list"
+    },
+    {
+      "signature": "allowedOutboxList(uint256)",
+      "selector": "0x945e1147",
+      "kind": "list"
+    },
+    {
+      "signature": "anyTrustFastConfirmer()",
+      "selector": "0x55840a58",
+      "kind": "single"
+    },
+    {
+      "signature": "assertionChain()",
+      "selector": "0x48dd2924",
+      "kind": "single"
+    },
+    {
+      "signature": "batchPosterManager()",
+      "selector": "0xcc2a1a0c",
+      "kind": "single"
+    },
+    {
+      "signature": "beneficiary()",
+      "selector": "0x38af3eed",
+      "kind": "single"
+    },
+    {
+      "signature": "biddingToken()",
+      "selector": "0x639d7566",
+      "kind": "single"
+    },
+    {
+      "signature": "bridge()",
+      "selector": "0xe78cea92",
+      "kind": "single"
+    },
+    {
+      "signature": "BRIDGE()",
+      "selector": "0xee9a31a2",
+      "kind": "single"
+    },
+    {
+      "signature": "bridgeCreator()",
+      "selector": "0xf860cefa",
+      "kind": "single"
+    },
+    {
+      "signature": "challengeManager()",
+      "selector": "0x023a96fe",
+      "kind": "single"
+    },
+    {
+      "signature": "challengeManagerTemplate()",
+      "selector": "0x9c683d10",
+      "kind": "single"
+    },
+    {
+      "signature": "customDAValidator()",
+      "selector": "0xc3ea90ba",
+      "kind": "single"
+    },
+    {
+      "signature": "destination()",
+      "selector": "0xb269681d",
+      "kind": "single"
+    },
+    {
+      "signature": "disallower()",
+      "selector": "0xefe12b01",
+      "kind": "single"
+    },
+    {
+      "signature": "ERC1820_DEPLOYER()",
+      "selector": "0x290302ce",
+      "kind": "single"
+    },
+    {
+      "signature": "ERC2470_DEPLOYER()",
+      "selector": "0x55e34a6b",
+      "kind": "single"
+    },
+    {
+      "signature": "EXCESS_STAKE_RECEIVER()",
+      "selector": "0x64f4992a",
+      "kind": "single"
+    },
+    {
+      "signature": "excessStakeReceiver()",
+      "selector": "0xe94e051e",
+      "kind": "single"
+    },
+    {
+      "signature": "feeTokenPricer()",
+      "selector": "0x22291e8d",
+      "kind": "single"
+    },
+    {
+      "signature": "getProxyAdmin()",
+      "selector": "0x8b3240a0",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_BRIDGE()",
+      "selector": "0xdae7cb8b",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_CHALLENGE_MANAGER()",
+      "selector": "0x10a662e2",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_INBOX()",
+      "selector": "0x817cd312",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_NEW_ROLLUP_ADMIN()",
+      "selector": "0x00f9731e",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_NEW_ROLLUP_USER()",
+      "selector": "0x4692de5d",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_OUTBOX()",
+      "selector": "0xc897f55e",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_REI()",
+      "selector": "0xc21c4233",
+      "kind": "single"
+    },
+    {
+      "signature": "IMPL_SEQUENCER_INBOX()",
+      "selector": "0xc519d151",
+      "kind": "single"
+    },
+    {
+      "signature": "inbox()",
+      "selector": "0xfb0e722b",
+      "kind": "single"
+    },
+    {
+      "signature": "INBOX()",
+      "selector": "0xb7010697",
+      "kind": "single"
+    },
+    {
+      "signature": "l2FactoriesDeployer()",
+      "selector": "0xac0425bc",
+      "kind": "single"
+    },
+    {
+      "signature": "l2ToL1Sender()",
+      "selector": "0x80648b02",
+      "kind": "single"
+    },
+    {
+      "signature": "loserStakeEscrow()",
+      "selector": "0xf065de3f",
+      "kind": "single"
+    },
+    {
+      "signature": "MINI_STAKE_AMOUNTS_STORAGE()",
+      "selector": "0xb5e00c3f",
+      "kind": "single"
+    },
+    {
+      "signature": "nativeToken()",
+      "selector": "0xe1758bd8",
+      "kind": "single"
+    },
+    {
+      "signature": "NICK_CREATE2_DEPLOYER()",
+      "selector": "0xef77e71a",
+      "kind": "single"
+    },
+    {
+      "signature": "OLD_ROLLUP()",
+      "selector": "0x8765240f",
+      "kind": "single"
+    },
+    {
+      "signature": "oneStepProofEntry()",
+      "selector": "0x48923bc5",
+      "kind": "single"
+    },
+    {
+      "signature": "osp()",
+      "selector": "0xf26a62c6",
+      "kind": "single"
+    },
+    {
+      "signature": "OSP()",
+      "selector": "0x9f9854e5",
+      "kind": "single"
+    },
+    {
+      "signature": "outbox()",
+      "selector": "0xce11e6ab",
+      "kind": "single"
+    },
+    {
+      "signature": "OUTBOX()",
+      "selector": "0x1b142ea7",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "PREIMAGE_LOOKUP()",
+      "selector": "0xcc8089bb",
+      "kind": "single"
+    },
+    {
+      "signature": "prover0()",
+      "selector": "0x30a5509f",
+      "kind": "single"
+    },
+    {
+      "signature": "proverHostIo()",
+      "selector": "0x5f52fd7c",
+      "kind": "single"
+    },
+    {
+      "signature": "proverMath()",
+      "selector": "0x66e5d9c3",
+      "kind": "single"
+    },
+    {
+      "signature": "proverMem()",
+      "selector": "0x1f128bc0",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_BRIDGE()",
+      "selector": "0x0a54257d",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_INBOX()",
+      "selector": "0x4b2f51ef",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_OUTBOX()",
+      "selector": "0x0787484b",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_REI()",
+      "selector": "0x3c2b7840",
+      "kind": "single"
+    },
+    {
+      "signature": "PROXY_ADMIN_SEQUENCER_INBOX()",
+      "selector": "0x2cfb7ca3",
+      "kind": "single"
+    },
+    {
+      "signature": "reader4844()",
+      "selector": "0x8d910dde",
+      "kind": "single"
+    },
+    {
+      "signature": "REI()",
+      "selector": "0xbe41b367",
+      "kind": "single"
+    },
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    },
+    {
+      "signature": "rollupAdminLogic()",
+      "selector": "0x9dba3241",
+      "kind": "single"
+    },
+    {
+      "signature": "rollupEventInbox()",
+      "selector": "0xaa38a6e7",
+      "kind": "single"
+    },
+    {
+      "signature": "rollupUserLogic()",
+      "selector": "0x9d4798e3",
+      "kind": "single"
+    },
+    {
+      "signature": "SEQ_INBOX()",
+      "selector": "0xd384cb95",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    },
+    {
+      "signature": "STAKE_TOKEN()",
+      "selector": "0x1c39b672",
+      "kind": "single"
+    },
+    {
+      "signature": "stakeToken()",
+      "selector": "0x51ed6a30",
+      "kind": "single"
+    },
+    {
+      "signature": "template()",
+      "selector": "0x6f2ddd93",
+      "kind": "single"
+    },
+    {
+      "signature": "token()",
+      "selector": "0xfc0c546a",
+      "kind": "single"
+    },
+    {
+      "signature": "upgradeExecutorLogic()",
+      "selector": "0x030cb85e",
+      "kind": "single"
+    },
+    {
+      "signature": "validatorWalletCreator()",
+      "selector": "0xbc45e0ae",
+      "kind": "single"
+    },
+    {
+      "signature": "ZOLTU_CREATE2_DEPLOYER()",
+      "selector": "0xd3a3faab",
+      "kind": "single"
+    }
+  ]
+}

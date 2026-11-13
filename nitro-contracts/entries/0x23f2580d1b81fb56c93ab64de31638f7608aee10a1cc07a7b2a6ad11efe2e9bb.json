@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x23f2580d1b81fb56c93ab64de31638f7608aee10a1cc07a7b2a6ad11efe2e9bb",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/osp/OneStepProofEntry.sol:OneStepProofEntry"
+  ],
+  "role": "logic",
+  "codeLength": 13402,
+  "maskedRanges": [],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "prover0()",
+      "selector": "0x30a5509f",
+      "kind": "single"
+    },
+    {
+      "signature": "proverHostIo()",
+      "selector": "0x5f52fd7c",
+      "kind": "single"
+    },
+    {
+      "signature": "proverMath()",
+      "selector": "0x66e5d9c3",
+      "kind": "single"
+    },
+    {
+      "signature": "proverMem()",
+      "selector": "0x1f128bc0",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x04997be4",
+    "0x1f128bc0",
+    "0x30a5509f",
+    "0x5f52fd7c",
+    "0x66e5d9c3",
+    "0xb5112fd2",
+    "0xc39619c4"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

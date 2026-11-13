@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/out-of-scope.schema.json",
+  "title": "Out-of-scope getters for one source repo (config/<source-repo>/out-of-scope-getters.json). The walker treats their targets as labelled leaves; every other getter is in scope.",
+  "type": "object",
+  "required": ["schemaVersion", "repo", "getters"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "getters": {
+      "type": "object",
+      "description": "Getter signature to the reason it is out of scope",
+      "propertyNames": { "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*\\((uint256)?\\)$" },
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

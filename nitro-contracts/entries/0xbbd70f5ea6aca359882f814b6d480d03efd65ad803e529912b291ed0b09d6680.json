@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xbbd70f5ea6aca359882f814b6d480d03efd65ad803e529912b291ed0b09d6680",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/assertionStakingPool/AssertionStakingPool.sol:AssertionStakingPool"
+  ],
+  "role": "logic",
+  "codeLength": 3391,
+  "maskedRanges": [
+    {
+      "name": "assertionHash",
+      "type": "bytes32",
+      "offsets": [
+        211,
+        1214
+      ],
+      "length": 32
+    },
+    {
+      "name": "stakeToken",
+      "type": "address",
+      "offsets": [
+        298,
+        704,
+        932,
+        1046
+      ],
+      "length": 32
+    },
+    {
+      "name": "rollup",
+      "type": "address",
+      "offsets": [
+        455,
+        1080,
+        1165,
+        1312,
+        1429
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    },
+    {
+      "signature": "stakeToken()",
+      "selector": "0x51ed6a30",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x2113ed21",
+    "0x26c0e5c5",
+    "0x30fc43ed",
+    "0x51ed6a30",
+    "0x6b74d515",
+    "0x7476083b",
+    "0x83915971",
+    "0x930412af",
+    "0x9451944d",
+    "0x956501bb",
+    "0xcb23bcb5"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

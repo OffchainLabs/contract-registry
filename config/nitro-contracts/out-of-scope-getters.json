@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "getters": {
+    "activeOutbox()": "Zero except while a withdrawal executes",
+    "l2ToL1Sender()": "Zero except while a withdrawal executes",
+    "stakeToken()": "External token chosen by the chain owner",
+    "nativeToken()": "External fee token chosen by the chain owner",
+    "feeTokenPricer()": "External pricer chosen by the chain owner",
+    "customDAValidator()": "External DA validator chosen by the chain owner",
+    "owner()": "Upgrade executor or other owner; another repo",
+    "batchPosterManager()": "Account chosen by the chain owner",
+    "loserStakeEscrow()": "Account chosen by the chain owner",
+    "excessStakeReceiver()": "Account chosen by the chain owner",
+    "anyTrustFastConfirmer()": "Account chosen by the chain owner"
+  }
+}

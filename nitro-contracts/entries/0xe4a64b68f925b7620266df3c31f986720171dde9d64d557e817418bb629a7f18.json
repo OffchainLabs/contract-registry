@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xe4a64b68f925b7620266df3c31f986720171dde9d64d557e817418bb629a7f18",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20"
+  ],
+  "packages": {
+    "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20": "@openzeppelin/contracts@4.7.3"
+  },
+  "role": "logic",
+  "codeLength": 2493,
+  "maskedRanges": [],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x06fdde03",
+    "0x095ea7b3",
+    "0x18160ddd",
+    "0x23b872dd",
+    "0x313ce567",
+    "0x39509351",
+    "0x70a08231",
+    "0x95d89b41",
+    "0xa457c2d7",
+    "0xa9059cbb",
+    "0xdd62ed3e"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

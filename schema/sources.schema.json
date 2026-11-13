@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contract-registry/schema/sources.schema.json",
+  "title": "Sources config for one source repo (config/<source-repo>/sources.json)",
+  "type": "object",
+  "required": ["schemaVersion", "repo", "url", "directory", "start", "publishedRefs", "tagValidation", "outOfScopeGetters", "contractRoles", "reviewedRangePairs", "testChains", "reconcileGraceMinutes", "builds"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "url": { "type": "string", "pattern": "^https://github\\.com/[^/]+/[^/]+\\.git$", "description": "Public, anonymous URL. Private repos are never sources." },
+    "directory": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "start": { "type": "object", "required": ["tag"], "additionalProperties": false, "properties": { "tag": { "type": "string" } } },
+    "publishedRefs": {
+      "type": "object",
+      "required": ["tags", "branches"],
+      "additionalProperties": false,
+      "properties": {
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "branches": { "type": "array", "items": { "type": "string" }, "description": "Patterns; '*' matches anything including '/'. Order sets which branch a commit on several new branches is attributed to." }
+      }
+    },
+    "tagValidation": {
+      "type": "object",
+      "required": ["rule", "allowlist"],
+      "additionalProperties": false,
+      "properties": {
+        "rule": { "const": "tag-equals-v-package-version" },
+        "allowlist": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "outOfScopeGetters": { "type": "string" },
+    "contractRoles": {
+      "type": "object",
+      "description": "Proxies and proxy admins, by fully qualified name; every other contract is logic. Copied into each entry (role, implementationSlots) when it is written, so list a contract before its first build is published. Contracts sharing a fingerprint must have the same role.",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/fqName" },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["role", "implementationSlots"],
+            "additionalProperties": false,
+            "properties": { "role": { "const": "proxy" }, "implementationSlots": { "$ref": "common.schema.json#/$defs/implementationSlots" } }
+          },
+          {
+            "type": "object",
+            "required": ["role"],
+            "additionalProperties": false,
+            "properties": { "role": { "const": "proxy-admin" } }
+          }
+        ]
+      }
+    },
+    "reviewedRangePairs": {
+      "type": "array",
+      "description": "Pairs of entries with the same code length that mask different bytes, each reviewed by rebuilding both and confirming that their code differs at some byte neither masks, so no code can match both. Every other such pair fails publish and CI, which keeps lookups to at most one match.",
+      "items": {
+        "type": "object",
+        "required": ["fingerprints", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "fingerprints": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/fingerprint" }, "description": "The two entries, in either order" },
+          "note": { "type": "string", "minLength": 1, "description": "What the review found, and who reviewed it" }
+        }
+      }
+    },
+    "testChains": { "oneOf": [{ "type": "null" }, { "type": "object", "required": ["deployer"], "additionalProperties": false, "properties": { "deployer": { "type": "string" } } }] },
+    "reconcileGraceMinutes": { "type": "integer", "minimum": 0 },
+    "builds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "when", "toolchain", "setup", "outputs", "include", "exclude"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "when": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "descendantOf": { "type": "array", "items": { "type": "string" } },
+              "notDescendantOf": { "type": "array", "items": { "type": "string" } },
+              "refs": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "toolchain": { "type": "object", "additionalProperties": { "type": "string" } },
+          "setup": { "type": "array", "items": { "type": "string" } },
+          "outputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "commands", "buildInfo", "layout", "deployed"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "commands": { "type": "array", "items": { "type": "string" } },
+                "env": { "type": "object", "additionalProperties": { "type": "string" } },
+                "buildInfo": { "type": "string" },
+                "layout": { "enum": ["hardhat", "standard-json"] },
+                "artifacts": { "type": "string" },
+                "deployed": { "type": "boolean" },
+                "parityWith": { "type": "string" }
+              }
+            }
+          },
+          "include": { "type": "array", "items": { "type": "string" } },
+          "exclude": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

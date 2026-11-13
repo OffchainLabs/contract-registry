@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x71d431ddb3a2740d58745524235dfa6fa0e67ea7b9508576ae1e785befcd50bf",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/ERC20Bridge.sol:ERC20Bridge"
+  ],
+  "role": "logic",
+  "codeLength": 8748,
+  "maskedRanges": [
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        2354
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "activeOutbox()",
+      "selector": "0xab5d8943",
+      "kind": "single"
+    },
+    {
+      "signature": "allowedDelayedInboxList(uint256)",
+      "selector": "0xe76f5c8d",
+      "kind": "list"
+    },
+    {
+      "signature": "allowedOutboxList(uint256)",
+      "selector": "0x945e1147",
+      "kind": "list"
+    },
+    {
+      "signature": "nativeToken()",
+      "selector": "0xe1758bd8",
+      "kind": "single"
+    },
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x0084120c",
+    "0x16bf5579",
+    "0x413b35bd",
+    "0x47fb24c5",
+    "0x485cc955",
+    "0x4f61f850",
+    "0x5fca4a16",
+    "0x75d81e25",
+    "0x7a88b107",
+    "0x86598a56",
+    "0x919cc706",
+    "0x945e1147",
+    "0x9e5d4c49",
+    "0xab5d8943",
+    "0xad48cb5e",
+    "0xae60bd13",
+    "0xcb23bcb5",
+    "0xcee3d728",
+    "0xd5719dc2",
+    "0xe1758bd8",
+    "0xe76f5c8d",
+    "0xe77145f4",
+    "0xeca067ad",
+    "0xee35f327",
+    "0xf81ff3b3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

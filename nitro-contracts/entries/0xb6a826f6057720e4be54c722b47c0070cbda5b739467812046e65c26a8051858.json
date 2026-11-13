@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xb6a826f6057720e4be54c722b47c0070cbda5b739467812046e65c26a8051858",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/Inbox.sol:Inbox"
+  ],
+  "role": "logic",
+  "codeLength": 11006,
+  "maskedRanges": [
+    {
+      "name": "maxDataSize",
+      "type": "uint256",
+      "offsets": [
+        1219,
+        2095,
+        2180,
+        7002,
+        7091
+      ],
+      "length": 32
+    },
+    {
+      "name": "deployTimeChainId",
+      "type": "uint256",
+      "offsets": [
+        1408,
+        1945,
+        4119,
+        5041,
+        6200
+      ],
+      "length": 32
+    },
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        3066,
+        5203
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "bridge()",
+      "selector": "0xe78cea92",
+      "kind": "single"
+    },
+    {
+      "signature": "getProxyAdmin()",
+      "selector": "0x8b3240a0",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x00f72382",
+    "0x0f4d14e9",
+    "0x1b871c8d",
+    "0x1fe927cf",
+    "0x22bd5c1c",
+    "0x3f4ba83a",
+    "0x439370b1",
+    "0x485cc955",
+    "0x5075788b",
+    "0x5c975abb",
+    "0x5e916758",
+    "0x679b6ded",
+    "0x67ef3ab8",
+    "0x6e6e8a6a",
+    "0x70665f14",
+    "0x8456cb59",
+    "0x8a631aa6",
+    "0x8b3240a0",
+    "0xa66b327d",
+    "0xb75436bb",
+    "0xbabcc539",
+    "0xc474d2c5",
+    "0xe3de72a5",
+    "0xe6bd12cf",
+    "0xe78cea92",
+    "0xe8eb1dc3",
+    "0xee35f327",
+    "0xefeadb6d"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

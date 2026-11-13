@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x9b857ee78b56a3de3e9a58ad4d2088e8c6a33f2af4bc1af865d5bb1143b180af",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/DeployHelper.sol:DeployHelper"
+  ],
+  "role": "logic",
+  "codeLength": 6414,
+  "maskedRanges": [],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "ERC1820_DEPLOYER()",
+      "selector": "0x290302ce",
+      "kind": "single"
+    },
+    {
+      "signature": "ERC2470_DEPLOYER()",
+      "selector": "0x55e34a6b",
+      "kind": "single"
+    },
+    {
+      "signature": "NICK_CREATE2_DEPLOYER()",
+      "selector": "0xef77e71a",
+      "kind": "single"
+    },
+    {
+      "signature": "ZOLTU_CREATE2_DEPLOYER()",
+      "selector": "0xd3a3faab",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x1b9a680c",
+    "0x290302ce",
+    "0x2e796641",
+    "0x4367d652",
+    "0x55e34a6b",
+    "0x75ae22b5",
+    "0x89cf8ae6",
+    "0x9ed2c6f0",
+    "0xacd7d02a",
+    "0xd3a3faab",
+    "0xd7c641e7",
+    "0xdb633c3e",
+    "0xdd0c625a",
+    "0xef77e71a"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x75ff2b30fa0bf7a30823483aa8009eb81710d4f9ee218691815480c13e4b6059",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/osp/OneStepProverHostIo.sol:OneStepProverHostIo"
+  ],
+  "role": "logic",
+  "codeLength": 19592,
+  "maskedRanges": [
+    {
+      "name": "customDAValidator",
+      "type": "address",
+      "offsets": [
+        106,
+        1643,
+        3808,
+        4401,
+        8538
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "customDAValidator()",
+      "selector": "0xc3ea90ba",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0xa92cb501",
+    "0xc3ea90ba"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}

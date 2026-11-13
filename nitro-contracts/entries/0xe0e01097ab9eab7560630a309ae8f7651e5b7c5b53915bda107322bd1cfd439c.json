@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xe0e01097ab9eab7560630a309ae8f7651e5b7c5b53915bda107322bd1cfd439c",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/chain/CacheManager.sol:CacheManager"
+  ],
+  "role": "logic",
+  "codeLength": 8303,
+  "maskedRanges": [
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        1523
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [],
+  "selectors": [
+    "0x17be85c3",
+    "0x20f2f345",
+    "0x2dd4f566",
+    "0x32052a9b",
+    "0x3f4ba83a",
+    "0x54fac919",
+    "0x5c32e943",
+    "0x5c975abb",
+    "0x674a64e0",
+    "0xa8d6fe04",
+    "0xb187bd26",
+    "0xb30906d4",
+    "0xbae6c2ad",
+    "0xc1c013c4",
+    "0xc565a208",
+    "0xc77ed13e",
+    "0xcadb43e2",
+    "0xd29b303e",
+    "0xe4940157",
+    "0xe9c1bc0f"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
+  "firstBranch": "main"
+}
