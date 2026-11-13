@@ -80,6 +80,16 @@ export const ANVIL_DEPLOYER_KEY =
  */
 const PARENT_CHAIN_ID = 11155111
 
+/**
+ * anvil's hardfork, pinned rather than left to anvil's default, which moves with the Foundry
+ * version. Foundry v1.9.0 defaults to Amsterdam, where deploying SequencerInbox (21.9 KB of code)
+ * through the create2 factory costs ~34.3M gas, over anvil's 30M block gas limit (Amsterdam
+ * reprices state creation, EIP-8037), so estimateGas fails with "execution reverted". Under Osaka
+ * it costs ~4.8M, as under v1.8's default (Bpo2, Osaka's EVM with other blob parameters). anvil
+ * v1.8 and v1.9 both accept the name.
+ */
+const ANVIL_HARDFORK = 'osaka'
+
 const DEPLOY_SCRIPT = fileURLToPath(
   new URL('../../testchain/nitro-contracts/deploy-testchains.ts', import.meta.url)
 )
@@ -186,6 +196,7 @@ async function startAnvil(
   const args = [
     '--port', String(port),
     '--chain-id', String(PARENT_CHAIN_ID), // see PARENT_CHAIN_ID
+    '--hardfork', ANVIL_HARDFORK, // see ANVIL_HARDFORK
     // v3.2.0's deploymentUtils.create2() waits for 2 confirmations (tx.wait(2)). With anvil's
     // default automine a second block never comes, so also mine an empty block every 0.5s.
     '--mixed-mining', '--block-time', '0.5',
