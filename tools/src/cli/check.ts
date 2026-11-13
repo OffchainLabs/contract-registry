@@ -5,7 +5,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
-import { loadOutOfScope, loadSourceConfig } from '../lib/config.ts'
+import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, testChainsApply } from '../lib/config.ts'
 import { SourceRepo } from '../lib/source.ts'
 import { Builder } from '../lib/build.ts'
 import { checkCommit, checkKey, loadDeployer } from '../lib/testcheck.ts'
@@ -29,6 +29,10 @@ const outOfScope = Object.keys(a['out-of-scope'] ? JSON.parse(fs.readFileSync(a[
 const src = new SourceRepo(cfg, workDir)
 if (!a['no-sync']) src.sync()
 const commit = src.resolve(a.rev)
+if (!testChainsApply(cfg, gitRefFacts(cfg, src.gitDir), commit)) {
+  console.error(`${a.rev} (${commit.slice(0, 12)}) is outside testChains.when (${describeSelector(cfg.testChains.when ?? {})}); publish skips its test-chain check`)
+  process.exit(2)
+}
 const log = (s: string) => console.error(s)
 const { result, checkout } = await new Builder(src, workDir).build(commit, { keepCheckout: true, log })
 if (!result.ok || !checkout) { console.error(`build failed: ${result.failure?.message}`); process.exit(1) }

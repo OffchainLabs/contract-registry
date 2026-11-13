@@ -23,6 +23,11 @@ function parse(tag: string): { core: number[]; pre: string[] } | null {
   return m ? { core: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ? m[4].split('.') : [] } : null
 }
 
+/** Whether a tag parses as a semver version, with or without a leading `v`. */
+export function isSemver(tag: string): boolean {
+  return parse(tag) !== null
+}
+
 /** A tag is a prerelease when its semver has prerelease identifiers (e.g. `v3.2.0-beta.0`). */
 export function isPrerelease(tag: string): boolean {
   const p = parse(tag)

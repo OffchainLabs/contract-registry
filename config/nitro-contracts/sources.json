@@ -3,25 +3,26 @@
   "repo": "OffchainLabs/nitro-contracts",
   "url": "https://github.com/OffchainLabs/nitro-contracts.git",
   "directory": "nitro-contracts",
-  "start": { "tag": "v3.2.0" },
+  "start": { "tag": "v3.2.0", "releasesFrom": "v3.0.0" },
   "publishedRefs": {
     "tags": ["v*"],
     "branches": ["release-*", "hotfix*"]
   },
   "tagValidation": {
     "rule": "tag-equals-v-package-version",
-    "allowlist": { "v3.1.0-qol": "package.json says 3.1.0; tag predates the start ref" }
+    "allowlist": { "v3.1.0-qol": "package.json says 3.1.0; a prerelease not descended from the start tag, so not published" }
   },
   "outOfScopeGetters": "config/nitro-contracts/out-of-scope-getters.json",
   "contractRoles": {
     "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
+    "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon": { "role": "proxy-admin" },
     "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin": { "role": "proxy-admin" },
     "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
     "src/libraries/AdminFallbackProxy.sol:AdminFallbackProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc", "0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d"] },
     "src/rollup/RollupProxy.sol:RollupProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc", "0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d"] }
   },
   "reviewedRangePairs": [],
-  "testChains": { "deployer": "nitro-contracts" },
+  "testChains": { "deployer": "nitro-contracts", "when": { "descendantOf": ["v3.2.0"] } },
   "reconcileGraceMinutes": 60,
   "builds": [
     {
@@ -53,6 +54,35 @@
           "name": "foundry-yul",
           "env": { "FOUNDRY_PROFILE": "yul" },
           "commands": ["forge build --build-info --force"],
+          "buildInfo": "out/yul/build-info",
+          "layout": "standard-json",
+          "deployed": true
+        }
+      ],
+      "include": ["**"],
+      "exclude": ["src/mocks/**", "src/test-helpers/**", "test/**", "forge-std/**", "lib/**"]
+    },
+    {
+      "name": "hardhat-0.8.17-v3.0-v3.1",
+      "when": { "tags": { "from": "v3.0.0", "before": "v3.2.0" } },
+      "toolchain": { "node": "24", "foundry": "v1.9.0", "yarn": "1.22.22" },
+      "setup": [
+        "git submodule update --init --recursive",
+        "yarn install --frozen-lockfile --ignore-engines --non-interactive"
+      ],
+      "outputs": [
+        {
+          "name": "hardhat",
+          "commands": ["npx hardhat compile --force --quiet"],
+          "buildInfo": "build/contracts/build-info",
+          "layout": "hardhat",
+          "artifacts": "build/contracts",
+          "deployed": true
+        },
+        {
+          "name": "foundry-yul",
+          "env": { "FOUNDRY_PROFILE": "yul", "FOUNDRY_SOLC_VERSION": "0.8.24" },
+          "commands": ["forge build --skip '*.sol' --no-lint --build-info --force"],
           "buildInfo": "out/yul/build-info",
           "layout": "standard-json",
           "deployed": true

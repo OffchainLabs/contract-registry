@@ -147,7 +147,10 @@ test('nitro-contracts config: proxies use the walker\'s slots, ProxyAdmin is an 
   assert.deepEqual(slots('src/rollup/RollupProxy.sol:RollupProxy'), [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT])
   assert.deepEqual(slots('src/libraries/AdminFallbackProxy.sol:AdminFallbackProxy'), [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT])
   assert.equal(slots(ADMIN), 'proxy-admin')
-  assert.equal(Object.keys(cfg.contractRoles).length, 5)
+  // Built by v3.0.0-v3.1.1 (RollupAdminLogic imports it), not by v3.2.0: it upgrades the
+  // BeaconProxies that use it and stays through upgrades, like ProxyAdmin.
+  assert.equal(slots('@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon'), 'proxy-admin')
+  assert.equal(Object.keys(cfg.contractRoles).length, 6)
   // The slots are what EIP-1967 and AdminFallbackProxy define.
   assert.equal(EIP1967_IMPLEMENTATION_SLOT, slotOf('eip1967.proxy.implementation'))
   assert.equal(SECONDARY_IMPLEMENTATION_SLOT, slotOf('eip1967.proxy.implementation.secondary'))

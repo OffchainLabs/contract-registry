@@ -10,7 +10,16 @@
     "repo": { "$ref": "common.schema.json#/$defs/repo" },
     "url": { "type": "string", "pattern": "^https://github\\.com/[^/]+/[^/]+\\.git$", "description": "Public, anonymous URL. Private repos are never sources." },
     "directory": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "start": { "type": "object", "required": ["tag"], "additionalProperties": false, "properties": { "tag": { "type": "string" } } },
+    "start": {
+      "type": "object",
+      "required": ["tag"],
+      "additionalProperties": false,
+      "description": "Which refs are published. Tags and branch heads whose commit is `tag`'s or descends from it, prereleases included; with `releasesFrom`, also every release tag (a semver version with no prerelease part) at or above that version, wherever its commit is. Branch heads must descend from `tag`.",
+      "properties": {
+        "tag": { "type": "string" },
+        "releasesFrom": { "type": "string", "pattern": "^v?\\d+\\.\\d+\\.\\d+$", "description": "Lowest release backfilled. To go further back, lower it, after checking that a build profile covers the newly included tags and that contractRoles lists their proxies." }
+      }
+    },
     "publishedRefs": {
       "type": "object",
       "required": ["tags", "branches"],
@@ -64,7 +73,20 @@
         }
       }
     },
-    "testChains": { "oneOf": [{ "type": "null" }, { "type": "object", "required": ["deployer"], "additionalProperties": false, "properties": { "deployer": { "type": "string" } } }] },
+    "testChains": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["deployer"],
+          "additionalProperties": false,
+          "properties": {
+            "deployer": { "type": "string" },
+            "when": { "$ref": "#/$defs/refSelector", "description": "Commits the test-chain check applies to; every commit when absent. Commits due a check outside it are built and published without the check, and each run reports them in checksSkipped." }
+          }
+        }
+      ]
+    },
     "reconcileGraceMinutes": { "type": "integer", "minimum": 0 },
     "builds": {
       "type": "array",
@@ -75,15 +97,7 @@
         "additionalProperties": false,
         "properties": {
           "name": { "type": "string" },
-          "when": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "descendantOf": { "type": "array", "items": { "type": "string" } },
-              "notDescendantOf": { "type": "array", "items": { "type": "string" } },
-              "refs": { "type": "array", "items": { "type": "string" } }
-            }
-          },
+          "when": { "$ref": "#/$defs/refSelector", "description": "Commits this profile builds; the first matching profile wins." },
           "toolchain": { "type": "object", "additionalProperties": { "type": "string" } },
           "setup": { "type": "array", "items": { "type": "string" } },
           "outputs": {
@@ -107,6 +121,24 @@
           },
           "include": { "type": "array", "items": { "type": "string" } },
           "exclude": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "refSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Selects source commits. Every condition given must hold; an empty selector matches every commit.",
+      "properties": {
+        "descendantOf": { "type": "array", "items": { "type": "string" }, "description": "The commit is each of these refs or descends from it" },
+        "notDescendantOf": { "type": "array", "items": { "type": "string" }, "description": "The commit is none of these refs and descends from none of them" },
+        "refs": { "type": "array", "items": { "type": "string" }, "description": "The commit is what one of these refs points at" },
+        "tags": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A published tag pointing at the commit is a semver version with from <= version < before, by semver precedence (so v3.2.0-beta.0 is before v3.2.0). A commit no published tag points at never matches.",
+          "properties": { "from": { "type": "string" }, "before": { "type": "string" } }
         }
       }
     }

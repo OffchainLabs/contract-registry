@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { git, gitOk, mapLimit } from './exec.ts'
-import { loadOutOfScope, loadSourceConfig, type SourceConfig } from './config.ts'
+import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, tagInRange, testChainsApply, type SourceConfig } from './config.ts'
 import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
 import { SourceData, byFingerprint, contractsMap, entryFromBuild } from './datarepo.ts'
@@ -9,7 +9,7 @@ import { validateDataRepo } from './schema.ts'
 import { rangeConflictReport, rangeConflicts } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { ALERT_KINDS, type AlertItem, type AlertKind, type AlertSink } from './alerts.ts'
-import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult } from './testcheck.ts'
+import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult, type TestChainDeployer } from './testcheck.ts'
 import { SCHEMA_VERSION, type Hex } from './types.ts'
 
 export interface PublishOptions {
@@ -27,6 +27,8 @@ export interface PublishOptions {
   committer?: { name: string; email: string }
   /** Read the source repo from here instead of the configured URL (tests use a local repo). */
   sourceUrl?: string
+  /** Deploy test chains with this instead of loading `testChains.deployer` (tests). */
+  deployer?: TestChainDeployer
   now?: number
   log?: (s: string) => void
 }
@@ -40,8 +42,15 @@ export interface PublishOutcome {
   tagsAdded: string[]
   failures: Partial<Record<AlertKind, AlertItem[]>>
   checks: CheckResult[]
+  /**
+   * Commits due a test-chain check (new tags, changed branch heads, open alert items) that are
+   * outside `testChains.when`: they are built and published without the check.
+   */
+  checksSkipped: SkippedCheck[]
   alerts: { kind: AlertKind; action: 'opened-or-updated' | 'closed'; ref?: string }[]
 }
+
+export interface SkippedCheck { commit: string; refs: string[]; reason: string }
 
 /**
  * One publish run for one source repo (§5.7). Everything lands in the data repo as one commit;
@@ -57,7 +66,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const outOfScope = Object.keys(loadOutOfScope(opts.dataRepo, cfg).getters)
   const failures: Partial<Record<AlertKind, AlertItem[]>> = {}
   const fail = (kind: AlertKind, item: AlertItem) => { (failures[kind] ??= []).push(item); log(`FAILURE ${kind}: ${item.key}: ${item.message}`) }
-  const outcome: PublishOutcome = { ok: false, commit: null, newEntries: 0, branchesUpdated: [], branchesDeleted: [], tagsAdded: [], failures, checks: [], alerts: [] }
+  const outcome: PublishOutcome = { ok: false, commit: null, newEntries: 0, branchesUpdated: [], branchesDeleted: [], tagsAdded: [], failures, checks: [], checksSkipped: [], alerts: [] }
 
   const lock = acquireLock(opts.workDir, opts.source)
   const checkouts: Checkout[] = []
@@ -67,8 +76,12 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     src.sync(log)
     const data = new SourceData(opts.dataRepo, cfg.directory, cfg.repo)
     const builder = new Builder(src, opts.workDir)
+    const facts = gitRefFacts(cfg, src.gitDir)
     const start = src.resolve(cfg.start.tag)
+    // Branch heads must contain the start tag. Tags must too, or be a release at or above
+    // `start.releasesFrom` (see `tagInRange`).
     const inRange = (commit: string) => commit === start || src.isAncestor(start, commit)
+    const tagIsInRange = (tag: string, commit: string) => tagInRange(cfg.start, tag, () => inRange(commit))
 
     // --- Refs -------------------------------------------------------------------------------
     // A published branch whose head has changed since its branch file was written is built at
@@ -83,9 +96,9 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
       if (recorded.get(branch) !== head) changedBranches.push([branch, head])
     }
     const tags = src.publishedTags()
-    const newTags = [...tags].filter(([t, c]) => !data.hasTag(t) && inRange(c)).sort((a, b) => compareTags(a[0], b[0]))
-    const skippedTags = [...tags].filter(([t, c]) => !data.hasTag(t) && !inRange(c)).map(([t]) => t)
-    if (skippedTags.length) log(`${skippedTags.length} tag(s) not descended from ${cfg.start.tag} are out of range (not published)`)
+    const newTags = [...tags].filter(([t, c]) => !data.hasTag(t) && tagIsInRange(t, c)).sort((a, b) => compareTags(a[0], b[0]))
+    const skippedTags = [...tags].filter(([t, c]) => !data.hasTag(t) && !tagIsInRange(t, c)).map(([t]) => t)
+    if (skippedTags.length) log(`${skippedTags.length} tag(s) out of range (not published): not descended from ${cfg.start.tag}${cfg.start.releasesFrom ? `, and not a release at or above ${cfg.start.releasesFrom}` : ''}`)
     log(`plan: ${changedBranches.length} changed branch head(s), ${newTags.length} new tag(s), ${deleted.length} deleted branch(es)`)
 
     if (opts.reconcile) {
@@ -102,21 +115,33 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     // Tags and published branch heads only: new tags; branch heads that changed or haven't been
     // checked with the current out-of-scope list and deployer; the newest tag likewise, so a change
     // to the list is checked against released code even when no release or hotfix branch is
-    // live; and the commits of open alert items whose ref still points at them.
+    // live; and the commits of open alert items whose ref still points at them. The check applies
+    // only to commits matching `testChains.when` (old releases can't be deployed by the current
+    // deployer); every other commit due a check is recorded as skipped, with the reason.
     const deployerName = cfg.testChains?.deployer
     const key = deployerName ? checkKey(outOfScope, deployerName) : ''
     const checkCache = new CheckCache(opts.workDir, cfg.directory)
     const checkTargets = new Map<string, string[]>() // commit -> refs
-    const addTarget = (c: string, ref: string) => checkTargets.set(c, [...new Set([...(checkTargets.get(c) ?? []), ref])])
+    const skippedChecks = new Map<string, string[]>() // commit -> refs
+    const appliesMemo = new Map<string, boolean>()
+    const checkApplies = (c: string) => appliesMemo.get(c) ?? appliesMemo.set(c, testChainsApply(cfg, facts, c)).get(c)!
+    const addRef = (m: Map<string, string[]>, c: string, ref: string) => m.set(c, [...new Set([...(m.get(c) ?? []), ref])])
+    const addTarget = (c: string, ref: string) => addRef(checkApplies(c) ? checkTargets : skippedChecks, c, ref)
     if (deployerName && !opts.skipTestChains) {
       for (const [branch, head] of branches) if (inRange(head)) {
         if (recorded.get(branch) !== head || !checkCache.get(head, key)) addTarget(head, branch)
       }
       for (const [t, c] of newTags) addTarget(c, t)
-      const newest = [...tags].filter(([t]) => data.hasTag(t)).concat(newTags).sort((a, b) => compareTags(a[0], b[0])).at(-1)
+      // The newest tag the check applies to.
+      const newest = [...tags].filter(([t]) => data.hasTag(t)).concat(newTags).sort((a, b) => compareTags(b[0], a[0])).find(([, c]) => checkApplies(c))
       if (newest && !checkCache.get(newest[1], key)) addTarget(newest[1], newest[0])
       const open = await opts.alerts.get(cfg.directory, 'test-chain-walk')
       for (const i of open?.items ?? []) for (const r of liveRefs(i, branches, tags)) addTarget(i.commit!, r)
+      const reason = `outside testChains.when (${describeSelector(cfg.testChains!.when ?? {})}); built and published without a test-chain check`
+      for (const [commit, refs] of skippedChecks) {
+        outcome.checksSkipped.push({ commit, refs, reason })
+        log(`test-chain check skipped for ${refs.join(', ')} (${commit.slice(0, 12)}): ${reason}`)
+      }
     }
     const needsCheck = (c: string) => checkTargets.has(c) && !checkCache.get(c, key)
 
@@ -210,7 +235,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
 
     // --- Test-chain checks (entries are published even if these fail) -----------------------
     if (deployerName && checkTargets.size) {
-      const deployer = await loadDeployer(deployerName)
+      const deployer = opts.deployer ?? await loadDeployer(deployerName)
       for (const [commit, refs] of checkTargets) {
         let res = checkCache.get(commit, key)
         if (!res) {
@@ -238,13 +263,13 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     else log('no changes')
 
     // --- Alerts ----------------------------------------------------------------------------------
-    outcome.alerts = await reconcileAlerts(opts.alerts, cfg, data, src, failures, outcome.checks, !!opts.reconcile, key)
+    outcome.alerts = await reconcileAlerts(opts.alerts, cfg, data, src, failures, outcome.checks, !!opts.reconcile, key, new Set(skippedChecks.keys()))
   } catch (e) {
     fail('publish-error', { key: 'run', message: (e as Error).message.split('\n')[0], details: (e as Error).stack })
     // Discard the run's uncommitted changes so a failure midway publishes nothing.
     try { git(['checkout', '--', cfg.directory], opts.dataRepo) } catch { /* nothing committed there yet */ }
     try { git(['clean', '-fdq', '--', cfg.directory], opts.dataRepo) } catch { /* nothing to discard */ }
-    outcome.alerts = await reconcileAlerts(opts.alerts, cfg, null, null, failures, [], false, '').catch(() => [])
+    outcome.alerts = await reconcileAlerts(opts.alerts, cfg, null, null, failures, [], false, '', new Set()).catch(() => [])
   } finally {
     for (const c of checkouts) c.remove()
     lock.release()
@@ -274,6 +299,7 @@ function summarize(cfg: SourceConfig, o: PublishOutcome): string {
   if (o.tagsAdded.length) parts.push(`tags ${o.tagsAdded.join(', ')}`)
   if (o.branchesUpdated.length) parts.push(`branches ${o.branchesUpdated.join(', ')}`)
   if (o.branchesDeleted.length) parts.push(`deleted ${o.branchesDeleted.join(', ')}`)
+  if (o.checksSkipped.length) parts.push(`test-chain check skipped (outside testChains.when) for ${o.checksSkipped.flatMap(s => s.refs).join(', ')}`)
   return `${cfg.directory}: ${parts.join('; ')}`
 }
 
@@ -294,14 +320,16 @@ function commitDataRepo(dataRepo: string, directory: string, message: string, wh
  *   and tags are ever built.
  * - tag reproduction failures: when the tag's file exists.
  * - tag/version mismatches: when the tag is added to the allowlist.
- * - test-chain walks: when the commit's check passes with the current out-of-scope list, or no
- *   ref points at that commit any more.
+ * - test-chain walks: when the commit's check passes with the current out-of-scope list, when the
+ *   check no longer applies to the commit (outside `testChains.when`), or no ref points at that
+ *   commit any more.
  * - reconcile gaps: when the ref has been processed, or no ref points at that commit any more.
  * - publish errors: when a run gets as far as committing.
  */
 async function reconcileAlerts(
   sink: AlertSink, cfg: SourceConfig, data: SourceData | null, src: SourceRepo | null,
   failures: Partial<Record<AlertKind, AlertItem[]>>, checks: CheckResult[], reconcileRun: boolean, key: string,
+  checkSkipped: Set<string>,
 ): Promise<PublishOutcome['alerts']> {
   const out: PublishOutcome['alerts'] = []
   const branchCommits = new Map(data?.branches().map(b => [b.branch, b.commit]) ?? [])
@@ -319,7 +347,7 @@ async function reconcileAlerts(
         case 'build-failure': case 'parity-mismatch': return (!!i.head && refPublished(i)) || moot(i)
         case 'tag-nondeterministic': return refPublished(i)
         case 'tag-version-mismatch': return !!i.tag && i.tag in cfg.tagValidation.allowlist
-        case 'test-chain-walk': return checkPassed(i) || moot(i)
+        case 'test-chain-walk': return checkPassed(i) || (!!i.commit && checkSkipped.has(i.commit)) || moot(i)
         case 'reconcile-gap': return reconcileRun && (refPublished(i) || moot(i))
         case 'publish-error': return true
       }
