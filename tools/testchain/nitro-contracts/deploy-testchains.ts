@@ -13,6 +13,7 @@
 //   3. creates one rollup per template variant (ETH / ERC20 fee token x delay-bufferable on/off),
 //      with every address-valued createRollup param set to a non-zero address;
 //   4. writes the addresses as JSON to $REGISTRY_TESTCHAIN_OUT.
+// On failure it writes the error's stack to $REGISTRY_TESTCHAIN_ERROR.
 //
 // It builds the createRollup params itself instead of calling scripts/rollupCreation.ts, because
 // rollupCreation.ts imports ./config (absent in a clean checkout), always makes a delay-bufferable
@@ -361,7 +362,13 @@ function mustEnv(name: string): string {
 
 main()
   .then(() => process.exit(0))
-  .catch((error: Error) => {
-    console.error(error)
-    process.exit(1)
+  .catch(async (error: Error) => {
+    // The stack (message and frames), not console.error(error): ethers errors also carry the whole
+    // transaction as properties, which inspect prints as hundreds of KB. The driver reports the
+    // error file first, as its output tail keeps only the last lines.
+    const text = String(error?.stack ?? error)
+    const errorFile = process.env.REGISTRY_TESTCHAIN_ERROR
+    if (errorFile) await fs.writeFile(errorFile, text, 'utf8').catch(() => {})
+    // process.exit() can drop output still buffered for a pipe, so exit once stderr has it.
+    process.stderr.write(`${text}\n`, () => process.exit(1))
   })

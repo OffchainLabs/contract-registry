@@ -5,6 +5,7 @@ import { Rpc } from '../walker/rpc.ts'
 import { Registry, DirSource } from '../walker/registry.ts'
 import { walk, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, type CodeId, type WalkResult } from '../walker/walk.ts'
 import { stableJson } from './json.ts'
+import { abbreviate } from './abbrev.ts'
 import type { Hex } from './types.ts'
 
 /** Bump when the walker or the check's rules change, so cached check results are not reused. */
@@ -93,7 +94,9 @@ export async function checkCommit(opts: {
       log(`test chain ${chain.name}: ${problems.length ? `${problems.length} problem(s)` : 'ok'}`)
     }
   } catch (e) {
-    chains.push({ chain: '(deployment)', start: '', problems: [`test-chain deployment failed: ${(e as Error).message.slice(-3000)}`] })
+    // Keeps the head (the error itself) and the tail, and collapses the transaction data that
+    // ethers errors embed.
+    chains.push({ chain: '(deployment)', start: '', problems: [`test-chain deployment failed: ${abbreviate((e as Error).message, { max: 3000, maxLine: 2000 })}`] })
   } finally {
     await dep?.stop().catch(() => {})
   }

@@ -13,6 +13,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { abbreviate, collapseData, truncateMiddle } from '../lib/abbrev.ts'
 
 export type Address = `0x${string}`
 
@@ -105,6 +106,7 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
 
   const tmp = await mkdtemp(path.join(tmpdir(), 'registry-testchain-'))
   const outFile = path.join(tmp, 'out.json')
+  const errorFile = path.join(tmp, 'error.txt')
   const scriptRel = path.join('scripts', `.registry-testchain-${randomBytes(4).toString('hex')}.ts`)
   const scriptAbs = path.join(checkoutDir, scriptRel)
   let killHardhat: (() => void) | undefined
@@ -122,7 +124,7 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
     await copyFile(DEPLOY_SCRIPT, scriptAbs)
     // --no-compile: use the checkout's existing build and leave its build/cache untouched.
     // The `custom` network is defined in the checkout's hardhat.config.ts from these env vars.
-    const run = start(
+    const run = startLogged(
       hardhatBin,
       ['run', '--no-compile', '--network', 'custom', scriptRel],
       checkoutDir,
@@ -131,12 +133,23 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
         CUSTOM_PRIVKEY: ANVIL_DEPLOYER_KEY,
         DISABLE_VERIFICATION: 'true',
         REGISTRY_TESTCHAIN_OUT: outFile,
+        REGISTRY_TESTCHAIN_ERROR: errorFile,
       },
       HARDHAT_TIMEOUT_MS,
       log
     )
     killHardhat = run.kill
-    await run.done
+    await run.done.catch(async (err: Error) => {
+      // Report the script's own error first, then its last progress lines: an ethers error's stack
+      // doesn't say which deployment step failed.
+      const scriptError = await readFile(errorFile, 'utf8').catch(() => '')
+      if (!scriptError) throw err
+      const progress = err instanceof CommandFailed ? err.stdoutTail.slice(-5) : []
+      throw new Error(
+        `deploy script failed: ${abbreviate(scriptError.replaceAll(checkoutDir, '<checkout>'), { max: 2500, maxLine: MAX_LINE })}` +
+          (progress.length ? `\nlast progress output:\n${progress.join('\n')}` : '')
+      )
+    })
     const out = parseOutput(JSON.parse(await readFile(outFile, 'utf8')))
     if (out.chainId !== PARENT_CHAIN_ID) {
       throw new Error(`deploy script saw chain id ${out.chainId}, expected ${PARENT_CHAIN_ID}`)
@@ -272,7 +285,24 @@ function assertPortFree(port: number): Promise<void> {
   })
 }
 
-function start(
+/** Longest output line logged or kept for an error message. */
+const MAX_LINE = 2000
+
+export class CommandFailed extends Error {
+  /** The last stdout lines, shortened as logged. */
+  readonly stdoutTail: string[]
+  constructor(message: string, stdoutTail: string[]) {
+    super(message)
+    this.stdoutTail = stdoutTail
+  }
+}
+
+/**
+ * Runs `cmd`, logging each output line with long data collapsed (see collapseData) and capped at
+ * MAX_LINE characters. Rejects on a non-zero exit or timeout with a CommandFailed holding the last
+ * 40 lines.
+ */
+export function startLogged(
   cmd: string,
   args: string[],
   cwd: string,
@@ -297,32 +327,61 @@ function start(
   }
   const done = new Promise<void>((resolve, reject) => {
     const tail: string[] = []
-    const onData = (buf: Buffer) => {
-      for (const line of buf.toString().split('\n')) {
-        if (!line) continue
-        log(line)
-        tail.push(line)
-        if (tail.length > 40) tail.shift()
+    const stdoutTail: string[] = []
+    const keep = (lines: string[], line: string) => {
+      lines.push(line)
+      if (lines.length > 40) lines.shift()
+    }
+    // A chunk can end mid-line (an ethers error can print one line of hundreds of KB), so each
+    // stream keeps its unfinished line until the next chunk or the end.
+    const lineReader = (stream: NodeJS.ReadableStream | null, isStdout: boolean) => {
+      const addLine = (line: string) => {
+        if (!line) return
+        const short = truncateMiddle(collapseData(line), MAX_LINE)
+        log(short)
+        keep(tail, short)
+        if (isStdout) keep(stdoutTail, short)
+      }
+      let partial = ''
+      stream?.setEncoding('utf8')
+      stream?.on('data', (chunk: string) => {
+        const lines = (partial + chunk).split('\n')
+        partial = lines.pop()!
+        lines.forEach(addLine)
+      })
+      return () => {
+        addLine(partial)
+        partial = ''
       }
     }
-    child.stdout?.on('data', onData)
-    child.stderr?.on('data', onData)
+    const flushStdout = lineReader(child.stdout, true)
+    const flushStderr = lineReader(child.stderr, false)
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
       kill()
     }, timeoutMs)
-    child.once('error', err => {
+    let finished = false
+    const finish = (code: number | null) => {
+      if (finished) return
+      finished = true
       clearTimeout(timer)
-      reject(err)
-    })
-    child.once('exit', code => {
-      clearTimeout(timer)
+      flushStdout()
+      flushStderr()
       const what = `${path.basename(cmd)} ${args.join(' ')}`
-      if (timedOut) reject(new Error(`${what} timed out after ${timeoutMs / 1000}s:\n${tail.join('\n')}`))
-      else if (code !== 0) reject(new Error(`${what} exited ${code}:\n${tail.join('\n')}`))
+      if (timedOut) reject(new CommandFailed(`${what} timed out after ${timeoutMs / 1000}s:\n${tail.join('\n')}`, stdoutTail))
+      else if (code !== 0) reject(new CommandFailed(`${what} exited ${code}:\n${tail.join('\n')}`, stdoutTail))
       else resolve()
+    }
+    child.once('error', e => {
+      finished = true
+      clearTimeout(timer)
+      reject(e)
     })
+    // Finish on 'close', after the output streams have ended, so no output is lost; but not later
+    // than 5s after 'exit', in case a leftover grandchild still holds the pipes.
+    child.once('exit', code => setTimeout(() => finish(code), 5000).unref())
+    child.once('close', code => finish(code))
   })
   return { kill, done }
 }
