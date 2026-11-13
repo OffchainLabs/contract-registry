@@ -69,8 +69,8 @@
           "appendCBOR": true
         }
       },
-      "firstCommit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
-      "firstBranch": "main",
+      "ref": "v3.2.0",
+      "commit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
       "tags": [
         "v3.2.0"
       ]
