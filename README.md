@@ -131,7 +131,9 @@ Read every file at one commit of this repo, never across a push.
 
 ```sh
 npm ci
-# identify one contract
+# version of the contract at an address, as getVersion gives it (a proxy reports its implementation)
+node tools/src/cli/version.ts --rpc $RPC --address 0x...       # prints e.g. v3.2.0; unknown: exit 1
+# identify one contract (the code at the address itself, as JSON)
 node tools/src/cli/lookup.ts --rpc $RPC --address 0x...
 # walk a chain from any core contract (JSON on stdout)
 node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> [--registry github:<owner>/<repo>@main]

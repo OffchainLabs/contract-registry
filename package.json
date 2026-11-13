@@ -14,6 +14,7 @@
     "ci-check": "node tools/src/cli/ci-check.ts",
     "walk": "node tools/src/cli/walk.ts",
     "lookup": "node tools/src/cli/lookup.ts",
+    "get-version": "node tools/src/cli/version.ts",
     "test": "node --test tools/test/*.test.ts",
     "build:walker": "tsc -p tsconfig.build.json",
     "check": "node tools/src/cli/check.ts",
