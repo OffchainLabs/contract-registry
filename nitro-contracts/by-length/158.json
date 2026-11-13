@@ -10,8 +10,9 @@
       "contracts": [
         "src/challengeV2/libraries/EdgeChallengeManagerLib.sol:EdgeChallengeManagerLib"
       ],
+      "role": "logic",
       "codeLength": 158,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "<library address>",
           "type": "address",

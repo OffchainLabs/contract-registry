@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/RollupUserLogic.sol:RollupUserLogic"
       ],
+      "role": "logic",
       "codeLength": 17164,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "_hostChainIsArbitrum",
           "type": "bool",

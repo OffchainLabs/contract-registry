@@ -10,8 +10,9 @@
       "contracts": [
         "yul/Reader4844.yul:Reader4844"
       ],
+      "role": "logic",
       "codeLength": 91,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 0,
       "getters": [],
       "selectors": [],

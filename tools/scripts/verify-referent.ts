@@ -1,6 +1,6 @@
 // Acceptance criterion 2: every address in arbitrum-chain-actions' referentContractAddresses.json
 // (v3.2.0) identifies as tag v3.2.0 with the right contract on every chain where it has code, and
-// its variant values agree with its place in the list (ETH vs ERC20, delay-bufferable pairs,
+// its immutables agree with its place in the list (ETH vs ERC20, delay-bufferable pairs,
 // maxDataSize, host chain type, chain id).
 //   node tools/scripts/verify-referent.ts [--registry <spec>] [--referent <file or URL>]
 // RPCs: Alchemy (ALCHEMY_API_KEY) for most chains, public endpoints for the rest.
@@ -10,6 +10,7 @@ import * as path from 'node:path'
 import { openSource, Registry } from '../src/walker/registry.ts'
 import { Rpc } from '../src/walker/rpc.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
+import { decodeImmutables } from '../src/lib/fingerprint.ts'
 
 const { values: a } = parseArgs({
   options: {
@@ -85,14 +86,13 @@ for (const chain of CHAINS) {
     if (!code.length) continue
     seenAnywhere.add(address)
     const want = EXPECTED[key]
-    const ms = await registry.lookup(code)
+    const m = await registry.lookup(code)
+    const v = m ? decodeImmutables(code, m) : null
     const errs: string[] = []
-    if (ms.length !== 1) errs.push(`${ms.length} matches`)
-    const m = ms[0]
-    if (m) {
-      if (!m.entry.tags.includes(a.tag!)) errs.push(`tags [${m.entry.tags}] lack ${a.tag}`)
-      if (!m.entry.contracts.some(c => c.endsWith(`:${want.name}`))) errs.push(`is ${m.entry.contracts.join(',')}, expected ${want.name}`)
-      const v = m.variants
+    if (!m) errs.push('no match')
+    if (m && v) {
+      if (!m.tags.includes(a.tag!)) errs.push(`tags [${m.tags}] lack ${a.tag}`)
+      if (!m.contracts.some(c => c.endsWith(`:${want.name}`))) errs.push(`is ${m.contracts.join(',')}, expected ${want.name}`)
       if (want.feeToken !== undefined && v.isUsingFeeToken !== want.feeToken) errs.push(`isUsingFeeToken ${v.isUsingFeeToken}`)
       if ('deployTimeChainId' in v && v.deployTimeChainId !== String(chainId)) errs.push(`deployTimeChainId ${v.deployTimeChainId} on chain ${chainId}`)
       for (const k of ['hostChainIsArbitrum', '_hostChainIsArbitrum']) if (k in v && v[k] !== isArbitrum) errs.push(`${k} ${v[k]} on ${parent} chain`)
@@ -103,13 +103,13 @@ for (const chain of CHAINS) {
         if (!ok) errs.push(`reader4844 ${r} on ${parent} chain`)
         if (parent === 'l1') {
           const rm = await registry.lookup(hexToBytes(await rpc.getCode(r, 'latest')))
-          if (!rm.some(x => x.entry.contracts.some(c => c.endsWith(':Reader4844')))) errs.push(`reader4844 ${r} isn't the registry's Reader4844`)
+          if (!rm?.contracts.some(c => c.endsWith(':Reader4844'))) errs.push(`reader4844 ${r} isn't the registry's Reader4844`)
         }
       }
       if (key.endsWith('SequencerInbox')) bufferable[key.split('.')[0]].push(v.isDelayBufferable as boolean)
     }
     problems += errs.length
-    rows.push({ key, address, contract: m?.entry.contracts.find(c => c.endsWith(`:${want.name}`)) ?? m?.entry.contracts[0] ?? null, tags: m?.entry.tags ?? [], variants: m?.variants ?? null, ok: errs.length === 0, errors: errs })
+    rows.push({ key, address, contract: m?.contracts.find(c => c.endsWith(`:${want.name}`)) ?? m?.contracts[0] ?? null, tags: m?.tags ?? [], immutables: v, ok: errs.length === 0, errors: errs })
   }
   if (!rows.length) { report.push({ chain: chain.name, chainId, parent, deployed: 0 }); continue }
   const chainErrs: string[] = []

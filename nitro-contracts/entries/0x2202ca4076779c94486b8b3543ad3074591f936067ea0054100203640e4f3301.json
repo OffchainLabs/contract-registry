@@ -5,8 +5,9 @@
   "contracts": [
     "src/bridge/GasRefunder.sol:GasRefunder"
   ],
+  "role": "logic",
   "codeLength": 4752,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [
     {

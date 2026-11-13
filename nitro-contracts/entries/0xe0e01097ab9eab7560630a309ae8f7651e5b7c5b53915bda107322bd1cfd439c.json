@@ -5,8 +5,9 @@
   "contracts": [
     "src/chain/CacheManager.sol:CacheManager"
   ],
+  "role": "logic",
   "codeLength": 8303,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "__self",
       "type": "address",

@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/Outbox.sol:Outbox"
       ],
+      "role": "logic",
       "codeLength": 6702,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "__self",
           "type": "address",

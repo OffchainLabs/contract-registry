@@ -10,8 +10,9 @@
       "contracts": [
         "src/challengeV2/EdgeChallengeManager.sol:EdgeChallengeManager"
       ],
+      "role": "logic",
       "codeLength": 23502,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [
         {

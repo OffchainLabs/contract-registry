@@ -5,8 +5,9 @@
   "contracts": [
     "src/bridge/extra/ERC20MigrationOutbox.sol:ERC20MigrationOutbox"
   ],
+  "role": "logic",
   "codeLength": 1321,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "destination",
       "type": "address",

@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/ERC20Inbox.sol:ERC20Inbox"
       ],
+      "role": "logic",
       "codeLength": 10483,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "maxDataSize",
           "type": "uint256",

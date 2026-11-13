@@ -1,21 +1,21 @@
 import { keccak256, decodeAbiParameters, getAddress } from 'viem'
 import { bytesToHex } from './hex.ts'
-import type { Hex, ImmutableRef } from './types.ts'
+import type { Hex, MaskedRange } from './types.ts'
 
 export interface MaskSpec {
   codeLength: number
-  immutables: ImmutableRef[]
+  maskedRanges: MaskedRange[]
   cborMetadataLength: number
 }
 
-/** Zeroes every immutable range and the trailing CBOR metadata section (spec §5.1). */
+/** Zeroes every masked range and the trailing CBOR metadata section (spec §5.1). */
 export function mask(code: Uint8Array, spec: MaskSpec): Uint8Array {
   if (code.length !== spec.codeLength) throw new Error(`code length ${code.length} != ${spec.codeLength}`)
   const out = Uint8Array.from(code)
-  for (const imm of spec.immutables) {
-    for (const off of imm.offsets) {
-      if (off + imm.length > out.length) throw new Error(`immutable ${imm.name} at ${off} out of range`)
-      out.fill(0, off, off + imm.length)
+  for (const r of spec.maskedRanges) {
+    for (const off of r.offsets) {
+      if (off + r.length > out.length) throw new Error(`masked range ${r.name} at ${off} out of range`)
+      out.fill(0, off, off + r.length)
     }
   }
   if (spec.cborMetadataLength > 0) out.fill(0, out.length - spec.cborMetadataLength)
@@ -32,19 +32,25 @@ export function matches(code: Uint8Array, entry: MaskSpec & { fingerprint: Hex }
   return fingerprintOf(code, entry).toLowerCase() === entry.fingerprint.toLowerCase()
 }
 
-export type VariantValue = string | boolean
+export type ImmutableValue = string | boolean
 
-/** Reads each immutable from its first offset and decodes it by its ABI type. */
-export function variantValues(code: Uint8Array, immutables: ImmutableRef[]): Record<string, VariantValue> {
-  const out: Record<string, VariantValue> = {}
-  for (const imm of immutables) {
-    const raw = code.slice(imm.offsets[0], imm.offsets[0] + imm.length)
-    out[imm.name] = decodeWord(raw, imm.type)
+/**
+ * The Solidity immutables of code that matches `entry`, by name: each read from its first offset
+ * and decoded by its ABI type. Synthetic ranges (names starting with `<`: linked-library and
+ * library-self addresses) are masked but not reported; they say where the code was deployed, not
+ * how it was configured.
+ */
+export function decodeImmutables(code: Uint8Array, entry: Pick<MaskSpec, 'maskedRanges'>): Record<string, ImmutableValue> {
+  const out: Record<string, ImmutableValue> = {}
+  for (const r of entry.maskedRanges) {
+    if (r.name.startsWith('<')) continue
+    const raw = code.slice(r.offsets[0], r.offsets[0] + r.length)
+    out[r.name] = decodeWord(raw, r.type)
   }
   return out
 }
 
-function decodeWord(raw: Uint8Array, type: string): VariantValue {
+function decodeWord(raw: Uint8Array, type: string): ImmutableValue {
   if (raw.length === 20 && type === 'address') return getAddress(bytesToHex(raw))
   if (raw.length !== 32) return bytesToHex(raw)
   try {

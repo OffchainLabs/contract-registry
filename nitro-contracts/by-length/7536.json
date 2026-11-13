@@ -10,8 +10,9 @@
       "contracts": [
         "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
       ],
+      "role": "logic",
       "codeLength": 7536,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [
@@ -62,8 +63,9 @@
       "contracts": [
         "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
       ],
+      "role": "logic",
       "codeLength": 7536,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [
@@ -114,8 +116,9 @@
       "contracts": [
         "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
       ],
+      "role": "logic",
       "codeLength": 7536,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [
@@ -166,8 +169,9 @@
       "contracts": [
         "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
       ],
+      "role": "logic",
       "codeLength": 7536,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

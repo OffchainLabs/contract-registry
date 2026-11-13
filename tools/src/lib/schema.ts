@@ -36,7 +36,8 @@ export function kindOf(rel: string): FileKind | null {
 
 /**
  * Validates every config and data file, plus the invariants a schema can't express: file names
- * match their contents, and every source directory belongs to a configured source.
+ * match their contents, an entry's packages name only its own contracts, and every source
+ * directory belongs to a configured source.
  */
 export function validateDataRepo(dataRepo: string, sources: { directory: string; repo: string }[]): string[] {
   const v = new SchemaValidator(dataRepo)
@@ -54,6 +55,7 @@ export function validateDataRepo(dataRepo: string, sources: { directory: string;
       if (src && data.repo !== src.repo) errors.push(`${rel}: repo ${data.repo} != ${src.repo}`)
       const base = path.basename(f, '.json')
       if (kind === 'entry' && data.fingerprint !== base) errors.push(`${rel}: file name doesn't match fingerprint`)
+      if (kind === 'entry') for (const c of Object.keys(data.packages ?? {})) if (!data.contracts?.includes(c)) errors.push(`${rel}: packages names ${c}, which isn't in contracts`)
       if (kind === 'tag' && data.tag !== path.relative(path.join(dataRepo, src!.directory, 'tags'), f).replace(/\.json$/, '')) errors.push(`${rel}: file name doesn't match tag`)
       if (kind === 'branch' && data.branch !== path.relative(path.join(dataRepo, src!.directory, 'branches'), f).replace(/\.json$/, '')) errors.push(`${rel}: file name doesn't match branch`)
       if (kind === 'by-length' && String(data.codeLength) !== base) errors.push(`${rel}: file name doesn't match codeLength`)

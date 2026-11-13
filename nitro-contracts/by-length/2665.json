@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/RollupEventInbox.sol:RollupEventInbox"
       ],
+      "role": "logic",
       "codeLength": 2665,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "__self",
           "type": "address",

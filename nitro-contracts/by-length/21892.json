@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/SequencerInbox.sol:SequencerInbox"
       ],
+      "role": "logic",
       "codeLength": 21892,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "isDelayBufferable",
           "type": "bool",

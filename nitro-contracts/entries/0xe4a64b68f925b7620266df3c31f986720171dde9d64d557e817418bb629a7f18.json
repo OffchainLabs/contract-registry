@@ -5,8 +5,12 @@
   "contracts": [
     "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20"
   ],
+  "packages": {
+    "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20": "@openzeppelin/contracts@4.7.3"
+  },
+  "role": "logic",
   "codeLength": 2493,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

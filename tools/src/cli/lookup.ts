@@ -1,11 +1,13 @@
-// Identifies one piece of runtime code (spec §5.5).
+// Identifies one piece of runtime code (spec §5.5): the one entry it matches, or null.
 //   node tools/src/cli/lookup.ts --rpc <url> --address <address> [--registry ...] [--source nitro-contracts]
 //   node tools/src/cli/lookup.ts --code <0x...>
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { keccak256 } from 'viem'
+import { decodeImmutables } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
-import { openSource, Registry } from '../walker/registry.ts'
+import type { ByLengthEntry } from '../lib/types.ts'
+import { openSource, Registry, versionOf } from '../walker/registry.ts'
 import { Rpc } from '../walker/rpc.ts'
 
 const { values: a } = parseArgs({
@@ -26,12 +28,21 @@ if (a.address?.length) {
 const out = []
 for (const t of targets) {
   const code = hexToBytes(t.code)
-  const ms = await registry.lookup(code)
+  const e = await registry.lookup(code)
   out.push({
     ...(t.address ? { address: t.address } : {}),
     codeLength: code.length,
     codeHash: keccak256(code),
-    matches: ms.map(m => ({ contracts: m.entry.contracts, fingerprint: m.entry.fingerprint, tags: m.entry.tags, firstCommit: m.entry.firstCommit, firstBranch: m.entry.firstBranch, variants: m.variants })),
+    match: e && describe(e, code),
   })
 }
 console.log(JSON.stringify(out, null, 2))
+
+function describe(e: ByLengthEntry, code: Uint8Array) {
+  return {
+    contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
+    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
+    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, firstCommit: e.firstCommit, firstBranch: e.firstBranch,
+    ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
+  }
+}

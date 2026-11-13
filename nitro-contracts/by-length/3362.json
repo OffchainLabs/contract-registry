@@ -10,8 +10,9 @@
       "contracts": [
         "src/assertionStakingPool/EdgeStakingPool.sol:EdgeStakingPool"
       ],
+      "role": "logic",
       "codeLength": 3362,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "challengeManager",
           "type": "address",

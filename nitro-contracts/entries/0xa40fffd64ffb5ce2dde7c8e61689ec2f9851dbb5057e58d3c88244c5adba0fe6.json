@@ -5,8 +5,12 @@
   "contracts": [
     "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable"
   ],
+  "packages": {
+    "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable": "@openzeppelin/contracts-upgradeable@4.7.3"
+  },
+  "role": "logic",
   "codeLength": 2493,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

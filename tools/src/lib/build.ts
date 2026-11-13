@@ -2,13 +2,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createHash } from 'node:crypto'
 import { sh, Mutex, git } from './exec.ts'
-import { loadBuildInfos, selectArtifacts, filterSources, extractContract, parityCheck, type ArtifactRef } from './extract.ts'
+import { loadBuildInfos, selectArtifacts, filterSources, extractContract, packageOf, parityCheck, type ArtifactRef } from './extract.ts'
 import { profileFor, type BuildProfile } from './config.ts'
 import type { SourceRepo } from './source.ts'
 import type { BuiltContract } from './types.ts'
 
 /** Bump when extraction or fingerprinting changes, so cached results are not reused. */
-export const GENERATOR_VERSION = 1
+export const GENERATOR_VERSION = 3
 
 export interface BuildFailure { kind: 'build-failure' | 'parity-mismatch'; message: string }
 
@@ -147,7 +147,7 @@ export class Builder {
           if (seen.has(ref.fqName)) throw new Error(`${ref.fqName} produced by two deployed outputs`)
           seen.add(ref.fqName)
           const c = extractContract(ref)
-          if (c) contracts.push(c)
+          if (c) contracts.push({ ...c, package: packageOf(dir, ref.source) })
         }
       }
       contracts.sort((a, b) => a.fqName.localeCompare(b.fqName))

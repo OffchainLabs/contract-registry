@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
 import { compareTags } from './semver.ts'
 import { SCHEMA_VERSION } from './types.ts'
-import type { BranchFile, BuiltContract, ByLengthFile, Entry, Getter, Hex, IndexFile, TagFile } from './types.ts'
+import type { BranchFile, BuiltContract, ByLengthFile, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
 
 /** Canonical key order for an entry file. */
 export function canonicalEntry(e: Entry): Entry {
@@ -12,8 +12,11 @@ export function canonicalEntry(e: Entry): Entry {
     fingerprint: e.fingerprint,
     repo: e.repo,
     contracts: [...e.contracts].sort(),
+    ...(e.packages !== undefined ? { packages: sortedRecord(e.packages) } : {}),
+    role: e.role,
+    ...(e.implementationSlots !== undefined ? { implementationSlots: e.implementationSlots } : {}),
     codeLength: e.codeLength,
-    immutables: e.immutables.map(i => ({ name: i.name, type: i.type, offsets: i.offsets, length: i.length })),
+    maskedRanges: e.maskedRanges.map(r => ({ name: r.name, type: r.type, offsets: r.offsets, length: r.length })),
     cborMetadataLength: e.cborMetadataLength,
     getters: e.getters.map(g => ({ signature: g.signature, selector: g.selector, kind: g.kind })),
     selectors: e.selectors,
@@ -26,15 +29,22 @@ export function canonicalEntry(e: Entry): Entry {
   return out
 }
 
-export function entryFromBuild(repo: string, contracts: BuiltContract[], firstCommit: string, firstBranch: string | null): Entry {
+/**
+ * The entry for one fingerprint's contracts from a build. `packages` lists the ones compiled from a
+ * dependency package; the role comes from sources.json `contractRoles` (see `roleOf`).
+ */
+export function entryFromBuild(repo: string, contracts: BuiltContract[], firstCommit: string, firstBranch: string | null, roles: Record<string, RoleConfig>): Entry {
   const c = contracts[0]
+  const packages = Object.fromEntries(contracts.filter(x => x.package !== null).map(x => [x.fqName, x.package!]))
   return canonicalEntry({
     schemaVersion: SCHEMA_VERSION,
     fingerprint: c.fingerprint,
     repo,
     contracts: contracts.map(x => x.fqName),
+    ...(Object.keys(packages).length ? { packages } : {}),
+    ...roleOf(roles, contracts.map(x => x.fqName)),
     codeLength: c.codeLength,
-    immutables: c.immutables,
+    maskedRanges: c.maskedRanges,
     cborMetadataLength: c.cborMetadataLength,
     getters: c.getters,
     selectors: c.selectors,
@@ -42,6 +52,20 @@ export function entryFromBuild(repo: string, contracts: BuiltContract[], firstCo
     firstCommit,
     firstBranch,
   })
+}
+
+/**
+ * The role of contracts that share one fingerprint. They are the same code, so they must have the
+ * same role in `contractRoles` (an unlisted contract is logic); a disagreement is a config error.
+ */
+export function roleOf(roles: Record<string, RoleConfig>, fqNames: string[]): Pick<Entry, 'role' | 'implementationSlots'> {
+  const each = fqNames.map(n => roles[n] ?? { role: 'logic' as const })
+  const describe = (r: RoleConfig | { role: 'logic' }) => r.role === 'proxy' ? `proxy [${r.implementationSlots.join(', ').toLowerCase()}]` : r.role
+  if (new Set(each.map(describe)).size > 1) {
+    throw new Error(`contracts with one fingerprint have different roles in contractRoles; list each with the same role: ${fqNames.map((n, i) => `${n}: ${describe(each[i])}`).join('; ')}`)
+  }
+  const r = each[0]
+  return r.role === 'proxy' ? { role: 'proxy', implementationSlots: r.implementationSlots.map(x => x.toLowerCase() as Hex) } : { role: r.role }
 }
 
 /** Groups a build's contracts by fingerprint (several names can compile to the same code). */

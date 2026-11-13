@@ -6,6 +6,7 @@ import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
 import { SourceData, byFingerprint, contractsMap, entryFromBuild } from './datarepo.ts'
 import { validateDataRepo } from './schema.ts'
+import { rangeConflictReport, rangeConflicts } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { ALERT_KINDS, type AlertItem, type AlertKind, type AlertSink } from './alerts.ts'
 import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult } from './testcheck.ts'
@@ -143,7 +144,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
         continue
       }
       for (const [fp, cs] of byFingerprint(r.contracts)) {
-        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, branch)); outcome.newEntries++ }
+        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, branch, cfg.contractRoles)); outcome.newEntries++ }
       }
     }
     for (const [branch, head] of changedBranches) {
@@ -190,11 +191,17 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
         }
       }
       for (const [fp, cs] of byFingerprint(r.contracts)) {
-        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, null)); outcome.newEntries++ }
+        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, null, cfg.contractRoles)); outcome.newEntries++ }
       }
       data.writeTag({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, tag, commit, prerelease: isPrerelease(tag), packageVersion: r.packageVersion, contracts: contractsMap(r.contracts) })
       outcome.tagsAdded.push(tag)
     }
+
+    // --- Range invariant: no code may match two entries ------------------------------------
+    // Over every entry of the source, so new entries are checked against existing ones and
+    // against each other. A conflict fails the whole run: the catch below discards everything.
+    const conflicts = rangeConflicts(data.entries(), cfg.reviewedRangePairs)
+    if (conflicts.length) throw new Error(`range invariant broken; nothing published. ${rangeConflictReport(cfg.directory, conflicts)}`)
 
     // --- Generated views and validation -----------------------------------------------------
     data.writeViews()

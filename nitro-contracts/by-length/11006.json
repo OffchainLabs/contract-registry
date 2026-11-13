@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/Inbox.sol:Inbox"
       ],
+      "role": "logic",
       "codeLength": 11006,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "maxDataSize",
           "type": "uint256",

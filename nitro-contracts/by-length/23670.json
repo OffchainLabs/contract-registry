@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/BOLDUpgradeAction.sol:BOLDUpgradeAction"
       ],
+      "role": "logic",
       "codeLength": 23670,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "MINIMUM_ASSERTION_PERIOD",
           "type": "uint256",

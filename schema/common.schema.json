@@ -9,6 +9,19 @@
     "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "selector": { "type": "string", "pattern": "^0x[0-9a-f]{8}$" },
     "fqName": { "type": "string", "pattern": "^[^:]+:[A-Za-z0-9_$]+$" },
+    "slot": { "type": "string", "pattern": "^0x[0-9a-f]{64}$", "description": "A storage slot, as 32 bytes of lowercase hex" },
+    "implementationSlots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/slot" },
+      "description": "Storage slots holding a proxy's implementation addresses, in order: first the implementation (EIP-1967), then any secondary one (AdminFallbackProxy's user-logic implementation)"
+    },
+    "role": {
+      "enum": ["logic", "proxy", "proxy-admin"],
+      "description": "logic: implements the system, on its own or behind a proxy. proxy: delegates to the implementation(s) in its implementationSlots. proxy-admin: administers proxies. Upgrades replace logic, never proxies or their admins."
+    },
+    "packageAtVersion": { "type": "string", "pattern": "^(@[^/@\\s]+/)?[^/@\\s]+@[^@\\s]+$", "description": "<package name>@<version>, e.g. @openzeppelin/contracts@4.7.3" },
     "contractsMap": {
       "type": "object",
       "description": "Fully qualified contract name to fingerprint",
@@ -25,8 +38,9 @@
         "kind": { "enum": ["single", "list"] }
       }
     },
-    "immutable": {
+    "maskedRange": {
       "type": "object",
+      "description": "Bytes filled in at deploy time and zeroed before hashing: a Solidity immutable (by its source name), a linked library's address ('<link <file>:<library>>') or a library's own address ('<library address>'). Synthetic names start with '<'.",
       "required": ["name", "type", "offsets", "length"],
       "additionalProperties": false,
       "properties": {
@@ -68,14 +82,23 @@
     },
     "entry": {
       "type": "object",
-      "required": ["schemaVersion", "fingerprint", "repo", "contracts", "codeLength", "immutables", "cborMetadataLength", "getters", "selectors", "compiler", "firstCommit", "firstBranch"],
+      "required": ["schemaVersion", "fingerprint", "repo", "contracts", "role", "codeLength", "maskedRanges", "cborMetadataLength", "getters", "selectors", "compiler", "firstCommit", "firstBranch"],
       "properties": {
         "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
         "fingerprint": { "$ref": "#/$defs/fingerprint" },
         "repo": { "$ref": "#/$defs/repo" },
         "contracts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/fqName" } },
+        "packages": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/fqName" },
+          "additionalProperties": { "$ref": "#/$defs/packageAtVersion" },
+          "description": "The contracts (a subset of contracts) compiled from an installed dependency package, with its name and version. Contracts not listed are the source repo's own code; absent when every contract is. Like firstCommit, from the first build that produced the fingerprint."
+        },
+        "role": { "$ref": "#/$defs/role" },
+        "implementationSlots": { "$ref": "#/$defs/implementationSlots" },
         "codeLength": { "type": "integer", "minimum": 1 },
-        "immutables": { "type": "array", "items": { "$ref": "#/$defs/immutable" } },
+        "maskedRanges": { "type": "array", "items": { "$ref": "#/$defs/maskedRange" }, "description": "The ranges zeroed before hashing, besides the trailing CBOR metadata (cborMetadataLength)" },
         "cborMetadataLength": { "type": "integer", "minimum": 0 },
         "getters": { "type": "array", "items": { "$ref": "#/$defs/getter" } },
         "selectors": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/selector" } },
@@ -89,6 +112,11 @@
         {
           "if": { "properties": { "firstCommit": { "type": "null" } } },
           "then": { "required": ["label"], "properties": { "firstBranch": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "proxy" } }, "required": ["role"] },
+          "then": { "required": ["implementationSlots"] },
+          "else": { "not": { "required": ["implementationSlots"] } }
         }
       ]
     }

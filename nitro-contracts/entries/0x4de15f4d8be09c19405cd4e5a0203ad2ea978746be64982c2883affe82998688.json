@@ -5,8 +5,9 @@
   "contracts": [
     "src/rollup/RollupCreator.sol:RollupCreator"
   ],
+  "role": "logic",
   "codeLength": 23538,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [
     {

@@ -1,8 +1,11 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { matches, variantValues, type VariantValue } from '../lib/fingerprint.ts'
+import { matches } from '../lib/fingerprint.ts'
+import { hexToBytes } from '../lib/hex.ts'
+import { isPrerelease } from '../lib/semver.ts'
 import type { ByLengthEntry, ByLengthFile, IndexFile } from '../lib/types.ts'
+import type { Rpc } from './rpc.ts'
 
 /** Where registry files come from. Every implementation reads one fixed snapshot. */
 export interface RegistrySource {
@@ -86,7 +89,18 @@ function resolveRemote(url: string, ref: string): string {
   return sha
 }
 
-export interface Match { entry: ByLengthEntry; variants: Record<string, VariantValue> }
+/**
+ * A version string for an entry: its first release tag (tags are in semver order), else its first
+ * prerelease tag, else `<firstBranch>@<first 12 hex digits of firstCommit>` for a build only seen
+ * on a branch. A manual entry with no tag (no commit either) gives its label.
+ */
+export function versionOf(entry: ByLengthEntry): string {
+  const releases = entry.tags.filter(t => !isPrerelease(t))
+  if (releases.length) return releases[0]
+  if (entry.tags.length) return entry.tags[0]
+  if (entry.firstCommit === null) return entry.label ?? entry.contracts[0]
+  return `${entry.firstBranch}@${entry.firstCommit.slice(0, 12)}`
+}
 
 /** One source repo's part of a registry snapshot. */
 export class Registry {
@@ -130,12 +144,35 @@ export class Registry {
     return t ? JSON.parse(t).getters : null
   }
 
-  /** The lookup (§5.5): test every entry of the code's length with the match rule. */
-  async lookup(code: Uint8Array): Promise<Match[]> {
-    const out: Match[] = []
-    for (const e of await this.byLength(code.length)) {
-      if (matches(code, e)) out.push({ entry: e, variants: variantValues(code, e.immutables) })
+  /**
+   * The lookup (§5.5): the entry of the code's length that passes the match rule, or null. At most
+   * one entry can pass, because publish and CI require entries of one length to mask the same
+   * bytes, apart from reviewed pairs (see `rangeConflicts`). `decodeImmutables(code, entry)` reads
+   * the matched code's immutables.
+   */
+  async lookup(code: Uint8Array): Promise<ByLengthEntry | null> {
+    return (await this.byLength(code.length)).find(e => matches(code, e)) ?? null
+  }
+
+  /**
+   * The version of the contract at `address` (see `versionOf`), or null if the registry doesn't
+   * know its code. A proxy with one implementation slot reports its implementation's version (null
+   * if the slot is zero or its code unknown). Everything else reports its own code's version:
+   * logic, proxy admins, and proxies with two slots (RollupProxy, AdminFallbackProxy), whose own
+   * version can lag the logic behind them.
+   */
+  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, address: string, block = 'latest'): Promise<string | null> {
+    const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
+    if (!entry) return null
+    if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) {
+      const word = (await rpc.getStorageAt(address, entry.implementationSlots[0], block)).replace(/^0x/, '').padStart(64, '0')
+      const impl = `0x${word.slice(-40)}`
+      if (/^0x0{40}$/.test(impl)) return null
+      const code = hexToBytes(await rpc.getCode(impl, block))
+      if (!code.length) return null
+      const implEntry = await this.lookup(code)
+      return implEntry ? versionOf(implEntry) : null
     }
-    return out
+    return versionOf(entry)
   }
 }

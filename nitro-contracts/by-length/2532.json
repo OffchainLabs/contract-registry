@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/BOLDUpgradeAction.sol:StateHashPreImageLookup"
       ],
+      "role": "logic",
       "codeLength": 2532,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

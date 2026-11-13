@@ -10,8 +10,9 @@
       "contracts": [
         "src/assertionStakingPool/AssertionStakingPool.sol:AssertionStakingPool"
       ],
+      "role": "logic",
       "codeLength": 3391,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "assertionHash",
           "type": "bytes32",

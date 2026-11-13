@@ -10,8 +10,9 @@
       "contracts": [
         "src/express-lane-auction/Burner.sol:Burner"
       ],
+      "role": "logic",
       "codeLength": 451,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "token",
           "type": "address",

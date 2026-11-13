@@ -5,7 +5,7 @@ import { cborMetadataLength } from './cbor.ts'
 import { fingerprintOf } from './fingerprint.ts'
 import { hexToBytes } from './hex.ts'
 import { matchesAny } from './glob.ts'
-import type { BuiltContract, CompilerInfo, Getter, Hex, ImmutableRef } from './types.ts'
+import type { BuiltContract, CompilerInfo, Getter, Hex, MaskedRange } from './types.ts'
 
 /** A solc standard-JSON build-info file (Hardhat and Foundry both write these). */
 export interface BuildInfo {
@@ -129,9 +129,9 @@ function abiTypeOf(decl: any, idx: Map<number, any>): string {
   return 'bytes32'
 }
 
-function immutablesOf(bi: BuildInfo, refs: Record<string, { start: number; length: number }[]>, fqName: string): ImmutableRef[] {
+function immutablesOf(bi: BuildInfo, refs: Record<string, { start: number; length: number }[]>, fqName: string): MaskedRange[] {
   const idx = astIndex(bi)
-  const out: (ImmutableRef & { scope: string })[] = []
+  const out: (MaskedRange & { scope: string })[] = []
   for (const [id, ranges] of Object.entries(refs)) {
     const decl = idx.get(Number(id))
     if (!decl || decl.nodeType !== 'VariableDeclaration') throw new Error(`${fqName}: immutable AST node ${id} not found`)
@@ -179,50 +179,89 @@ export function selectorsOf(contract: any): Hex[] {
 
 /**
  * Turns one compiled contract into a fingerprinted record. Returns null for empty runtime code
- * (interfaces, abstract contracts). Library self-address and link placeholders are masked like
- * immutables, since they are filled in at deploy time.
+ * (interfaces, abstract contracts) and for libraries with no external functions: those are only
+ * ever inlined, never linked or deployed, and all compile to the same small stub. Library
+ * self-address and link placeholders are masked like immutables, since they are filled in at
+ * deploy time; together they are the entry's `maskedRanges`. The caller adds `package`, which
+ * needs the checkout (see `packageOf`).
  */
-export function extractContract(ref: ArtifactRef): BuiltContract | null {
+export function extractContract(ref: ArtifactRef): Omit<BuiltContract, 'package'> | null {
   const c = ref.buildInfo.output.contracts![ref.source][ref.name]
   let hex: string = c.evm?.deployedBytecode?.object ?? ''
   if (!hex || hex === '0x') return null
+  const nodeId = findContractNodeId(ref)
+  const isLibrary = nodeId !== undefined && astIndex(ref.buildInfo).get(nodeId)?.contractKind === 'library'
+  const selectors = selectorsOf(c)
+  if (isLibrary && selectors.length === 0) return null
   const compiler = compilerInfo(ref.buildInfo)
-  const immutables = immutablesOf(ref.buildInfo, c.evm.deployedBytecode.immutableReferences ?? {}, ref.fqName)
+  const maskedRanges = immutablesOf(ref.buildInfo, c.evm.deployedBytecode.immutableReferences ?? {}, ref.fqName)
 
   // Linked-library placeholders (`__$...$__`) are not hex; zero them and mask them.
   const links: Record<string, Record<string, { start: number; length: number }[]>> = c.evm.deployedBytecode.linkReferences ?? {}
   for (const [file, libs] of Object.entries(links)) {
     for (const [lib, ranges] of Object.entries(libs)) {
       for (const r of ranges) hex = hex.slice(0, 2 * r.start) + '0'.repeat(2 * r.length) + hex.slice(2 * (r.start + r.length))
-      immutables.push({ name: `<link ${file}:${lib}>`, type: 'address', offsets: ranges.map(r => r.start).sort((a, b) => a - b), length: 20 })
+      maskedRanges.push({ name: `<link ${file}:${lib}>`, type: 'address', offsets: ranges.map(r => r.start).sort((a, b) => a - b), length: 20 })
     }
   }
   const code = hexToBytes(hex)
 
   // Libraries' runtime code starts with PUSH20 <own address>, zero in the build.
-  const nodeId = findContractNodeId(ref)
-  const isLibrary = nodeId !== undefined && astIndex(ref.buildInfo).get(nodeId)?.contractKind === 'library'
   if (isLibrary && code[0] === 0x73 && code.slice(1, 21).every(b => b === 0)) {
-    immutables.push({ name: '<library address>', type: 'address', offsets: [1], length: 20 })
+    maskedRanges.push({ name: '<library address>', type: 'address', offsets: [1], length: 20 })
   }
-  immutables.sort((a, b) => a.offsets[0] - b.offsets[0])
+  maskedRanges.sort((a, b) => a.offsets[0] - b.offsets[0])
 
   let cbor = 0
   if (compiler.language === 'Solidity' && compiler.metadata.appendCBOR) {
     cbor = cborMetadataLength(code)
     if (cbor === 0) throw new Error(`${ref.fqName}: expected a CBOR metadata section`)
   }
-  const spec = { codeLength: code.length, immutables, cborMetadataLength: cbor }
+  const spec = { codeLength: code.length, maskedRanges, cborMetadataLength: cbor }
   return {
     fqName: ref.fqName,
     fingerprint: fingerprintOf(code, spec),
     codeLength: code.length,
-    immutables,
+    maskedRanges,
     cborMetadataLength: cbor,
     getters: gettersOf(c.abi ?? []),
-    selectors: selectorsOf(c),
+    selectors,
     compiler,
   }
+}
+
+/**
+ * The installed dependency package a source file was compiled from, as `<name>@<version>`, or null
+ * for the source repo's own files (including git submodules). Foundry names package sources by
+ * path (`node_modules/@scope/pkg/...`); Hardhat by import name (`@scope/pkg/...`), resolved from
+ * the project root's `node_modules`. Either way the name and version come from the package.json
+ * installed in the build checkout.
+ */
+export function packageOf(checkoutDir: string, source: string): string | null {
+  const marker = 'node_modules/'
+  const i = source.lastIndexOf(marker)
+  let root: string
+  if (i === 0 || (i > 0 && source[i - 1] === '/')) {
+    root = source.slice(0, i + marker.length) + packageDirName(source.slice(i + marker.length), source)
+  } else {
+    if (fs.existsSync(path.join(checkoutDir, source))) return null
+    root = marker + packageDirName(source, source)
+  }
+  const file = path.join(checkoutDir, root, 'package.json')
+  if (!fs.existsSync(file)) throw new Error(`${source}: not a file in the checkout, and no installed package at ${root}`)
+  const pkg = JSON.parse(fs.readFileSync(file, 'utf8'))
+  if (typeof pkg.version !== 'string' || !pkg.version) throw new Error(`${root}/package.json has no version`)
+  // The package's own name, which differs from its directory under an npm alias.
+  const name = typeof pkg.name === 'string' && pkg.name ? pkg.name : root.slice(root.lastIndexOf(marker) + marker.length)
+  return `${name}@${pkg.version}`
+}
+
+/** `@scope/pkg/x.sol` -> `@scope/pkg`; `pkg/x.sol` -> `pkg`. */
+function packageDirName(rest: string, source: string): string {
+  const parts = rest.split('/')
+  const n = parts[0].startsWith('@') ? 2 : 1
+  if (parts.length <= n) throw new Error(`${source}: can't tell which package it belongs to`)
+  return parts.slice(0, n).join('/')
 }
 
 function findContractNodeId(ref: ArtifactRef): number | undefined {

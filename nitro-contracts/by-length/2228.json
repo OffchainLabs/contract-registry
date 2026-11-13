@@ -10,8 +10,9 @@
       "contracts": [
         "src/stylus/StylusDeployer.sol:StylusDeployer"
       ],
+      "role": "logic",
       "codeLength": 2228,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

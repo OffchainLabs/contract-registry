@@ -10,8 +10,9 @@
       "contracts": [
         "src/assertionStakingPool/EdgeStakingPoolCreator.sol:EdgeStakingPoolCreator"
       ],
+      "role": "logic",
       "codeLength": 4617,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

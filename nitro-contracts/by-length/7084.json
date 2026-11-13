@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/ERC20Outbox.sol:ERC20Outbox"
       ],
+      "role": "logic",
       "codeLength": 7084,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "__self",
           "type": "address",

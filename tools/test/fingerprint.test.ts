@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { keccak256 } from 'viem'
+import { getAddress, keccak256 } from 'viem'
 import { cborMetadataLength } from '../src/lib/cbor.ts'
-import { fingerprintOf, mask, matches, variantValues } from '../src/lib/fingerprint.ts'
+import { decodeImmutables, fingerprintOf, mask, matches } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { codeSelectors } from '../src/walker/selectors.ts'
 
@@ -17,12 +17,12 @@ test('detects the CBOR metadata section and its length', () => {
   assert.equal(cborMetadataLength(hexToBytes('6080604052600080fd')), 0, 'Yul-style code has none')
 })
 
-test('masks immutables at every offset and the CBOR section, and matches by length + hash', () => {
+test('masks ranges at every offset and the CBOR section, and matches by length + hash', () => {
   const word = (n: number) => n.toString(16).padStart(64, '0')
   const build = '60' + '00'.repeat(32) + '61' + '00'.repeat(32) + '5b' + CBOR_NONE
   const spec = {
     codeLength: build.length / 2,
-    immutables: [{ name: 'maxDataSize', type: 'uint256', offsets: [1, 34], length: 32 }],
+    maskedRanges: [{ name: 'maxDataSize', type: 'uint256', offsets: [1, 34], length: 32 }],
     cborMetadataLength: 12,
   }
   const fp = fingerprintOf(hexToBytes(build), spec)
@@ -30,7 +30,7 @@ test('masks immutables at every offset and the CBOR section, and matches by leng
   // Deployed: immutable filled in, different compiler-version CBOR bytes.
   const deployed = '60' + word(117964) + '61' + word(117964) + '5b' + 'a164736f6c6343000812000a'
   assert.ok(matches(hexToBytes(deployed), entry))
-  assert.deepEqual(variantValues(hexToBytes(deployed), spec.immutables), { maxDataSize: '117964' })
+  assert.deepEqual(decodeImmutables(hexToBytes(deployed), entry), { maxDataSize: '117964' })
   // Same length, different code: no match.
   assert.ok(!matches(hexToBytes(deployed.replace(/5b/, '5c')), entry))
   // Different length: no match (and no throw).
@@ -41,13 +41,28 @@ test('masks immutables at every offset and the CBOR section, and matches by leng
   assert.equal(keccak256(input), keccak256(hexToBytes(deployed)))
 })
 
-test('decodes bool and address variants', () => {
+test('decodes bool and address immutables', () => {
   const code = hexToBytes('00'.repeat(31) + '01' + '00'.repeat(12) + '02791255466d0e8e6d0c7138e333efd48bf7e275')
-  const v = variantValues(code, [
+  const v = decodeImmutables(code, { maskedRanges: [
     { name: 'isUsingFeeToken', type: 'bool', offsets: [0], length: 32 },
     { name: 'reader4844', type: 'address', offsets: [32], length: 32 },
-  ])
+  ] })
   assert.deepEqual(v, { isUsingFeeToken: true, reader4844: '0x02791255466D0E8e6d0C7138e333EFD48bf7e275' })
+})
+
+test('immutable values leave out link and library-address ranges, and keep __self', () => {
+  // A library's code: PUSH20 <own address>, a linked library's address, and UUPS's __self.
+  const self = 'aa'.repeat(20), linked = 'bb'.repeat(20), uups = '00'.repeat(12) + 'cc'.repeat(20)
+  const code = hexToBytes('73' + self + '73' + linked + uups + '5b')
+  const ranges = [
+    { name: '<library address>', type: 'address', offsets: [1], length: 20 },
+    { name: '<link src/libraries/Lib.sol:Lib>', type: 'address', offsets: [22], length: 20 },
+    { name: '__self', type: 'address', offsets: [42], length: 32 },
+  ]
+  const spec = { codeLength: code.length, maskedRanges: ranges, cborMetadataLength: 0 }
+  assert.deepEqual(decodeImmutables(code, spec), { __self: getAddress('0x' + 'cc'.repeat(20)) })
+  // All three are still masked.
+  assert.deepEqual(mask(code, spec), hexToBytes('73' + '00'.repeat(20) + '73' + '00'.repeat(20) + '00'.repeat(32) + '5b'))
 })
 
 test('finds PUSH4 selectors but not push data that looks like opcodes', () => {

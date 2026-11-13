@@ -5,8 +5,9 @@
   "contracts": [
     "src/osp/OneStepProverHostIo.sol:OneStepProverHostIo"
   ],
+  "role": "logic",
   "codeLength": 19592,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "customDAValidator",
       "type": "address",

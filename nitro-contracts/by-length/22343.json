@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/RollupAdminLogic.sol:RollupAdminLogic"
       ],
+      "role": "logic",
       "codeLength": 22343,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "__self",
           "type": "address",

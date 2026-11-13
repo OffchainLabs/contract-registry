@@ -10,8 +10,9 @@
       "contracts": [
         "src/osp/OneStepProver0.sol:OneStepProver0"
       ],
+      "role": "logic",
       "codeLength": 13359,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

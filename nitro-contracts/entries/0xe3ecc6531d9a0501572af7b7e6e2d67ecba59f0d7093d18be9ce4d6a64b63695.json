@@ -5,8 +5,9 @@
   "contracts": [
     "src/bridge/Bridge.sol:Bridge"
   ],
+  "role": "logic",
   "codeLength": 6725,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "__self",
       "type": "address",

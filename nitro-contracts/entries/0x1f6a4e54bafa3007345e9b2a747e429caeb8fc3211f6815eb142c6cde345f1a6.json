@@ -5,8 +5,15 @@
   "contracts": [
     "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy"
   ],
+  "packages": {
+    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy": "@openzeppelin/contracts@4.7.3"
+  },
+  "role": "proxy",
+  "implementationSlots": [
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+  ],
   "codeLength": 2201,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

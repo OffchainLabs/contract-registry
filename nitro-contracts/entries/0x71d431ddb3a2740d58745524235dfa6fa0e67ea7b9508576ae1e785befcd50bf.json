@@ -5,8 +5,9 @@
   "contracts": [
     "src/bridge/ERC20Bridge.sol:ERC20Bridge"
   ],
+  "role": "logic",
   "codeLength": 8748,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "__self",
       "type": "address",

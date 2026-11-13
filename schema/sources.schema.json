@@ -3,7 +3,7 @@
   "$id": "https://contract-registry/schema/sources.schema.json",
   "title": "Sources config for one source repo (config/<source-repo>/sources.json)",
   "type": "object",
-  "required": ["schemaVersion", "repo", "url", "directory", "start", "publishedRefs", "tagValidation", "outOfScopeGetters", "testChains", "reconcileGraceMinutes", "builds"],
+  "required": ["schemaVersion", "repo", "url", "directory", "start", "publishedRefs", "tagValidation", "outOfScopeGetters", "contractRoles", "reviewedRangePairs", "testChains", "reconcileGraceMinutes", "builds"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
@@ -30,6 +30,40 @@
       }
     },
     "outOfScopeGetters": { "type": "string" },
+    "contractRoles": {
+      "type": "object",
+      "description": "Proxies and proxy admins, by fully qualified name; every other contract is logic. Copied into each entry (role, implementationSlots) when it is written, so list a contract before its first build is published. Contracts sharing a fingerprint must have the same role.",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/fqName" },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["role", "implementationSlots"],
+            "additionalProperties": false,
+            "properties": { "role": { "const": "proxy" }, "implementationSlots": { "$ref": "common.schema.json#/$defs/implementationSlots" } }
+          },
+          {
+            "type": "object",
+            "required": ["role"],
+            "additionalProperties": false,
+            "properties": { "role": { "const": "proxy-admin" } }
+          }
+        ]
+      }
+    },
+    "reviewedRangePairs": {
+      "type": "array",
+      "description": "Pairs of entries with the same code length that mask different bytes, each reviewed by rebuilding both and confirming that their code differs at some byte neither masks, so no code can match both. Every other such pair fails publish and CI, which keeps lookups to at most one match.",
+      "items": {
+        "type": "object",
+        "required": ["fingerprints", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "fingerprints": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/fingerprint" }, "description": "The two entries, in either order" },
+          "note": { "type": "string", "minLength": 1, "description": "What the review found, and who reviewed it" }
+        }
+      }
+    },
     "testChains": { "oneOf": [{ "type": "null" }, { "type": "object", "required": ["deployer"], "additionalProperties": false, "properties": { "deployer": { "type": "string" } } }] },
     "reconcileGraceMinutes": { "type": "integer", "minimum": 0 },
     "builds": {

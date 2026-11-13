@@ -10,8 +10,9 @@
       "contracts": [
         "src/bridge/DelayBuffer.sol:DelayBuffer"
       ],
+      "role": "logic",
       "codeLength": 95,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "<library address>",
           "type": "address",

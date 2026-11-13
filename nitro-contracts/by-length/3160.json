@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/ERC20RollupEventInbox.sol:ERC20RollupEventInbox"
       ],
+      "role": "logic",
       "codeLength": 3160,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "__self",
           "type": "address",

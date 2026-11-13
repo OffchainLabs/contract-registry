@@ -5,8 +5,9 @@
   "contracts": [
     "src/osp/OneStepProverMath.sol:OneStepProverMath"
   ],
+  "role": "logic",
   "codeLength": 10197,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

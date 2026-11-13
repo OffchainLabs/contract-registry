@@ -5,8 +5,12 @@
   "contracts": [
     "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin"
   ],
+  "packages": {
+    "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin": "@openzeppelin/contracts@4.7.3"
+  },
+  "role": "proxy-admin",
   "codeLength": 1892,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [
     {

@@ -5,8 +5,9 @@
   "contracts": [
     "src/rollup/BridgeCreator.sol:BridgeCreator"
   ],
+  "role": "logic",
   "codeLength": 6306,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

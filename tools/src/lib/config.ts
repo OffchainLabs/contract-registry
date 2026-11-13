@@ -1,6 +1,10 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { gitOk } from './exec.ts'
+import type { Hex, RoleConfig } from './types.ts'
+
+/** Two fingerprints (in either order) and what the review found. */
+export interface ReviewedRangePair { fingerprints: [Hex, Hex]; note: string }
 
 export interface BuildOutput {
   name: string
@@ -37,6 +41,17 @@ export interface SourceConfig {
   publishedRefs: { tags: string[]; branches: string[] }
   tagValidation: { rule: 'tag-equals-v-package-version'; allowlist: Record<string, string> }
   outOfScopeGetters: string
+  /**
+   * Proxies and proxy admins by fully qualified name; every other contract is logic. Read when an
+   * entry is written, so a contract must be listed before its first build is published.
+   */
+  contractRoles: Record<string, RoleConfig>
+  /**
+   * Pairs of entries of one code length whose masked bytes differ, each reviewed by rebuilding both
+   * and confirming that no code can match both. Every other such pair fails publish and CI (see
+   * `rangeConflicts`).
+   */
+  reviewedRangePairs: ReviewedRangePair[]
   testChains: { deployer: string } | null
   reconcileGraceMinutes: number
   builds: BuildProfile[]

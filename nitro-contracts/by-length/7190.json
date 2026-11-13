@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/ValidatorWallet.sol:ValidatorWallet"
       ],
+      "role": "logic",
       "codeLength": 7190,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "gasPerBlob",
           "type": "uint256",

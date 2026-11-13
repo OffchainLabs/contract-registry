@@ -5,8 +5,9 @@
   "contracts": [
     "src/osp/OneStepProofEntry.sol:OneStepProofEntry"
   ],
+  "role": "logic",
   "codeLength": 13402,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [
     {

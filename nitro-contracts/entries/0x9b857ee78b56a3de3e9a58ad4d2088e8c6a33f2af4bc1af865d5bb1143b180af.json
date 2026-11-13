@@ -5,8 +5,9 @@
   "contracts": [
     "src/rollup/DeployHelper.sol:DeployHelper"
   ],
+  "role": "logic",
   "codeLength": 6414,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [
     {

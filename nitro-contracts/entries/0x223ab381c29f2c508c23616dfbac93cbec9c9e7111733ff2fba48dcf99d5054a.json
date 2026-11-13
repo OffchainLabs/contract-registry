@@ -5,8 +5,9 @@
   "contracts": [
     "src/challengeV2/libraries/MerkleTreeAccumulatorLib.sol:MerkleTreeAccumulatorLib"
   ],
+  "role": "logic",
   "codeLength": 94,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "<library address>",
       "type": "address",

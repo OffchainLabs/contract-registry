@@ -1,11 +1,15 @@
 import { getAddress, keccak256 } from 'viem'
 import { hexToBytes, ZERO_ADDRESS } from '../lib/hex.ts'
-import type { VariantValue } from '../lib/fingerprint.ts'
-import type { ByLengthEntry, Getter, Hex } from '../lib/types.ts'
+import { decodeImmutables, type ImmutableValue } from '../lib/fingerprint.ts'
+import type { ByLengthEntry, ContractRole, Getter, Hex } from '../lib/types.ts'
 import { ExecutionError, Rpc } from './rpc.ts'
 import { codeSelectors } from './selectors.ts'
-import type { Match, Registry } from './registry.ts'
+import type { Registry } from './registry.ts'
 
+/**
+ * Proxy entries list the slots to read. These two are probed only for code the registry doesn't
+ * know (e.g. a chain deployed before the registry's start), so such walks still reach the logic.
+ */
 export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 /** AdminFallbackProxy (RollupProxy) secondary, user-logic implementation slot. */
 export const SECONDARY_IMPLEMENTATION_SLOT = '0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d'
@@ -28,12 +32,18 @@ export interface WalkOptions {
 export interface MatchedEntry {
   repo: string
   contracts: string[]
+  /** Contracts compiled from a dependency package: fully qualified name -> `<package>@<version>`. */
+  packages?: Record<string, string>
+  role: ContractRole
+  /** Proxies: the slots read for the node's `implementation` and `secondaryImplementation`. */
+  implementationSlots?: Hex[]
   fingerprint: Hex
   tags: string[]
   firstCommit: string | null
   firstBranch: string | null
   label?: string
-  variants: Record<string, VariantValue>
+  /** The matched code's Solidity immutables by name (linked-library and library addresses left out). */
+  immutables: Record<string, ImmutableValue>
 }
 
 export interface ClosestEntry {
@@ -47,8 +57,9 @@ export interface ClosestEntry {
   score: number
 }
 
+/** What a piece of code is. `matched` names the one entry it matches (the registry guarantees at most one). */
 export type CodeId =
-  | { status: 'matched'; codeLength: number; matches: MatchedEntry[] }
+  | { status: 'matched'; codeLength: number; match: MatchedEntry }
   | { status: 'unknown'; codeLength: number; codeHash: Hex; answeredGetters: string[]; closest: ClosestEntry | null }
   | { status: 'no-code' }
   | { status: 'not-identified'; codeLength: number; codeHash: Hex }
@@ -66,11 +77,18 @@ export interface WalkNode {
   /** Out-of-scope leaves: the edges that reached them, e.g. `RollupProxy.stakeToken()`. */
   labels: string[]
   code?: CodeId
-  implementation?: { address: string; code: CodeId }
-  secondaryImplementation?: { address: string; code: CodeId }
+  /**
+   * For a proxy: the address in its first implementation slot and that code's identity. Read from
+   * the slots its entry lists, or, for unknown code, probed at the EIP-1967 slot.
+   */
+  implementation?: Implementation
+  /** The address in the second slot (AdminFallbackProxy's user-logic implementation). */
+  secondaryImplementation?: Implementation
   /** Getters that returned the zero address. */
   unset: { getter: string; index: number | null; inScope: boolean }[]
 }
+
+export interface Implementation { slot: Hex; address: string; code: CodeId }
 
 export type Warning =
   | { kind: 'unknown-code'; address: string; role: 'code' | 'implementation' | 'secondaryImplementation'; via: Edge[] }
@@ -89,11 +107,17 @@ export interface WalkResult {
   nodes: WalkNode[]
   warnings: Warning[]
   summary: {
-    /** Intersection of the tag sets of all matched in-scope code: the releases the deployment is consistent with. */
+    /**
+     * Intersection of the tag sets of all matched in-scope logic code: the releases the deployment
+     * is consistent with. Proxies and proxy admins are left out (they are still identified in the
+     * nodes): upgrades replace implementations, never proxies, so after an upgrade to a release
+     * that changed proxy code they would empty the intersection.
+     */
     tags: string[]
+    /** Matched in-scope code of every role, proxies included. */
     matchedInScope: number
     unknownInScope: number
-    /** Matched in-scope code whose tag set is empty (unreleased builds); these empty the intersection. */
+    /** Matched in-scope logic code whose tag set is empty (unreleased builds); these empty the intersection. */
     untaggedInScope: string[]
   }
   stats: { rpcRequests: number; ms: number }
@@ -134,11 +158,11 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     return n
   }
 
-  const identify = async (code: Uint8Array): Promise<{ id: CodeId; matched: Match[] }> => {
-    if (code.length === 0) return { id: { status: 'no-code' }, matched: [] }
-    const ms = await registry.lookup(code)
-    if (!ms.length) return { id: { status: 'unknown', codeLength: code.length, codeHash: keccak256(code), answeredGetters: [], closest: null }, matched: [] }
-    return { id: { status: 'matched', codeLength: code.length, matches: ms.map(m => matchedEntry(opts.repo, m)) }, matched: ms }
+  const identify = async (code: Uint8Array): Promise<{ id: CodeId; entry: ByLengthEntry | null }> => {
+    if (code.length === 0) return { id: { status: 'no-code' }, entry: null }
+    const e = await registry.lookup(code)
+    if (!e) return { id: { status: 'unknown', codeLength: code.length, codeHash: keccak256(code), answeredGetters: [], closest: null }, entry: null }
+    return { id: { status: 'matched', codeLength: code.length, match: matchedEntry(opts.repo, e, code) }, entry: e }
   }
 
   const visited = new Set<string>()
@@ -169,22 +193,26 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       // Identify the code at the address, and the implementation(s) if it's a proxy.
       const own = await identify(code)
       node.code = own.id
-      const pieces: { role: 'code' | 'implementation' | 'secondaryImplementation'; id: CodeId; matched: Match[]; code: Uint8Array }[] = [{ role: 'code', ...own, code }]
-      const impl = slotAddress(await rpc.getStorageAt(node.address, EIP1967_IMPLEMENTATION_SLOT, block))
-      if (impl) {
+      const pieces: { role: 'code' | 'implementation' | 'secondaryImplementation'; id: CodeId; entry: ByLengthEntry | null; code: Uint8Array }[] = [{ role: 'code', ...own, code }]
+      const readImplementation = async (role: 'implementation' | 'secondaryImplementation', slot: Hex): Promise<boolean> => {
+        const impl = slotAddress(await rpc.getStorageAt(node.address, slot, block))
+        if (!impl) return false
         const implCode = await getCode(impl)
         const r = await identify(implCode)
-        node.implementation = { address: checksum(impl), code: r.id }
-        pieces.push({ role: 'implementation', ...r, code: implCode })
+        node[role] = { slot, address: checksum(impl), code: r.id }
+        pieces.push({ role, ...r, code: implCode })
         if (!implCode.length) warnings.push({ kind: 'no-implementation-code', address: node.address, implementation: checksum(impl) })
-        const impl2 = slotAddress(await rpc.getStorageAt(node.address, SECONDARY_IMPLEMENTATION_SLOT, block))
-        if (impl2) {
-          const c2 = await getCode(impl2)
-          const r2 = await identify(c2)
-          node.secondaryImplementation = { address: checksum(impl2), code: r2.id }
-          pieces.push({ role: 'secondaryImplementation', ...r2, code: c2 })
-          if (!c2.length) warnings.push({ kind: 'no-implementation-code', address: node.address, implementation: checksum(impl2) })
-        }
+        return true
+      }
+      if (own.entry) {
+        // Known code: read exactly the slots a proxy entry lists (none for logic or a proxy admin).
+        const slots = own.entry.role === 'proxy' ? (own.entry.implementationSlots ?? []).map(s => s.toLowerCase() as Hex) : []
+        if (slots.length > 2) throw new Error(`${node.address}: its entry lists ${slots.length} implementation slots; this walker reads at most two`)
+        if (slots[0]) await readImplementation('implementation', slots[0])
+        if (slots[1]) await readImplementation('secondaryImplementation', slots[1])
+      } else if (await readImplementation('implementation', EIP1967_IMPLEMENTATION_SLOT)) {
+        // Unknown code: probe the known slots, in case it's a proxy the registry doesn't have.
+        await readImplementation('secondaryImplementation', SECONDARY_IMPLEMENTATION_SLOT)
       }
       for (const p of pieces) if (p.id.status === 'unknown') p.id.closest = await closestEntry(registry, p.code)
       node.name = nodeName(node)
@@ -192,7 +220,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       // Getters to call: every getter of every matched piece, plus every getter the registry
       // knows for this repo if any piece is unknown (reverts from those are expected).
       const toCall = new Map<string, GetterToCall>()
-      for (const p of pieces) for (const m of p.matched) for (const g of m.entry.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: m.entry.fingerprint })
+      for (const { entry } of pieces) if (entry) for (const g of entry.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: entry.fingerprint })
       const unknownPieces = pieces.filter(p => p.id.status === 'unknown')
       if (unknownPieces.length) for (const g of index.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: null })
 
@@ -240,7 +268,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     if (m.size > 1) warnings.push({ kind: 'conflicting-getter', getter, values: [...m].map(([value, from]) => ({ value, nodes: [...from].sort() })).sort((a, b) => a.value.localeCompare(b.value)) })
   }
 
-  // Deployment summary: intersection of the tag sets of all matched in-scope code.
+  // Deployment summary: intersection of the tag sets of all matched in-scope logic code.
   let tags = null as Set<string> | null
   let matched = 0, unknown = 0
   const untagged: string[] = []
@@ -251,7 +279,8 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       if (id.status === 'unknown') unknown++
       if (id.status !== 'matched') continue
       matched++
-      const t = new Set(id.matches.flatMap(m => m.tags))
+      if (id.match.role !== 'logic') continue // a proxy or proxy admin
+      const t = new Set(id.match.tags)
       if (!t.size) untagged.push(where!)
       tags = tags === null ? t : new Set([...tags].filter(x => t.has(x)))
     }
@@ -278,17 +307,19 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   }
 }
 
-function matchedEntry(repo: string, m: Match): MatchedEntry {
-  const e = m.entry
+function matchedEntry(repo: string, e: ByLengthEntry, code: Uint8Array): MatchedEntry {
   return {
-    repo, contracts: e.contracts, fingerprint: e.fingerprint, tags: e.tags, firstCommit: e.firstCommit, firstBranch: e.firstBranch,
-    ...(e.label ? { label: e.label } : {}), variants: m.variants,
+    repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
+    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
+    fingerprint: e.fingerprint, tags: e.tags, firstCommit: e.firstCommit, firstBranch: e.firstBranch,
+    ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }
 
+/** The matched entry's contract name; when several contracts compile to its code, up to two of them. */
 function shortName(id: CodeId | undefined): string | null {
   if (id?.status !== 'matched') return null
-  const names = [...new Set(id.matches.flatMap(m => m.contracts.map(c => c.split(':').pop()!)))]
+  const names = [...new Set(id.match.contracts.map(c => c.split(':').pop()!))]
   return names.length === 1 ? names[0] : names.slice(0, 2).join('|') + (names.length > 2 ? '|…' : '')
 }
 

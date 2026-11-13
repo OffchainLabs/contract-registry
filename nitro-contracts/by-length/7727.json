@@ -10,8 +10,9 @@
       "contracts": [
         "src/osp/HashProofHelper.sol:HashProofHelper"
       ],
+      "role": "logic",
       "codeLength": 7727,
-      "immutables": [],
+      "maskedRanges": [],
       "cborMetadataLength": 12,
       "getters": [],
       "selectors": [

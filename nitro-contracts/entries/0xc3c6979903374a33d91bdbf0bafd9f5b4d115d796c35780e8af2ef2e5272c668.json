@@ -5,8 +5,9 @@
   "contracts": [
     "src/osp/OneStepProverMemory.sol:OneStepProverMemory"
   ],
+  "role": "logic",
   "codeLength": 8375,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

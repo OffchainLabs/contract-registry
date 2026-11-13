@@ -10,8 +10,9 @@
       "contracts": [
         "src/rollup/ValidatorWalletCreator.sol:ValidatorWalletCreator"
       ],
+      "role": "logic",
       "codeLength": 6756,
-      "immutables": [
+      "maskedRanges": [
         {
           "name": "template",
           "type": "address",

@@ -5,8 +5,9 @@
   "contracts": [
     "src/rollup/BOLDUpgradeAction.sol:ConstantArrayStorage"
   ],
+  "role": "logic",
   "codeLength": 236,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [

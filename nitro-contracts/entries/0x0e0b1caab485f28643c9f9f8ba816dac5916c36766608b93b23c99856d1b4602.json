@@ -5,8 +5,9 @@
   "contracts": [
     "src/express-lane-auction/ExpressLaneAuction.sol:ExpressLaneAuction"
   ],
+  "role": "logic",
   "codeLength": 18350,
-  "immutables": [
+  "maskedRanges": [
     {
       "name": "__self",
       "type": "address",

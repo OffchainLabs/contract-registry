@@ -5,8 +5,9 @@
   "contracts": [
     "src/chain/ResourceConstraintManager.sol:ResourceConstraintManager"
   ],
+  "role": "logic",
   "codeLength": 7680,
-  "immutables": [],
+  "maskedRanges": [],
   "cborMetadataLength": 12,
   "getters": [],
   "selectors": [
