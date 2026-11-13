@@ -2,8 +2,9 @@
 
 Identifies which release, or which commit, of an Offchain Labs contract repo a deployed contract
 was built from, using only a standard RPC (`eth_getCode`, `eth_getStorageAt`, `eth_call`).
-CI builds the source repos, fingerprints every deployable contract, and publishes the results here
-as static JSON. A reference walker discovers and identifies every contract of a chain.
+CI builds each source repo's tags and the heads of its release and hotfix branches, fingerprints
+every deployable contract, and publishes the results here as static JSON. A reference walker
+discovers and identifies every contract of a chain.
 
 Design: `contract-registry-spec.md` (BLK-491). Status: prototype. Sources: `nitro-contracts`,
 from tag `v3.2.0` onward.
@@ -37,7 +38,8 @@ versionOf(entry) -> string:
   releases = [t for t in entry.tags if not isPrerelease(t)]   # tags are in semver order
   if releases:   return releases[0]
   if entry.tags: return entry.tags[0]
-  return entry.firstBranch + "@" + entry.firstCommit[:12]
+  if entry.label: return entry.label                         # a manual entry
+  return entry.ref + "@" + entry.commit[:12]                 # e.g. release-3.3.0@abcdef012345
 
 lookup(code) -> entry | null:
   # every read at one commit of this repo
@@ -59,14 +61,17 @@ The choices it makes:
   the logic behind it: upgrades replace the logic, never the proxy.
 - The version is the first non-prerelease tag whose build contains the code: the earliest release
   with that exact code.
-- Code in no release gives its first prerelease tag. Code in no tag at all gives
-  `<firstBranch>@<first 12 hex digits of firstCommit>`, e.g. `develop@349a4bfbdfec`. (A manual
-  entry with no tag gives its label.)
+- Code in no release gives its first prerelease tag.
+- Code in no tag at all was built only as the head of a release or hotfix branch. It gives
+  `<ref>@<first 12 hex digits of commit>`, the branch and head commit it was first built from,
+  e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
+  commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
+- A manual entry with no tag gives its label.
 - Unknown code gives null, as does a one-slot proxy whose slot is zero or whose implementation is
   unknown or has no code.
 
 For more than a version: `registry.lookup(code)` returns the matched entry (contracts, role, tags,
-`firstCommit`, ...), and `decodeImmutables(code, entry)` reads its immutables (`maxDataSize`,
+`ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables (`maxDataSize`,
 `isUsingFeeToken`, ...). `walk` discovers and identifies every contract of a chain from one address
 (see "Look up and walk").
 
@@ -101,14 +106,22 @@ entry says what the code is:
   `RollupProxy` and `AdminFallbackProxy` list it and the secondary (user-logic) slot; `ProxyAdmin`
   is a `proxy-admin`. The role is copied into the entry when it is written, and entries are
   write-once, so list a contract before its first build is published.
+- `ref` and `commit`: the ref the entry was first built from, and the commit it pointed at then.
+  `ref` is a tag (`v3.2.0`) or a release or hotfix branch whose head was built (`release-3.3.0`).
+  Only tags and branch heads are built, never a branch's earlier commits, so `commit` contains the
+  code but isn't necessarily the earliest commit that does. When a new tag and a new branch head
+  bring the same new code in one run, the entry names the tag. Entries are write-once: code first
+  built from a release branch keeps naming that branch after a tag includes it (the tag shows in
+  the entry's `tags` in `by-length/`) and after the branch is deleted. A manual entry, which has a
+  `label`, may have a null `ref` or `commit`.
 - `packages`: for contracts compiled from an installed dependency package, the package and version,
   e.g. `{"@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy":
   "@openzeppelin/contracts@4.7.3"}`. It maps each such contract's name, so an entry whose contracts
   come from several packages, or from a package and the repo's own code, stays unambiguous.
   Contracts not listed are the source repo's own code; the field is absent when all of them are.
-  The version is read from the package's `package.json` in the build checkout. Like `firstCommit`,
-  it records the first build that produced the fingerprint: a later build may compile the same code
-  from another version of the package, and the entry doesn't change.
+  The version is read from the package's `package.json` in the build checkout. Like `ref` and
+  `commit`, it records the first build that produced the fingerprint: a later build may compile the
+  same code from another version of the package, and the entry doesn't change.
 
 ## Layout
 
@@ -119,7 +132,8 @@ config/<source>/out-of-scope-getters.json     getters the walker doesn't follow
 schema/                                       JSON schemas for every file type
 <source>/entries/<fingerprint>.json           one per distinct fingerprint; write-once
 <source>/tags/<tag>.json                      contract -> fingerprint for a tag's build; write-once
-<source>/branches/<branch>.json               same for a published branch head; overwritten
+<source>/branches/<branch>.json               same for the head of a live release or hotfix branch;
+                                              overwritten, and removed with the branch
 <source>/by-length/<codeLength>.json          generated: every entry of that length, with its tags
 <source>/index.json                           generated: code lengths present, every getter known
 ```
@@ -162,12 +176,16 @@ every role.
 
 Everything runs here ("pull" model); the source repos need no CI or credentials.
 
-- `publish.yml` (schedule, manual): builds every new commit on a published branch in history order
-  (so `firstCommit` is exact), rebuilds every new tag from scratch and checks it reproduces its
-  commit, writes entries, tag and branch files, checks that entries of one code length mask the
-  same bytes (so no code can match two; a conflict fails the whole run, and its alert says how to
-  review the pair and list it in `reviewedRangePairs`), regenerates the views, deploys test chains
-  from each new head and tag and walks them, and lands everything as one commit. The test-chain check
+- `publish.yml` (schedule, manual): builds every new `v*` tag, and the head of every `release-*`
+  and `hotfix*` branch whose head has changed. Nothing else is built: not `main` or `develop`, and
+  not a release or hotfix branch's earlier commits. Each new tag is built from scratch. If its
+  commit was also built as a release or hotfix head (recorded in a branch file, or built in the
+  same run), the tag build must reproduce that build's fingerprints; otherwise there is nothing to
+  compare it with. The run writes entries, tag files and branch files (a deleted branch's file is
+  removed; its entries stay), checks that entries of one code length mask the same bytes (so no
+  code can match two; a conflict fails the whole run, and its alert says how to review the pair
+  and list it in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
+  tag and changed head and walks them, and lands everything as one commit. The test-chain check
   requires all in-scope code, proxies and proxy admins included, to match an entry from that
   commit's build. It also reads both known implementation slots on every matched contract, and
   fails if one holds an address the walk didn't read: a proxy missing from `contractRoles`.
@@ -177,11 +195,13 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   (with `reviewedRangePairs`), `entries/` and `tags/` are append-only.
 
 Failures open or update one GitHub issue per failure kind and source repo, and close it once every
-item is resolved. Locally, `--alerts local:<dir>` writes the same alerts as JSON files.
+item is resolved. A build or test-chain failure at a branch head also resolves once the branch has
+a newer head or is deleted, since only current heads are built. Locally, `--alerts local:<dir>`
+writes the same alerts as JSON files.
 
 ```sh
 node tools/src/cli/publish.ts --source nitro-contracts [--reconcile] [--push] [--alerts github:<owner>/<repo>]
-node tools/src/cli/check.ts --rev develop        # test-chain check of one commit, writes nothing
+node tools/src/cli/check.ts --rev v3.2.0         # test-chain check of one commit, writes nothing
 node tools/src/cli/rebuild.ts --tag v3.2.0       # rebuild a tag and compare with its tags/ file
 node tools/src/cli/ci-check.ts --base origin/main
 npm test && npm run test:integration
