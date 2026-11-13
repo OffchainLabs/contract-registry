@@ -37,7 +37,7 @@ test('scope change fails the run with exactly one alert, and restoring it clears
   assert.equal(r0.commit, null, 'nothing new: no commit')
   assert.equal(git(data, 'status', '--porcelain'), '', 'nothing new: no diff')
   assert.equal(git(data, 'rev-parse', 'HEAD'), head0)
-  assert.ok(r0.checks.length > 0, 'current heads were checked')
+  assert.ok(r0.checks.length > 0, 'the newest tag (and any release or hotfix head) was checked')
   assert.ok(r0.ok, `baseline failed: ${JSON.stringify(r0.failures, null, 2)}`)
   assert.equal(openAlerts().length, 0)
 

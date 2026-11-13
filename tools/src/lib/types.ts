@@ -55,8 +55,8 @@ export interface Entry {
   /**
    * The contracts compiled from an installed dependency package, by fully qualified name:
    * `<package>@<version>`, e.g. `@openzeppelin/contracts@4.7.3`. Contracts not listed are the
-   * source repo's own code; absent when every contract is. Like `firstCommit`, recorded from the
-   * first build that produced the fingerprint (a later build may compile the same code from
+   * source repo's own code; absent when every contract is. Like `ref` and `commit`, recorded from
+   * the first build that produced the fingerprint (a later build may compile the same code from
    * another version).
    */
   packages?: Record<string, string>
@@ -74,8 +74,15 @@ export interface Entry {
   /** Every function selector in the ABI; used to find the closest entry for unknown code. */
   selectors: Hex[]
   compiler: CompilerInfo | null
-  firstCommit: string | null
-  firstBranch: string | null
+  /**
+   * The ref the entry was first built from: a tag (`v3.2.0`) or a published branch
+   * (`release-3.3.0`), whose head was built. Only tags and branch heads are built, so this is
+   * where the registry first saw the code, not the earliest commit that contains it. Null only on
+   * a manual entry, which has a `label`.
+   */
+  ref: string | null
+  /** The commit `ref` pointed at when the entry was built. Null only on a manual entry. */
+  commit: string | null
   /** Manual entries only (one-offs, old releases not on a published ref). */
   label?: string
   notes?: string

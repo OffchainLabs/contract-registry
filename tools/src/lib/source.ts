@@ -59,16 +59,6 @@ export class SourceRepo {
     return gitOk(['merge-base', '--is-ancestor', ancestor, descendant], this.gitDir)
   }
 
-  parents(commit: string): string[] {
-    return this.git(['rev-list', '--parents', '-n', '1', commit]).trim().split(' ').slice(1)
-  }
-
-  /** Commits reachable from `include` but not from `exclude`, oldest first, parents before children. */
-  revList(include: string, exclude: string[]): string[] {
-    const out = this.git(['rev-list', '--reverse', '--topo-order', include, ...exclude.map(e => `^${e}`)]).trim()
-    return out ? out.split('\n') : []
-  }
-
   fileAt(commit: string, file: string): string | null {
     try { return this.git(['show', `${commit}:${file}`]) } catch { return null }
   }

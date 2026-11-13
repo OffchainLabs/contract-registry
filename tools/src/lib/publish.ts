@@ -10,7 +10,7 @@ import { rangeConflictReport, rangeConflicts } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { ALERT_KINDS, type AlertItem, type AlertKind, type AlertSink } from './alerts.ts'
 import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult } from './testcheck.ts'
-import { SCHEMA_VERSION } from './types.ts'
+import { SCHEMA_VERSION, type Hex } from './types.ts'
 
 export interface PublishOptions {
   dataRepo: string
@@ -43,11 +43,12 @@ export interface PublishOutcome {
   alerts: { kind: AlertKind; action: 'opened-or-updated' | 'closed'; ref?: string }[]
 }
 
-interface PlannedCommit { commit: string; branch: string }
-
 /**
  * One publish run for one source repo (§5.7). Everything lands in the data repo as one commit;
  * a run that crashes before committing publishes nothing, and a rerun with nothing new is a no-op.
+ *
+ * Only tags and the heads of published branches (release and hotfix branches) are built. A
+ * branch's earlier commits never are: a run builds a branch's head when it has changed.
  */
 export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const log = opts.log ?? ((s: string) => console.error(s))
@@ -67,31 +68,25 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     const data = new SourceData(opts.dataRepo, cfg.directory, cfg.repo)
     const builder = new Builder(src, opts.workDir)
     const start = src.resolve(cfg.start.tag)
-    const startExclusions = src.parents(start)
     const inRange = (commit: string) => commit === start || src.isAncestor(start, commit)
 
     // --- Refs -------------------------------------------------------------------------------
+    // A published branch whose head has changed since its branch file was written is built at
+    // its new head only; the commits in between are never built.
     const branches = src.publishedBranches()
-    const recorded = new Map(data.branches().map(b => [b.branch, b.commit]))
+    const recordedFiles = data.branches()
+    const recorded = new Map(recordedFiles.map(b => [b.branch, b.commit]))
     const deleted = [...recorded.keys()].filter(b => !branches.has(b)).sort()
-    const processedHeads = [...recorded.values()].filter(c => src.exists(c))
-
-    const plan: PlannedCommit[] = []
-    const planned = new Set<string>()
     const changedBranches: [string, string][] = []
     for (const [branch, head] of branches) {
       if (!inRange(head)) { log(`skip branch ${branch}: doesn't contain ${cfg.start.tag}`); continue }
-      if (recorded.get(branch) === head) continue
-      changedBranches.push([branch, head])
-      for (const c of src.revList(head, [...processedHeads, ...startExclusions])) {
-        if (!planned.has(c)) { planned.add(c); plan.push({ commit: c, branch }) }
-      }
+      if (recorded.get(branch) !== head) changedBranches.push([branch, head])
     }
     const tags = src.publishedTags()
     const newTags = [...tags].filter(([t, c]) => !data.hasTag(t) && inRange(c)).sort((a, b) => compareTags(a[0], b[0]))
     const skippedTags = [...tags].filter(([t, c]) => !data.hasTag(t) && !inRange(c)).map(([t]) => t)
     if (skippedTags.length) log(`${skippedTags.length} tag(s) not descended from ${cfg.start.tag} are out of range (not published)`)
-    log(`plan: ${plan.length} new branch commit(s), ${changedBranches.length} changed branch(es), ${newTags.length} new tag(s), ${deleted.length} deleted branch(es)`)
+    log(`plan: ${changedBranches.length} changed branch head(s), ${newTags.length} new tag(s), ${deleted.length} deleted branch(es)`)
 
     if (opts.reconcile) {
       const grace = cfg.reconcileGraceMinutes * 60_000
@@ -104,6 +99,10 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     }
 
     // --- Which commits need a test-chain check ----------------------------------------------
+    // Tags and published branch heads only: new tags; branch heads that changed or haven't been
+    // checked with the current out-of-scope list and deployer; the newest tag likewise, so a change
+    // to the list is checked against released code even when no release or hotfix branch is
+    // live; and the commits of open alert items whose ref still points at them.
     const deployerName = cfg.testChains?.deployer
     const key = deployerName ? checkKey(outOfScope, deployerName) : ''
     const checkCache = new CheckCache(opts.workDir, cfg.directory)
@@ -114,16 +113,20 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
         if (recorded.get(branch) !== head || !checkCache.get(head, key)) addTarget(head, branch)
       }
       for (const [t, c] of newTags) addTarget(c, t)
+      const newest = [...tags].filter(([t]) => data.hasTag(t)).concat(newTags).sort((a, b) => compareTags(a[0], b[0])).at(-1)
+      if (newest && !checkCache.get(newest[1], key)) addTarget(newest[1], newest[0])
       const open = await opts.alerts.get(cfg.directory, 'test-chain-walk')
-      for (const i of open?.items ?? []) if (i.commit && src.exists(i.commit)) for (const r of i.refs ?? ['(open alert)']) addTarget(i.commit, r)
+      for (const i of open?.items ?? []) for (const r of liveRefs(i, branches, tags)) addTarget(i.commit!, r)
     }
     const needsCheck = (c: string) => checkTargets.has(c) && !checkCache.get(c, key)
 
     // --- Builds -----------------------------------------------------------------------------
+    // Changed branch heads, and commits due a check. A new tag's commit is built fresh below, so
+    // it's built here only if it's also a changed branch head.
     const results = new Map<string, BuildResult>()
     const checkoutFor = new Map<string, Checkout>()
-    const toBuild = [...new Set([...plan.map(p => p.commit), ...changedBranches.map(([, h]) => h), ...[...checkTargets.keys()].filter(needsCheck)])]
     const tagCommits = new Set(newTags.map(([, c]) => c))
+    const toBuild = [...new Set([...changedBranches.map(([, h]) => h), ...[...checkTargets.keys()].filter(c => needsCheck(c) && !tagCommits.has(c))])]
     const concurrency = opts.concurrency ?? 3
     let done = 0
     await mapLimit(toBuild, concurrency, async c => {
@@ -135,38 +138,25 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
       if (++done % 10 === 0 || done === toBuild.length) log(`built ${done}/${toBuild.length}`)
     })
 
-    // --- Apply branch commits in history order ----------------------------------------------
-    for (const { commit, branch } of plan) {
-      const r = results.get(commit)!
-      if (!r.ok) {
-        const head = branches.get(branch) === commit
-        fail(r.failure!.kind, { key: commit, commit, refs: [branch], head, message: `${r.failure!.kind} at ${commit.slice(0, 12)} on ${branch}${head ? ' (branch head)' : ''}`, details: r.failure!.message })
-        continue
-      }
+    const writeEntries = (r: BuildResult, from: { ref: string; commit: string }) => {
       for (const [fp, cs] of byFingerprint(r.contracts)) {
-        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, branch, cfg.contractRoles)); outcome.newEntries++ }
+        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, from, cfg.contractRoles)); outcome.newEntries++ }
       }
     }
+
+    // --- Tags: always a fresh build ---------------------------------------------------------
+    // Tags go first, so code that a new tag and a new branch head share names the tag, which
+    // lasts, rather than the branch. A tag whose commit was also built as a published branch
+    // head must reproduce that build: the heads recorded in branch files before this run (a
+    // branch deleted or moved on since still counts) and the heads built in this run. A tag
+    // with no such build has nothing to compare with; its new fingerprints get entries.
+    const headBuilds = new Map<string, { branch: string; contracts: Record<string, Hex> }[]>()
+    const addHeadBuild = (commit: string, branch: string, contracts: Record<string, Hex>) => headBuilds.set(commit, [...(headBuilds.get(commit) ?? []), { branch, contracts }])
+    for (const b of recordedFiles) addHeadBuild(b.commit, b.branch, b.contracts)
     for (const [branch, head] of changedBranches) {
       const r = results.get(head)!
-      if (!r.ok) {
-        if (!planned.has(head)) fail(r.failure!.kind, { key: head, commit: head, refs: [branch], head: true, message: `${r.failure!.kind} at ${head.slice(0, 12)}, head of ${branch}`, details: r.failure!.message })
-        continue
-      }
-      if (!planned.has(head)) {
-        const missing = r.contracts.filter(c => !data.hasEntry(c.fingerprint))
-        if (missing.length) {
-          fail('tag-nondeterministic', { key: `branch:${branch}@${head}`, commit: head, refs: [branch], message: `rebuilding ${head.slice(0, 12)} (head of ${branch}, processed before) produced ${missing.length} fingerprint(s) with no entry`, details: missing.map(m => `${m.fqName} ${m.fingerprint}`).join('\n') })
-          continue
-        }
-      }
-      if (data.writeBranch({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, branch, commit: head, contracts: contractsMap(r.contracts) })) outcome.branchesUpdated.push(branch)
+      if (r.ok) addHeadBuild(head, branch, contractsMap(r.contracts))
     }
-    for (const b of deleted) { data.deleteBranch(b); outcome.branchesDeleted.push(b) }
-    const publishedHeads = data.branches().map(b => b.commit).filter(c => src.exists(c))
-    const onPublishedBranch = (c: string) => publishedHeads.some(h => h === c || src.isAncestor(c, h))
-
-    // --- Tags: always a fresh build, which must reproduce the branch build ---------------------
     for (const [tag, commit] of newTags) {
       const { result: r, checkout } = await builder.build(commit, { fresh: true, keepCheckout: needsCheck(commit), log })
       if (checkout) { checkouts.push(checkout); checkoutFor.set(commit, checkout) }
@@ -179,23 +169,33 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
       if (tag !== expected && !(tag in cfg.tagValidation.allowlist)) {
         fail('tag-version-mismatch', { key: `tag:${tag}`, commit, refs: [tag], tag, message: `tag ${tag} but package.json version at ${commit.slice(0, 12)} is ${r.packageVersion}` })
       }
-      if (onPublishedBranch(commit)) {
-        const branchBuild = builder.cached(commit)
-        const mine = contractsMap(r.contracts)
-        const diffs = branchBuild
-          ? diffMaps(contractsMap(branchBuild.contracts), mine)
-          : r.contracts.filter(c => !data.hasEntry(c.fingerprint)).map(c => `${c.fqName}: ${c.fingerprint} has no entry`)
-        if (diffs.length) {
-          fail('tag-nondeterministic', { key: `tag:${tag}`, commit, refs: [tag], tag, message: `tag ${tag} build doesn't reproduce the fingerprints of ${commit.slice(0, 12)} built through a branch; tag file not written`, details: diffs.join('\n') })
-          continue
-        }
+      const heads = headBuilds.get(commit) ?? []
+      const mine = contractsMap(r.contracts)
+      const diffs = heads.flatMap(h => diffMaps(h.contracts, mine).map(d => `${h.branch}: ${d}`))
+      if (diffs.length) {
+        fail('tag-nondeterministic', { key: `tag:${tag}`, commit, refs: [tag], tag, message: `tag ${tag} build doesn't reproduce the fingerprints of ${commit.slice(0, 12)} built as the head of ${[...new Set(heads.map(h => h.branch))].join(', ')}; tag file not written`, details: diffs.join('\n') })
+        continue
       }
-      for (const [fp, cs] of byFingerprint(r.contracts)) {
-        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, commit, null, cfg.contractRoles)); outcome.newEntries++ }
-      }
-      data.writeTag({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, tag, commit, prerelease: isPrerelease(tag), packageVersion: r.packageVersion, contracts: contractsMap(r.contracts) })
+      writeEntries(r, { ref: tag, commit })
+      data.writeTag({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, tag, commit, prerelease: isPrerelease(tag), packageVersion: r.packageVersion, contracts: mine })
       outcome.tagsAdded.push(tag)
     }
+
+    // --- Branch heads: entries for new fingerprints, then the branch file ---------------------
+    const failedHeads = new Set<string>()
+    for (const [branch, head] of changedBranches) {
+      const r = results.get(head)!
+      if (!r.ok) {
+        if (failedHeads.has(head)) continue
+        failedHeads.add(head)
+        const refs = changedBranches.filter(([, h]) => h === head).map(([b]) => b)
+        fail(r.failure!.kind, { key: head, commit: head, refs, head: true, message: `${r.failure!.kind} at ${head.slice(0, 12)}, head of ${refs.join(', ')}`, details: r.failure!.message })
+        continue
+      }
+      writeEntries(r, { ref: branch, commit: head })
+      if (data.writeBranch({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, branch, commit: head, contracts: contractsMap(r.contracts) })) outcome.branchesUpdated.push(branch)
+    }
+    for (const b of deleted) { data.deleteBranch(b); outcome.branchesDeleted.push(b) }
 
     // --- Range invariant: no code may match two entries ------------------------------------
     // Over every entry of the source, so new entries are checked against existing ones and
@@ -233,7 +233,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     }
 
     // --- One commit ----------------------------------------------------------------------------
-    outcome.commit = commitDataRepo(opts.dataRepo, cfg.directory, summarize(cfg, outcome, plan.length), opts.committer)
+    outcome.commit = commitDataRepo(opts.dataRepo, cfg.directory, summarize(cfg, outcome), opts.committer)
     if (outcome.commit) log(`committed ${outcome.commit.slice(0, 12)}`)
     else log('no changes')
 
@@ -255,12 +255,22 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
 
 function diffMaps(a: Record<string, string>, b: Record<string, string>): string[] {
   const out: string[] = []
-  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (a[k] !== b[k]) out.push(`${k}: branch build ${a[k] ?? '(none)'} vs tag build ${b[k] ?? '(none)'}`)
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (a[k] !== b[k]) out.push(`${k}: branch head build ${a[k] ?? '(none)'} vs tag build ${b[k] ?? '(none)'}`)
   return out.sort()
 }
 
-function summarize(cfg: SourceConfig, o: PublishOutcome, planned: number): string {
-  const parts = [`${o.newEntries} new entr${o.newEntries === 1 ? 'y' : 'ies'} from ${planned} commit(s)`]
+/**
+ * The refs of an alert item that still point at its commit: published tags at that commit, and
+ * published branches whose head it is. Only those are built and checked, so an item with none
+ * (its branch has moved on or been deleted, or its tag deleted) is moot.
+ */
+function liveRefs(i: AlertItem, branches: Map<string, string>, tags: Map<string, string>): string[] {
+  if (!i.commit) return []
+  return (i.refs ?? []).filter(r => branches.get(r) === i.commit || tags.get(r) === i.commit)
+}
+
+function summarize(cfg: SourceConfig, o: PublishOutcome): string {
+  const parts = [`${o.newEntries} new entr${o.newEntries === 1 ? 'y' : 'ies'}`]
   if (o.tagsAdded.length) parts.push(`tags ${o.tagsAdded.join(', ')}`)
   if (o.branchesUpdated.length) parts.push(`branches ${o.branchesUpdated.join(', ')}`)
   if (o.branchesDeleted.length) parts.push(`deleted ${o.branchesDeleted.join(', ')}`)
@@ -278,12 +288,15 @@ function commitDataRepo(dataRepo: string, directory: string, message: string, wh
 /**
  * Brings each alert in line with this run: new failures are added, items that are now resolved
  * are dropped, and an alert with no items left is closed. Items resolve as follows:
- * - build/parity failures and tag reproduction failures: when the ref they blocked is published
- *   (a branch whose file now points at that commit, or a tag whose file now exists). Failures on
- *   intermediate commits are never retried, so a person closes those after triage.
+ * - build/parity failures: when the ref they blocked is published (a branch whose file now points
+ *   at that commit, or a tag whose file now exists), or when no ref points at that commit any
+ *   more (the branch has a newer head or is deleted, or the tag is deleted): only current heads
+ *   and tags are ever built.
+ * - tag reproduction failures: when the tag's file exists.
  * - tag/version mismatches: when the tag is added to the allowlist.
- * - test-chain walks: when the commit's check passes with the current out-of-scope list.
- * - reconcile gaps: when the ref has been processed.
+ * - test-chain walks: when the commit's check passes with the current out-of-scope list, or no
+ *   ref points at that commit any more.
+ * - reconcile gaps: when the ref has been processed, or no ref points at that commit any more.
  * - publish errors: when a run gets as far as committing.
  */
 async function reconcileAlerts(
@@ -294,6 +307,8 @@ async function reconcileAlerts(
   const branchCommits = new Map(data?.branches().map(b => [b.branch, b.commit]) ?? [])
   const refPublished = (i: AlertItem) => !!data && !!(i.tag ? data.hasTag(i.tag) : i.refs?.some(r => branchCommits.get(r) === i.commit))
   const checkPassed = (i: AlertItem) => checks.some(c => c.commit === i.commit && c.key === key && c.ok)
+  const live = src ? { branches: src.publishedBranches(), tags: src.publishedTags() } : null
+  const moot = (i: AlertItem) => !!live && !!i.refs?.length && liveRefs(i, live.branches, live.tags).length === 0
   for (const kind of ALERT_KINDS) {
     const open = await sink.get(cfg.directory, kind)
     const fresh = failures[kind] ?? []
@@ -301,11 +316,11 @@ async function reconcileAlerts(
     const resolved = (i: AlertItem): boolean => {
       if (!data) return false
       switch (kind) {
-        case 'build-failure': case 'parity-mismatch': return !!i.head && refPublished(i)
+        case 'build-failure': case 'parity-mismatch': return (!!i.head && refPublished(i)) || moot(i)
         case 'tag-nondeterministic': return refPublished(i)
         case 'tag-version-mismatch': return !!i.tag && i.tag in cfg.tagValidation.allowlist
-        case 'test-chain-walk': return checkPassed(i)
-        case 'reconcile-gap': return reconcileRun && (refPublished(i) || (!!i.refs && !!src && i.refs.every(r => !src.publishedBranches().has(r) && !src.publishedTags().has(r))))
+        case 'test-chain-walk': return checkPassed(i) || moot(i)
+        case 'reconcile-gap': return reconcileRun && (refPublished(i) || moot(i))
         case 'publish-error': return true
       }
     }

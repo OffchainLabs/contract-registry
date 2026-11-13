@@ -21,8 +21,8 @@ export function canonicalEntry(e: Entry): Entry {
     getters: e.getters.map(g => ({ signature: g.signature, selector: g.selector, kind: g.kind })),
     selectors: e.selectors,
     compiler: e.compiler,
-    firstCommit: e.firstCommit,
-    firstBranch: e.firstBranch,
+    ref: e.ref,
+    commit: e.commit,
   }
   if (e.label !== undefined) out.label = e.label
   if (e.notes !== undefined) out.notes = e.notes
@@ -30,10 +30,11 @@ export function canonicalEntry(e: Entry): Entry {
 }
 
 /**
- * The entry for one fingerprint's contracts from a build. `packages` lists the ones compiled from a
+ * The entry for one fingerprint's contracts from a build of `from.commit`, reached through
+ * `from.ref` (a tag, or a branch whose head it is). `packages` lists the contracts compiled from a
  * dependency package; the role comes from sources.json `contractRoles` (see `roleOf`).
  */
-export function entryFromBuild(repo: string, contracts: BuiltContract[], firstCommit: string, firstBranch: string | null, roles: Record<string, RoleConfig>): Entry {
+export function entryFromBuild(repo: string, contracts: BuiltContract[], from: { ref: string; commit: string }, roles: Record<string, RoleConfig>): Entry {
   const c = contracts[0]
   const packages = Object.fromEntries(contracts.filter(x => x.package !== null).map(x => [x.fqName, x.package!]))
   return canonicalEntry({
@@ -49,8 +50,8 @@ export function entryFromBuild(repo: string, contracts: BuiltContract[], firstCo
     getters: c.getters,
     selectors: c.selectors,
     compiler: c.compiler,
-    firstCommit,
-    firstBranch,
+    ref: from.ref,
+    commit: from.commit,
   })
 }
 

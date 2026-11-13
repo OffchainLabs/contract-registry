@@ -14,7 +14,7 @@ const entry = (n: number): Entry => ({
   schemaVersion: 1, fingerprint: fp(n), repo: 'OffchainLabs/nitro-contracts', contracts: [`src/X${n}.sol:X${n}`], role: 'logic', codeLength: 100 + n,
   maskedRanges: [], cborMetadataLength: 12, getters: [], selectors: [],
   compiler: { language: 'Solidity', version: '0.8.17', evmVersion: 'london', optimizer: { enabled: true, runs: 2000 }, viaIR: false, metadata: { bytecodeHash: 'none', appendCBOR: true } },
-  firstCommit: n.toString(16).padStart(40, '0'), firstBranch: 'develop',
+  ref: 'release-1.0.0', commit: n.toString(16).padStart(40, '0'),
 })
 
 function setup(): { dir: string; data: SourceData; commit: (m: string) => void; check: (base?: string) => { ok: boolean; out: string } } {
@@ -44,7 +44,7 @@ test('ci-check: appends pass; modified or deleted entries fail; hand-edited view
 
   // Modify an entry (and regenerate, so only the append-only rule can catch it).
   const f = t.data.entryPath(fp(1))
-  fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('"develop"', '"main"'))
+  fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('"release-1.0.0"', '"hotfix-1.0.1"'))
   t.data.writeViews(); t.commit('modify')
   const mod = t.check('HEAD~1')
   assert.ok(!mod.ok)
@@ -71,7 +71,7 @@ test('ci-check: same-length entries that mask different bytes fail, manual entri
   const t = setup()
   const built: Entry = { ...entry(1), codeLength: 300, maskedRanges: [{ name: 'maxDataSize', type: 'uint256', offsets: [10], length: 32 }] }
   const same: Entry = { ...entry(3), codeLength: 300, maskedRanges: [{ name: 'otherName', type: 'uint256', offsets: [10], length: 32 }] }
-  const manual: Entry = { ...entry(2), codeLength: 300, firstCommit: null, firstBranch: null, compiler: null, label: 'patched one-off' }
+  const manual: Entry = { ...entry(2), codeLength: 300, ref: null, commit: null, compiler: null, label: 'patched one-off' }
   t.data.writeEntry(built); t.data.writeEntry(same); t.data.writeViews(); t.commit('same bytes')
   const ok1 = t.check('HEAD')
   assert.ok(ok1.ok, ok1.out)

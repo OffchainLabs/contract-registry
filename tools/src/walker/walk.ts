@@ -39,8 +39,9 @@ export interface MatchedEntry {
   implementationSlots?: Hex[]
   fingerprint: Hex
   tags: string[]
-  firstCommit: string | null
-  firstBranch: string | null
+  /** The ref (tag or branch) and commit the entry was first built from; null on a manual entry. */
+  ref: string | null
+  commit: string | null
   label?: string
   /** The matched code's Solidity immutables by name (linked-library and library addresses left out). */
   immutables: Record<string, ImmutableValue>
@@ -50,7 +51,8 @@ export interface ClosestEntry {
   fingerprint: Hex
   contracts: string[]
   tags: string[]
-  firstCommit: string | null
+  ref: string | null
+  commit: string | null
   sharedSelectors: number
   entrySelectors: number
   /** Shared selectors over the union of the entry's and the code's known selectors. */
@@ -311,7 +313,7 @@ function matchedEntry(repo: string, e: ByLengthEntry, code: Uint8Array): Matched
   return {
     repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
-    fingerprint: e.fingerprint, tags: e.tags, firstCommit: e.firstCommit, firstBranch: e.firstBranch,
+    fingerprint: e.fingerprint, tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }
@@ -396,7 +398,7 @@ async function closestEntry(registry: Registry, code: Uint8Array): Promise<Close
   }
   if (!best) return null
   return {
-    fingerprint: best.e.fingerprint, contracts: best.e.contracts, tags: best.e.tags, firstCommit: best.e.firstCommit,
+    fingerprint: best.e.fingerprint, contracts: best.e.contracts, tags: best.e.tags, ref: best.e.ref, commit: best.e.commit,
     sharedSelectors: best.shared, entrySelectors: best.e.selectors.length, score: Math.round(best.score * 1000) / 1000,
   }
 }

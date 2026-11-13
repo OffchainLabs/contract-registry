@@ -17,7 +17,7 @@
       "additionalProperties": false,
       "properties": {
         "tags": { "type": "array", "items": { "type": "string" } },
-        "branches": { "type": "array", "items": { "type": "string" }, "description": "Patterns; '*' matches anything including '/'. Order sets which branch a commit on several new branches is attributed to." }
+        "branches": { "type": "array", "items": { "type": "string" }, "description": "Branches whose heads are built (never their earlier commits). Patterns; '*' matches anything including '/'. Order sets which branch new code is attributed to (the entry's ref) when several new heads produce it." }
       }
     },
     "tagValidation": {

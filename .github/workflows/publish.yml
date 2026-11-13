@@ -1,7 +1,8 @@
-# Publish run (spec §5.7): builds new commits and tags of every source repo, writes entries,
-# tags/ and branches/ files, regenerates by-length/, runs the test-chain walks, and lands
-# everything as one commit on main. Source repos are read anonymously; the only credential is
-# this workflow's own token (contents: write to push, issues: write for alerts).
+# Publish run (spec §5.7): builds the new tags and changed release/hotfix branch heads of every
+# source repo, writes entries, tags/ and branches/ files, regenerates by-length/, runs the
+# test-chain walks, and lands everything as one commit on main. Source repos are read
+# anonymously; the only credential is this workflow's own token (contents: write to push,
+# issues: write for alerts).
 name: publish
 
 on:

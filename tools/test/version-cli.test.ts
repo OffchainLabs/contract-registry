@@ -24,7 +24,7 @@ const OTHER = '0x' + '3'.repeat(40)
 function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   return {
     schemaVersion: 1, fingerprint: keccak256(c), repo: REPO, contracts: [contract], role: 'logic', codeLength: (c.length - 2) / 2,
-    maskedRanges: [], cborMetadataLength: 0, getters: [], selectors: [], compiler: null, firstCommit: '1'.repeat(40), firstBranch: 'main', ...extra,
+    maskedRanges: [], cborMetadataLength: 0, getters: [], selectors: [], compiler: null, ref: 'v1.0.0', commit: '1'.repeat(40), ...extra,
   }
 }
 

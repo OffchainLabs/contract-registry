@@ -82,7 +82,7 @@
     },
     "entry": {
       "type": "object",
-      "required": ["schemaVersion", "fingerprint", "repo", "contracts", "role", "codeLength", "maskedRanges", "cborMetadataLength", "getters", "selectors", "compiler", "firstCommit", "firstBranch"],
+      "required": ["schemaVersion", "fingerprint", "repo", "contracts", "role", "codeLength", "maskedRanges", "cborMetadataLength", "getters", "selectors", "compiler", "ref", "commit"],
       "properties": {
         "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
         "fingerprint": { "$ref": "#/$defs/fingerprint" },
@@ -93,7 +93,7 @@
           "minProperties": 1,
           "propertyNames": { "$ref": "#/$defs/fqName" },
           "additionalProperties": { "$ref": "#/$defs/packageAtVersion" },
-          "description": "The contracts (a subset of contracts) compiled from an installed dependency package, with its name and version. Contracts not listed are the source repo's own code; absent when every contract is. Like firstCommit, from the first build that produced the fingerprint."
+          "description": "The contracts (a subset of contracts) compiled from an installed dependency package, with its name and version. Contracts not listed are the source repo's own code; absent when every contract is. Like ref and commit, from the first build that produced the fingerprint."
         },
         "role": { "$ref": "#/$defs/role" },
         "implementationSlots": { "$ref": "#/$defs/implementationSlots" },
@@ -103,15 +103,15 @@
         "getters": { "type": "array", "items": { "$ref": "#/$defs/getter" } },
         "selectors": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/selector" } },
         "compiler": { "oneOf": [{ "$ref": "#/$defs/compiler" }, { "type": "null" }] },
-        "firstCommit": { "oneOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] },
-        "firstBranch": { "type": ["string", "null"] },
+        "ref": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }], "description": "The ref the entry was first built from: a tag (v3.2.0) or a published branch whose head was built (release-3.3.0). Where the registry first saw the code, not the earliest commit that contains it. Null only on a manual entry." },
+        "commit": { "oneOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }], "description": "The commit ref pointed at when the entry was built. Null only on a manual entry." },
         "label": { "type": "string", "minLength": 1, "description": "Manual entries: a human-readable name, e.g. 'Arbitrum One Bridge (patched v3.0.0)'" },
         "notes": { "type": "string" }
       },
       "allOf": [
         {
-          "if": { "properties": { "firstCommit": { "type": "null" } } },
-          "then": { "required": ["label"], "properties": { "firstBranch": { "type": "null" } } }
+          "if": { "anyOf": [{ "properties": { "ref": { "type": "null" } } }, { "properties": { "commit": { "type": "null" } } }] },
+          "then": { "required": ["label"] }
         },
         {
           "if": { "properties": { "role": { "const": "proxy" } }, "required": ["role"] },

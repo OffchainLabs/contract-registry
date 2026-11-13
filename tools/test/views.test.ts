@@ -20,7 +20,7 @@ function entry(n: number, len: number, extra: Partial<Entry> = {}): Entry {
     maskedRanges: [], cborMetadataLength: 12,
     getters: [{ signature: 'bridge()', selector: '0xe78cea92', kind: 'single' }], selectors: ['0xe78cea92'],
     compiler: { language: 'Solidity', version: '0.8.17+commit.8df45f5f', evmVersion: 'london', optimizer: { enabled: true, runs: 2000 }, viaIR: false, metadata: { bytecodeHash: 'none', appendCBOR: true } },
-    firstCommit: commit(n), firstBranch: 'develop', ...extra,
+    ref: 'release-1.0.0', commit: commit(n), ...extra,
   }
 }
 function tag(name: string, contracts: Record<string, `0x${string}`>): TagFile {
@@ -47,10 +47,17 @@ test('generation is deterministic regardless of input order', () => {
 test('schemas accept generated files and manual entries, and reject a manual entry without a label', () => {
   const v = new SchemaValidator(ROOT)
   assert.deepEqual(v.validate('entry', entry(1, 100)), [])
-  const manual = entry(5, 100, { firstCommit: null, firstBranch: null, compiler: null, label: 'Arbitrum One Bridge (patched v3.0.0)', notes: 'one-off build' })
+  const manual = entry(5, 100, { ref: null, commit: null, compiler: null, label: 'Arbitrum One Bridge (patched v3.0.0)', notes: 'one-off build' })
   assert.deepEqual(v.validate('entry', manual), [])
   const { label, ...unlabelled } = manual
   assert.notDeepEqual(v.validate('entry', unlabelled), [])
+  // Only a manual entry (one with a label) may lack a ref or a commit, and it may have either.
+  assert.deepEqual(v.validate('entry', { ...manual, commit: commit(5) }), [], 'a one-off built from a known commit')
+  assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), ref: null }), [])
+  assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), commit: null }), [])
+  const { ref, ...noRef } = entry(1, 100)
+  assert.notDeepEqual(v.validate('entry', noRef), [], 'ref is required, even if null')
+  assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), firstCommit: commit(1) }), [], 'the old field is rejected')
   assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), surprise: 1 }), [], 'unknown fields are rejected')
   const views = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts', [entry(1, 100), manual], [tag('v1.0.0', { 'src/X1.sol:X1': fp(1) })])
   assert.deepEqual(v.validate('by-length', JSON.parse(views.get('nitro-contracts/by-length/100.json')!)), [])
@@ -113,15 +120,15 @@ test('entryFromBuild: packages per contract, role from contractRoles', () => {
     [ADMIN]: { role: 'proxy-admin' },
   }
   // One fingerprint from a package and from the repo's own code: only the package one is listed.
-  const mixed = entryFromBuild('OffchainLabs/nitro-contracts', [built(TUP, OZ), built('src/MyProxy.sol:MyProxy', null)], commit(1), 'main', roles)
+  const mixed = entryFromBuild('OffchainLabs/nitro-contracts', [built(TUP, OZ), built('src/MyProxy.sol:MyProxy', null)], { ref: 'v1.0.0', commit: commit(1) }, roles)
   assert.deepEqual(mixed.packages, { [TUP]: OZ })
   assert.deepEqual([mixed.role, mixed.implementationSlots], ['proxy', [EIP1967_IMPLEMENTATION_SLOT]])
   assert.deepEqual(Object.keys(mixed).slice(0, 7), ['schemaVersion', 'fingerprint', 'repo', 'contracts', 'packages', 'role', 'implementationSlots'])
   // From two packages.
-  const two = entryFromBuild('OffchainLabs/nitro-contracts', [built('@a/x/X.sol:X', '@a/x@1.0.0'), built('b/Y.sol:Y', 'b@2.0.0')], commit(1), 'main', roles)
+  const two = entryFromBuild('OffchainLabs/nitro-contracts', [built('@a/x/X.sol:X', '@a/x@1.0.0'), built('b/Y.sol:Y', 'b@2.0.0')], { ref: 'v1.0.0', commit: commit(1) }, roles)
   assert.deepEqual(two.packages, { '@a/x/X.sol:X': '@a/x@1.0.0', 'b/Y.sol:Y': 'b@2.0.0' })
   // Repo code only: no packages field; unlisted contracts are logic.
-  const own = entryFromBuild('OffchainLabs/nitro-contracts', [built('src/A.sol:A', null)], commit(1), 'main', roles)
+  const own = entryFromBuild('OffchainLabs/nitro-contracts', [built('src/A.sol:A', null)], { ref: 'v1.0.0', commit: commit(1) }, roles)
   assert.ok(!('packages' in own) && !('implementationSlots' in own))
   assert.equal(own.role, 'logic')
   assert.deepEqual(roleOf(roles, [ADMIN]), { role: 'proxy-admin' })

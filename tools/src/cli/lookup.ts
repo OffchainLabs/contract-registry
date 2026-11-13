@@ -42,7 +42,7 @@ function describe(e: ByLengthEntry, code: Uint8Array) {
   return {
     contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
-    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, firstCommit: e.firstCommit, firstBranch: e.firstBranch,
+    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }

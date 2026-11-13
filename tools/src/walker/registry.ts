@@ -91,15 +91,17 @@ function resolveRemote(url: string, ref: string): string {
 
 /**
  * A version string for an entry: its first release tag (tags are in semver order), else its first
- * prerelease tag, else `<firstBranch>@<first 12 hex digits of firstCommit>` for a build only seen
- * on a branch. A manual entry with no tag (no commit either) gives its label.
+ * prerelease tag, else `<ref>@<first 12 hex digits of commit>` for code in no tag (built only as a
+ * release or hotfix branch head, e.g. `release-3.3.0@abcdef012345`). A manual entry with no tag
+ * gives its label.
  */
 export function versionOf(entry: ByLengthEntry): string {
   const releases = entry.tags.filter(t => !isPrerelease(t))
   if (releases.length) return releases[0]
   if (entry.tags.length) return entry.tags[0]
-  if (entry.firstCommit === null) return entry.label ?? entry.contracts[0]
-  return `${entry.firstBranch}@${entry.firstCommit.slice(0, 12)}`
+  if (entry.label !== undefined) return entry.label
+  if (entry.ref === null || entry.commit === null) return entry.contracts[0] // the schema requires a label here
+  return `${entry.ref}@${entry.commit.slice(0, 12)}`
 }
 
 /** One source repo's part of a registry snapshot. */

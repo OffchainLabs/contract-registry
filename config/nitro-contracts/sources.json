@@ -6,7 +6,7 @@
   "start": { "tag": "v3.2.0" },
   "publishedRefs": {
     "tags": ["v*"],
-    "branches": ["main", "hotfix*", "release-*", "develop"]
+    "branches": ["release-*", "hotfix*"]
   },
   "tagValidation": {
     "rule": "tag-equals-v-package-version",

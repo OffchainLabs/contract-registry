@@ -18,7 +18,7 @@ const BRANCH_COMMIT = 'abcdef0123456789abcdef0123456789abcdef01'
 function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   return {
     schemaVersion: 1, fingerprint: keccak256(c), repo: REPO, contracts: [contract], role: 'logic', codeLength: (c.length - 2) / 2,
-    maskedRanges: [], cborMetadataLength: 0, getters: [], selectors: [], compiler: null, firstCommit: '1'.repeat(40), firstBranch: 'main', ...extra,
+    maskedRanges: [], cborMetadataLength: 0, getters: [], selectors: [], compiler: null, ref: 'v1.0.0', commit: '1'.repeat(40), ...extra,
   }
 }
 
@@ -71,8 +71,8 @@ function versionRegistry(): Registry {
     entry(C.rollupProxy, 'src/rollup/RollupProxy.sol:RollupProxy', { role: 'proxy', implementationSlots: [EIP1967, SECONDARY] }),
     entry(C.admin, '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin', { role: 'proxy-admin' }),
     entry(C.pre, 'src/bridge/Outbox.sol:Outbox'),
-    entry(C.branchOnly, 'src/bridge/Inbox.sol:Inbox', { firstCommit: BRANCH_COMMIT, firstBranch: 'develop' }),
-    entry(C.manual, 'src/bridge/Bridge.sol:Bridge', { firstCommit: null, firstBranch: null, label: 'Arbitrum One Bridge (patched v3.0.0)' }),
+    entry(C.branchOnly, 'src/bridge/Inbox.sol:Inbox', { ref: 'release-3.5.0', commit: BRANCH_COMMIT }),
+    entry(C.manual, 'src/bridge/Bridge.sol:Bridge', { ref: null, commit: null, label: 'Arbitrum One Bridge (patched v3.0.0)' }),
   ]
   const fp = (c: Hex) => keccak256(c)
   return registryOf(entries, {
@@ -131,18 +131,23 @@ test('getVersion: unknown code, an account, and an unknown, zero or codeless imp
   assert.equal(await reg.getVersion(rpc, A.tupNoCodeImpl), null, 'an implementation with no code')
 })
 
-test('getVersion: prerelease-only code gives its first prerelease; a branch-only build gives branch@commit', async () => {
+test('getVersion: prerelease-only code gives its first prerelease; code in no tag gives ref@commit; a manual entry its label', async () => {
   const reg = versionRegistry()
   const { rpc } = versionChain()
   assert.equal(await reg.getVersion(rpc, A.pre), 'v3.4.0-beta.0')
-  assert.equal(await reg.getVersion(rpc, A.branchOnly), `develop@${BRANCH_COMMIT.slice(0, 12)}`)
-  // Not in the pseudocode: a manual entry has no tag or commit, so it gives its label.
+  assert.equal(await reg.getVersion(rpc, A.branchOnly), `release-3.5.0@${BRANCH_COMMIT.slice(0, 12)}`)
   assert.equal(await reg.getVersion(rpc, A.manual), 'Arbitrum One Bridge (patched v3.0.0)')
 })
 
-test('versionOf: release, then prerelease, then branch@commit', () => {
-  const base = { ...entry(C.logic, 'src/X.sol:X'), firstCommit: BRANCH_COMMIT, firstBranch: 'develop' }
+test('versionOf: release, then prerelease, then a manual entry\'s label, then ref@commit', () => {
+  const base = { ...entry(C.logic, 'src/X.sol:X'), ref: 'release-3.3.0', commit: BRANCH_COMMIT }
   assert.equal(versionOf({ ...base, tags: ['v3.2.0-beta.0', 'v3.2.0', 'v3.2.1'] }), 'v3.2.0')
   assert.equal(versionOf({ ...base, tags: ['v3.1.0-qol', 'v3.2.0-rc.1'] }), 'v3.1.0-qol', 'a tag with a suffix is a prerelease')
-  assert.equal(versionOf({ ...base, tags: [] }), 'develop@abcdef012345')
+  assert.equal(versionOf({ ...base, tags: [] }), 'release-3.3.0@abcdef012345', 'built only as a release branch head')
+  assert.equal(versionOf({ ...base, ref: 'hotfix-3.2.1', tags: [] }), 'hotfix-3.2.1@abcdef012345', 'built only as a hotfix branch head')
+  // Manual entries: the label when there's no tag, with or without a ref and commit; a tag still wins.
+  const manual = { ...base, ref: null, commit: null, label: 'Arbitrum One Bridge (patched v3.0.0)' }
+  assert.equal(versionOf({ ...manual, tags: [] }), 'Arbitrum One Bridge (patched v3.0.0)')
+  assert.equal(versionOf({ ...base, label: 'patched one-off', tags: [] }), 'patched one-off')
+  assert.equal(versionOf({ ...manual, tags: ['v3.0.0'] }), 'v3.0.0')
 })
