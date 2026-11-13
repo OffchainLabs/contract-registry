@@ -7,7 +7,7 @@ every deployable contract, and publishes the results here as static JSON. A refe
 discovers and identifies every contract of a chain.
 
 Design: `contract-registry-spec.md` (BLK-491). Status: prototype. Sources: `nitro-contracts`,
-from tag `v3.2.0` onward.
+every tag from `v3.2.0` onward, plus the releases from `v3.0.0` on (backfilled; see "Backfill").
 
 ## How to use
 
@@ -126,7 +126,8 @@ entry says what the code is:
 ## Layout
 
 ```
-config/<source>/sources.json                  how to fetch, build and check the source repo; proxies;
+config/<source>/sources.json                  which refs are published; how to fetch, build (profiles
+                                              by ref range) and check the source repo; proxies;
                                               reviewed range pairs
 config/<source>/out-of-scope-getters.json     getters the walker doesn't follow
 schema/                                       JSON schemas for every file type
@@ -162,9 +163,9 @@ The walker identifies each contract's code: matched code is `{ status: "matched"
 match }`, where `match` is the one matching entry with its `tags` and the code's `immutables`. For
 a `proxy` entry it reads the slots the entry lists: the
 first gives the node's `implementation`, the second its `secondaryImplementation`. Logic and
-proxy-admin code isn't probed. Code the registry doesn't know (for example a chain deployed before
-the registry's start, like Arbitrum One) is probed at the EIP-1967 slot and, if that is set, at the
-secondary slot.
+proxy-admin code isn't probed. Code the registry doesn't know (for example a release older than
+the registry's range, or a one-off build like Arbitrum One's patched Bridge) is probed at the
+EIP-1967 slot and, if that is set, at the secondary slot.
 
 `summary.tags` is the intersection of the tag sets of the matched in-scope logic code: the releases
 the deployment is consistent with. Proxies and proxy admins are still identified in the nodes, but
@@ -176,16 +177,20 @@ every role.
 
 Everything runs here ("pull" model); the source repos need no CI or credentials.
 
-- `publish.yml` (schedule, manual): builds every new `v*` tag, and the head of every `release-*`
-  and `hotfix*` branch whose head has changed. Nothing else is built: not `main` or `develop`, and
-  not a release or hotfix branch's earlier commits. Each new tag is built from scratch. If its
+- `publish.yml` (schedule, manual): builds every new `v*` tag in range (see "Backfill"), and the
+  head of every `release-*` and `hotfix*` branch whose head has changed. Nothing else is built: not
+  `main` or `develop`, and not a release or hotfix branch's earlier commits. Each new tag is built
+  from scratch, with the build profile its commit selects. If its
   commit was also built as a release or hotfix head (recorded in a branch file, or built in the
   same run), the tag build must reproduce that build's fingerprints; otherwise there is nothing to
   compare it with. The run writes entries, tag files and branch files (a deleted branch's file is
   removed; its entries stay), checks that entries of one code length mask the same bytes (so no
   code can match two; a conflict fails the whole run, and its alert says how to review the pair
   and list it in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
-  tag and changed head and walks them, and lands everything as one commit. The test-chain check
+  tag and changed head in the check's range and walks them, and lands everything as one commit.
+  It checks that each new tag equals `v` + `package.json` version at its commit; a mismatch is
+  published anyway and raises an alert until the tag is listed in `tagValidation.allowlist`.
+  The test-chain check
   requires all in-scope code, proxies and proxy admins included, to match an entry from that
   commit's build. It also reads both known implementation slots on every matched contract, and
   fails if one holds an address the walk didn't read: a proxy missing from `contractRoles`.
@@ -206,3 +211,63 @@ node tools/src/cli/rebuild.ts --tag v3.2.0       # rebuild a tag and compare wit
 node tools/src/cli/ci-check.ts --base origin/main
 npm test && npm run test:integration
 ```
+
+### Backfill
+
+Three settings in `config/<source>/sources.json` let the registry cover releases older than its
+start tag. Each is a selector over source commits, and the run applies them per tag.
+
+**Which tags are published: `start`.** A tag is published when its commit is `start.tag`'s or
+descends from it, prereleases included. With `start.releasesFrom`, so is every release tag (a
+semver version with no prerelease part) at or above that version, wherever its commit is. For
+nitro-contracts, `{"tag": "v3.2.0", "releasesFrom": "v3.0.0"}` adds `v3.0.0`, `v3.1.0` and
+`v3.1.1`; `v3.1.1` is on a side branch, not an ancestor of `v3.2.0`. Prereleases before
+`v3.2.0` stay out: `v3.0.1-beta.*`, `v3.1.0-qol` and `v3.2.0-beta.0`. Branch heads must still
+descend from `start.tag`.
+
+**How each commit is built: `builds[].when`.** The first profile whose `when` matches the commit
+builds it. A selector can require `descendantOf`, `notDescendantOf`, `refs`, and `tags`: a
+published tag at the commit whose semver version is at least `tags.from` and below
+`tags.before`, by semver precedence. A commit that no profile matches fails the run ("no build
+profile matches commit"), so a tag is never built with settings meant for other releases.
+nitro-contracts has two profiles, both on Node 24, Foundry v1.9.0 and yarn 1.22.22:
+
+| Profile | Selects | Outputs |
+|---|---|---|
+| `hardhat-foundry-0.8.17` | descendants of `v3.2.0` | Hardhat (deployed), Foundry (parity with Hardhat only), Foundry Yul profile (deployed) |
+| `hardhat-0.8.17-v3.0-v3.1` | tags `>= v3.0.0` and `< v3.2.0` | Hardhat (deployed), Foundry Yul profile (deployed); no parity check |
+
+The `v3.0`-`v3.1` profile has no Foundry parity output, because those releases' Foundry build
+isn't the deployed build. Their `foundry.toml` doesn't pin solc, so Foundry compiles the `^0.8.x`
+pragmas with the newest solc (0.8.34 today), not 0.8.17. It also sets `evm_version = 'cancun'`
+and lacks Hardhat's per-file optimizer runs (20 for `RollupUserLogic`, 200 for
+`EdgeChallengeManager`). Their deploy scripts use the Hardhat artifacts. The repo's own parity
+check (`yarn test:bytecodes`, from PR #358) first ships in `v3.2.0`.
+
+The Yul profile is deployed: the deploy scripts read `out/yul/Reader4844.yul/Reader4844.json`.
+Its commands follow the releases' own `build:forge:yul` script, with two changes:
+
+- **`--skip '*.sol'`**: the releases' Yul profile doesn't skip Solidity, and builds the tests
+  without their remappings.
+- **`--no-lint`**: Foundry v1.9.0's lint step fails on Yul.
+
+The Yul build also sets `FOUNDRY_SOLC_VERSION=0.8.24`. Unpinned, Foundry would compile it with
+whatever solc is newest, so the fingerprint would change with each solc release. Every solc from
+0.8.23 on compiles it to the same 87 bytes, identical to the `Reader4844` that Arbitrum One's
+SequencerInbox uses (`0x15b25E3f…d4ca`).
+
+**Which commits get a test-chain check: `testChains.when`.** For nitro-contracts it is
+`{"descendantOf": ["v3.2.0"]}`, because the deployer targets `v3.2.0`'s `createRollup`. A
+published commit outside it is built and published without the check, and not silently: each run
+lists it in `checksSkipped` (commit, refs, reason), logs `test-chain check skipped for <refs>`,
+and names it in the data commit's message. `check.ts --rev` refuses such a commit.
+
+**Going further back.** Lower `start.releasesFrom`; that one line is the range rule. Then:
+
+1. Make a profile cover the new tags: widen `tags.from` if the toolchain still works, or add a
+   profile.
+2. Check that `contractRoles` lists every proxy and proxy admin those builds produce, under its
+   exact name. Entries are write-once, and the role is copied in when one is written.
+3. Check that each new tag equals `v` + `package.json` version, or allowlist it.
+
+The run checks the range invariant against every existing entry, as for any new tag.

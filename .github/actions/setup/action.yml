@@ -7,8 +7,9 @@ runs:
       with:
         node-version: 24
         cache: npm
-    # Toolchain versions match config/nitro-contracts/sources.json (profile hardhat-foundry-0.8.17).
-    # When a later backfill adds profiles with other toolchains, install them per profile here.
+    # Toolchain versions match config/nitro-contracts/sources.json: both profiles
+    # (hardhat-foundry-0.8.17 and hardhat-0.8.17-v3.0-v3.1) use Node 24, Foundry v1.9.0 and
+    # yarn 1.22.22. If a later backfill adds a profile with other toolchains, install them here.
     - uses: foundry-rs/foundry-toolchain@v1
       with:
         version: v1.9.0

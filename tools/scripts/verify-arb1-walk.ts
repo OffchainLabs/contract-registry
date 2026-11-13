@@ -1,6 +1,7 @@
-// Acceptance criterion 6: walking Arbitrum One (mostly unknown to the registry, since it predates
-// v3.2.0) still reaches every core contract, including the OSP and its provers, and flags each
-// unknown one. The expected addresses are read independently, straight from the Bridge.
+// Acceptance criterion 6: walking Arbitrum One (which predates v3.2.0; its core logic is the
+// backfilled v3.0.0, but its Bridge is a patched one-off the registry doesn't know) still reaches
+// every core contract, including the OSP and its provers, and flags each unknown one. The expected
+// addresses are read independently, straight from the Bridge.
 //   node tools/scripts/verify-arb1-walk.ts [--registry <spec>]   (needs ALCHEMY_API_KEY)
 import * as path from 'node:path'
 import * as fs from 'node:fs'
