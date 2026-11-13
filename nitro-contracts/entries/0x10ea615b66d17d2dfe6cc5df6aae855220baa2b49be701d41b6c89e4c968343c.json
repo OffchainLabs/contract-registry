@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x10ea615b66d17d2dfe6cc5df6aae855220baa2b49be701d41b6c89e4c968343c",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/Bridge.sol:Bridge"
+  ],
+  "role": "logic",
+  "codeLength": 6952,
+  "maskedRanges": [
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        4039
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 12,
+  "getters": [
+    {
+      "signature": "activeOutbox()",
+      "selector": "0xab5d8943",
+      "kind": "single"
+    },
+    {
+      "signature": "allowedDelayedInboxList(uint256)",
+      "selector": "0xe76f5c8d",
+      "kind": "list"
+    },
+    {
+      "signature": "allowedOutboxList(uint256)",
+      "selector": "0x945e1147",
+      "kind": "list"
+    },
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x0084120c",
+    "0x16bf5579",
+    "0x413b35bd",
+    "0x47fb24c5",
+    "0x4f61f850",
+    "0x5fca4a16",
+    "0x7a88b107",
+    "0x86598a56",
+    "0x8db5993b",
+    "0x919cc706",
+    "0x945e1147",
+    "0x9e5d4c49",
+    "0xab5d8943",
+    "0xae60bd13",
+    "0xc4d66de8",
+    "0xcb23bcb5",
+    "0xcee3d728",
+    "0xd5719dc2",
+    "0xe76f5c8d",
+    "0xe77145f4",
+    "0xeca067ad",
+    "0xee35f327",
+    "0xf81ff3b3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17",
+    "evmVersion": "london",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "none",
+      "appendCBOR": true
+    }
+  },
+  "ref": null,
+  "commit": null,
+  "label": "v3.1.0-callfilter",
+  "notes": "Arbitrum One Bridge implementation, a patched build based on v3.1.0; added by hand"
+}
