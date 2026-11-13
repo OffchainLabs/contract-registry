@@ -1,5 +1,6 @@
 // Prints the version of the contract at an address (`Registry.getVersion`): a proxy with one
-// implementation slot reports its implementation; everything else reports itself.
+// implementation slot reports its implementation; everything else reports itself. Unknown code
+// reports the implementation at its EIP-1967 slot, unless its secondary slot is set.
 //   node tools/src/cli/version.ts --rpc <url> --address <address> [--address ...]
 //        [--registry <dir | git:<path>@<rev> | github:<owner>/<repo>@<ref>>] [--source nitro-contracts] [--block latest]
 // One address: prints the version (exit 0), or "unknown" on stderr (exit 1).

@@ -6,6 +6,7 @@ import { hexToBytes } from '../lib/hex.ts'
 import { isPrerelease } from '../lib/semver.ts'
 import type { ByLengthEntry, ByLengthFile, IndexFile } from '../lib/types.ts'
 import type { Rpc } from './rpc.ts'
+import { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './walk.ts'
 
 /** Where registry files come from. Every implementation reads one fixed snapshot. */
 export interface RegistrySource {
@@ -157,24 +158,37 @@ export class Registry {
   }
 
   /**
-   * The version of the contract at `address` (see `versionOf`), or null if the registry doesn't
-   * know its code. A proxy with one implementation slot reports its implementation's version (null
-   * if the slot is zero or its code unknown). Everything else reports its own code's version:
-   * logic, proxy admins, and proxies with two slots (RollupProxy, AdminFallbackProxy), whose own
-   * version can lag the logic behind them.
+   * The version of the contract at `address` (see `versionOf`), or null. A proxy with one
+   * implementation slot reports its implementation's version (null if the slot is zero or its code
+   * missing or unknown). Everything else the registry knows reports its own code's version: logic,
+   * proxy admins, and proxies with two slots (RollupProxy, AdminFallbackProxy), whose own version
+   * can lag the logic behind them.
+   *
+   * Unknown code may be a proxy the registry doesn't have (e.g. Arbitrum One's, older than the
+   * registry's first tag). If its secondary slot is set, it's a two-slot proxy, with no version of
+   * its own: null. Otherwise it reports the implementation at the EIP-1967 slot, as a one-slot
+   * proxy does, and so gives null unless that slot holds code the registry knows.
    */
   async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, address: string, block = 'latest'): Promise<string | null> {
     const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
-    if (!entry) return null
-    if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) {
-      const word = (await rpc.getStorageAt(address, entry.implementationSlots[0], block)).replace(/^0x/, '').padStart(64, '0')
-      const impl = `0x${word.slice(-40)}`
-      if (/^0x0{40}$/.test(impl)) return null
-      const code = hexToBytes(await rpc.getCode(impl, block))
-      if (!code.length) return null
-      const implEntry = await this.lookup(code)
-      return implEntry ? versionOf(implEntry) : null
+    if (!entry) {
+      // Unknown code: maybe a proxy the registry doesn't have. Secondary slot first, so an unknown
+      // two-slot proxy (an old RollupProxy) gives null rather than its admin logic's version.
+      if (!/^(0x)?0*$/.test(await rpc.getStorageAt(address, SECONDARY_IMPLEMENTATION_SLOT, block))) return null
+      return this.implementationVersion(rpc, address, EIP1967_IMPLEMENTATION_SLOT, block)
     }
+    if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) return this.implementationVersion(rpc, address, entry.implementationSlots[0], block)
     return versionOf(entry)
+  }
+
+  /** The version of the code at the address in `slot` of `proxy`; null if the slot is zero, or that code is missing or unknown. */
+  private async implementationVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, proxy: string, slot: string, block: string): Promise<string | null> {
+    const word = (await rpc.getStorageAt(proxy, slot, block)).replace(/^0x/, '').padStart(64, '0')
+    const impl = `0x${word.slice(-40)}`
+    if (/^0x0{40}$/.test(impl)) return null
+    const code = hexToBytes(await rpc.getCode(impl, block))
+    if (!code.length) return null
+    const implEntry = await this.lookup(code)
+    return implEntry ? versionOf(implEntry) : null
   }
 }

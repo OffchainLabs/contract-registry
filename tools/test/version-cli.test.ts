@@ -20,6 +20,7 @@ const UNKNOWN_CODE: Hex = '0x6001600203'
 const PROXY = '0x' + '1'.repeat(40)
 const IMPL = '0x' + '2'.repeat(40)
 const OTHER = '0x' + '3'.repeat(40)
+const UNKNOWN_PROXY = '0x' + '4'.repeat(40) // unknown code, EIP-1967 slot -> IMPL
 
 function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   return {
@@ -46,7 +47,7 @@ function registryDir(): string {
 }
 
 async function stubRpc(): Promise<{ url: string; close(): void }> {
-  const code: Record<string, Hex> = { [PROXY]: PROXY_CODE, [IMPL]: LOGIC_CODE, [OTHER]: UNKNOWN_CODE }
+  const code: Record<string, Hex> = { [PROXY]: PROXY_CODE, [IMPL]: LOGIC_CODE, [OTHER]: UNKNOWN_CODE, [UNKNOWN_PROXY]: UNKNOWN_CODE }
   const server = createServer((req, res) => {
     let body = ''
     req.on('data', d => { body += d })
@@ -54,7 +55,7 @@ async function stubRpc(): Promise<{ url: string; close(): void }> {
       const { id, method, params } = JSON.parse(body)
       let result: string
       if (method === 'eth_getCode') result = code[params[0].toLowerCase()] ?? '0x'
-      else if (method === 'eth_getStorageAt' && params[0].toLowerCase() === PROXY && params[1] === EIP1967) result = '0x' + IMPL.slice(2).padStart(64, '0')
+      else if (method === 'eth_getStorageAt' && [PROXY, UNKNOWN_PROXY].includes(params[0].toLowerCase()) && params[1] === EIP1967) result = '0x' + IMPL.slice(2).padStart(64, '0')
       else result = '0x' + '0'.repeat(64)
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ jsonrpc: '2.0', id, result }))
@@ -74,12 +75,13 @@ function run(args: string[]): Promise<{ status: number | null; stdout: string; s
   })
 }
 
-test('version CLI: a proxy reports its implementation; unknown code exits 1; several addresses print one line each', async () => {
+test('version CLI: a proxy, known or not, reports its implementation; unknown code exits 1; several addresses print one line each', async () => {
   const dir = registryDir()
   const rpc = await stubRpc()
   try {
     const base = ['--rpc', rpc.url, '--registry', dir]
     assert.deepEqual(await run([...base, '--address', PROXY]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
+    assert.deepEqual(await run([...base, '--address', UNKNOWN_PROXY]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
     assert.deepEqual(await run([...base, '--address', IMPL]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
     assert.deepEqual(await run([...base, '--address', OTHER]), { status: 1, stdout: '', stderr: 'unknown\n' })
     assert.deepEqual(await run([...base, '--address', PROXY, '--address', OTHER]), { status: 1, stdout: `${PROXY} v3.3.0\n${OTHER} unknown\n`, stderr: '' })
