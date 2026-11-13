@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 8789,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x0f2ec0f3ee08c36e6dca6c53ee6631f03b81c76167713ca191021fa16a3d5503",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/ERC20Bridge.sol:ERC20Bridge"
+      ],
+      "role": "logic",
+      "codeLength": 8789,
+      "maskedRanges": [
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            2354
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "activeOutbox()",
+          "selector": "0xab5d8943",
+          "kind": "single"
+        },
+        {
+          "signature": "allowedDelayedInboxList(uint256)",
+          "selector": "0xe76f5c8d",
+          "kind": "list"
+        },
+        {
+          "signature": "allowedOutboxList(uint256)",
+          "selector": "0x945e1147",
+          "kind": "list"
+        },
+        {
+          "signature": "nativeToken()",
+          "selector": "0xe1758bd8",
+          "kind": "single"
+        },
+        {
+          "signature": "rollup()",
+          "selector": "0xcb23bcb5",
+          "kind": "single"
+        },
+        {
+          "signature": "sequencerInbox()",
+          "selector": "0xee35f327",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x0084120c",
+        "0x16bf5579",
+        "0x413b35bd",
+        "0x47fb24c5",
+        "0x485cc955",
+        "0x4f61f850",
+        "0x5fca4a16",
+        "0x75d81e25",
+        "0x7a88b107",
+        "0x86598a56",
+        "0x919cc706",
+        "0x945e1147",
+        "0x9e5d4c49",
+        "0xab5d8943",
+        "0xad48cb5e",
+        "0xae60bd13",
+        "0xcb23bcb5",
+        "0xcee3d728",
+        "0xd5719dc2",
+        "0xe1758bd8",
+        "0xe76f5c8d",
+        "0xe77145f4",
+        "0xeca067ad",
+        "0xee35f327",
+        "0xf81ff3b3"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

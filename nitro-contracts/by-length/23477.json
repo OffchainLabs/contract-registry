@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 23477,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x4d803f5531ca07133228fb737e0433aefb08a06aef94afc53b432f9f63cb9aaa",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/RollupCreator.sol:RollupCreator"
+      ],
+      "role": "logic",
+      "codeLength": 23477,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "bridgeCreator()",
+          "selector": "0xf860cefa",
+          "kind": "single"
+        },
+        {
+          "signature": "challengeManagerTemplate()",
+          "selector": "0x9c683d10",
+          "kind": "single"
+        },
+        {
+          "signature": "l2FactoriesDeployer()",
+          "selector": "0xac0425bc",
+          "kind": "single"
+        },
+        {
+          "signature": "osp()",
+          "selector": "0xf26a62c6",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        },
+        {
+          "signature": "rollupAdminLogic()",
+          "selector": "0x9dba3241",
+          "kind": "single"
+        },
+        {
+          "signature": "rollupUserLogic()",
+          "selector": "0x9d4798e3",
+          "kind": "single"
+        },
+        {
+          "signature": "upgradeExecutorLogic()",
+          "selector": "0x030cb85e",
+          "kind": "single"
+        },
+        {
+          "signature": "validatorWalletCreator()",
+          "selector": "0xbc45e0ae",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x030cb85e",
+        "0x715018a6",
+        "0x8da5cb5b",
+        "0x9c683d10",
+        "0x9d4798e3",
+        "0x9dba3241",
+        "0xa2f454fc",
+        "0xac0425bc",
+        "0xbc45e0ae",
+        "0xf0dae494",
+        "0xf26a62c6",
+        "0xf2fde38b",
+        "0xf860cefa"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0"
+      ]
+    }
+  ]
+}

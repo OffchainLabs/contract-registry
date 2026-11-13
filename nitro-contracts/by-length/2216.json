@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 2216,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x55d42d1cc0101ebfc780788f900c3bf0efea8728c4edb7a50b72390d4c0a3028",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/stylus/StylusDeployer.sol:StylusDeployer"
+      ],
+      "role": "logic",
+      "codeLength": 2216,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x835d1d4c",
+        "0x9f40b385",
+        "0xa9a8e4e9"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.1.0",
+      "commit": "9d0e90ef588f94a9d2ffa4dc22713d91a76f57d4",
+      "tags": [
+        "v3.1.0"
+      ]
+    }
+  ]
+}

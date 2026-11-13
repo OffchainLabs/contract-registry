@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x355e86721f4bfe2e7299a41553569b237b916c37de568aa257da0e8bb2b2e9af",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/challengeV2/libraries/MerkleTreeAccumulatorLib.sol:MerkleTreeAccumulatorLib"
+  ],
+  "role": "logic",
+  "codeLength": 135,
+  "maskedRanges": [
+    {
+      "name": "<library address>",
+      "type": "address",
+      "offsets": [
+        1
+      ],
+      "length": 20
+    }
+  ],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0xa49062d4"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

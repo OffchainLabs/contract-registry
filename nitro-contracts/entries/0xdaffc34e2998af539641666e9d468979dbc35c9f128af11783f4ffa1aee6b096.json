@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xdaffc34e2998af539641666e9d468979dbc35c9f128af11783f4ffa1aee6b096",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "yul/Reader4844.yul:Reader4844"
+  ],
+  "role": "logic",
+  "codeLength": 87,
+  "maskedRanges": [],
+  "cborMetadataLength": 0,
+  "getters": [],
+  "selectors": [],
+  "compiler": {
+    "language": "Yul",
+    "version": "0.8.24",
+    "evmVersion": "cancun",
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": "ipfs",
+      "appendCBOR": false
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

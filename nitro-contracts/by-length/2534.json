@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 2534,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x86e5ca936f61e2f3f8f6779abe2d8a7de349f283f5b9c5bf3721c9ea43c3ff66",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20"
+      ],
+      "packages": {
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20": "@openzeppelin/contracts@4.7.3"
+      },
+      "role": "logic",
+      "codeLength": 2534,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x23b872dd",
+        "0x313ce567",
+        "0x39509351",
+        "0x70a08231",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x8faab7e8cedb2529a19c87c2c4b1a9d8472ab8c14c3eaac29c0e6524c58a45f7",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable"
+      ],
+      "packages": {
+        "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable": "@openzeppelin/contracts-upgradeable@4.7.3"
+      },
+      "role": "logic",
+      "codeLength": 2534,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x23b872dd",
+        "0x313ce567",
+        "0x39509351",
+        "0x70a08231",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

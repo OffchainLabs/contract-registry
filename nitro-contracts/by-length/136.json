@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 136,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xcadc7632d10b44ca91dbe80bacbc8e34e81b60084d1125c802d498d4aeb8205e",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/DelayBuffer.sol:DelayBuffer"
+      ],
+      "role": "logic",
+      "codeLength": 136,
+      "maskedRanges": [
+        {
+          "name": "<library address>",
+          "type": "address",
+          "offsets": [
+            1
+          ],
+          "length": 20
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x528cfa98"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

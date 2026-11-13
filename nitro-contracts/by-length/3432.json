@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 3432,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x1610e705c188953a4769e4527c1f40bc5ef183fb68c063d358e96ab1c6ee8e77",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/assertionStakingPool/AssertionStakingPool.sol:AssertionStakingPool"
+      ],
+      "role": "logic",
+      "codeLength": 3432,
+      "maskedRanges": [
+        {
+          "name": "assertionHash",
+          "type": "bytes32",
+          "offsets": [
+            211,
+            1214
+          ],
+          "length": 32
+        },
+        {
+          "name": "stakeToken",
+          "type": "address",
+          "offsets": [
+            298,
+            704,
+            932,
+            1046
+          ],
+          "length": 32
+        },
+        {
+          "name": "rollup",
+          "type": "address",
+          "offsets": [
+            455,
+            1080,
+            1165,
+            1312,
+            1429
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "rollup()",
+          "selector": "0xcb23bcb5",
+          "kind": "single"
+        },
+        {
+          "signature": "stakeToken()",
+          "selector": "0x51ed6a30",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x2113ed21",
+        "0x26c0e5c5",
+        "0x30fc43ed",
+        "0x51ed6a30",
+        "0x6b74d515",
+        "0x7476083b",
+        "0x83915971",
+        "0x930412af",
+        "0x9451944d",
+        "0x956501bb",
+        "0xcb23bcb5"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

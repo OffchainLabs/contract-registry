@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 1933,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xb5f8f717a2baf656e4d291c64fdef4387adc83440eaa26220547184bda9288d1",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin"
+      ],
+      "packages": {
+        "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin": "@openzeppelin/contracts@4.7.3"
+      },
+      "role": "proxy-admin",
+      "codeLength": 1933,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x204e1c7a",
+        "0x715018a6",
+        "0x7eff275e",
+        "0x8da5cb5b",
+        "0x9623609d",
+        "0x99a88ec4",
+        "0xf2fde38b",
+        "0xf3b7dead"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

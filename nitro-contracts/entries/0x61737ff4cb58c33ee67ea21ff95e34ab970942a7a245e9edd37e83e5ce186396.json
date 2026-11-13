@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x61737ff4cb58c33ee67ea21ff95e34ab970942a7a245e9edd37e83e5ce186396",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/ERC20Inbox.sol:ERC20Inbox"
+  ],
+  "role": "logic",
+  "codeLength": 10524,
+  "maskedRanges": [
+    {
+      "name": "maxDataSize",
+      "type": "uint256",
+      "offsets": [
+        773,
+        1086,
+        1171,
+        6141,
+        6230
+      ],
+      "length": 32
+    },
+    {
+      "name": "deployTimeChainId",
+      "type": "uint256",
+      "offsets": [
+        936,
+        3128
+      ],
+      "length": 32
+    },
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        1835
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "bridge()",
+      "selector": "0xe78cea92",
+      "kind": "single"
+    },
+    {
+      "signature": "getProxyAdmin()",
+      "selector": "0x8b3240a0",
+      "kind": "single"
+    },
+    {
+      "signature": "sequencerInbox()",
+      "selector": "0xee35f327",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x1fe927cf",
+    "0x22bd5c1c",
+    "0x3f4ba83a",
+    "0x485cc955",
+    "0x5075788b",
+    "0x549e8426",
+    "0x5c975abb",
+    "0x8456cb59",
+    "0x8a631aa6",
+    "0x8b3240a0",
+    "0xa66b327d",
+    "0xb75436bb",
+    "0xb79092fd",
+    "0xb9b9a688",
+    "0xbabcc539",
+    "0xe3de72a5",
+    "0xe78cea92",
+    "0xe8eb1dc3",
+    "0xee35f327",
+    "0xefeadb6d"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

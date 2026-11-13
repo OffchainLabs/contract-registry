@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x96f26ee554e051417546e61c6d90dfc4959549a0ff09f009341079ea914083ce",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/assertionStakingPool/AssertionStakingPoolCreator.sol:AssertionStakingPoolCreator"
+  ],
+  "role": "logic",
+  "codeLength": 4742,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0x9b505aa1",
+    "0xdc082ad3"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.1.0",
+  "commit": "9d0e90ef588f94a9d2ffa4dc22713d91a76f57d4"
+}

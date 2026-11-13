@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 2685,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xe66ce5d7ad7338cc936019aa23685562816ee5a384856f382d41b15d6bfdae81",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/RollupEventInbox.sol:RollupEventInbox"
+      ],
+      "role": "logic",
+      "codeLength": 2685,
+      "maskedRanges": [
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            824
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "rollup()",
+          "selector": "0xcb23bcb5",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x6ae71f12",
+        "0xc4d66de8",
+        "0xcb23bcb5",
+        "0xcf8d56d6",
+        "0xe78cea92"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

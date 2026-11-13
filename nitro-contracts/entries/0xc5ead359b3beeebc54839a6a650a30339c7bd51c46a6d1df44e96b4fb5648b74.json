@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xc5ead359b3beeebc54839a6a650a30339c7bd51c46a6d1df44e96b4fb5648b74",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/osp/OneStepProverMemory.sol:OneStepProverMemory"
+  ],
+  "role": "logic",
+  "codeLength": 8416,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0xa92cb501"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

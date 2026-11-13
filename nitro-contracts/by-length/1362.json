@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 1362,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xb7bb74827d8ea248f2e194500793cb4af828217b47d32ab199f4fc10df16c8a2",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/extra/ERC20MigrationOutbox.sol:ERC20MigrationOutbox"
+      ],
+      "role": "logic",
+      "codeLength": 1362,
+      "maskedRanges": [
+        {
+          "name": "destination",
+          "type": "address",
+          "offsets": [
+            96,
+            583,
+            834
+          ],
+          "length": 32
+        },
+        {
+          "name": "nativeToken",
+          "type": "address",
+          "offsets": [
+            176,
+            353
+          ],
+          "length": 32
+        },
+        {
+          "name": "bridge",
+          "type": "address",
+          "offsets": [
+            215,
+            310,
+            649
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "destination()",
+          "selector": "0xb269681d",
+          "kind": "single"
+        },
+        {
+          "signature": "nativeToken()",
+          "selector": "0xe1758bd8",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x8fd3ab80",
+        "0xb269681d",
+        "0xe1758bd8",
+        "0xe78cea92"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.1.1",
+      "commit": "11a59629c472e16644c9f536cdb8a91b00685f32",
+      "tags": [
+        "v3.1.1"
+      ]
+    }
+  ]
+}

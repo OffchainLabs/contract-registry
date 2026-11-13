@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x9bb478810276fd04254dab1df811c44473f4c813ddb260fae059b4474bbd615c",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/bridge/SequencerInbox.sol:SequencerInbox"
+  ],
+  "role": "logic",
+  "codeLength": 20967,
+  "maskedRanges": [
+    {
+      "name": "isDelayBufferable",
+      "type": "bool",
+      "offsets": [
+        1079,
+        2950,
+        5117,
+        6385,
+        8141,
+        9268,
+        10765,
+        11170,
+        12470,
+        13048
+      ],
+      "length": 32
+    },
+    {
+      "name": "reader4844",
+      "type": "address",
+      "offsets": [
+        1423,
+        4251,
+        8054,
+        15354,
+        15573
+      ],
+      "length": 32
+    },
+    {
+      "name": "isUsingFeeToken",
+      "type": "bool",
+      "offsets": [
+        1524,
+        2629,
+        13419,
+        15096
+      ],
+      "length": 32
+    },
+    {
+      "name": "maxDataSize",
+      "type": "uint256",
+      "offsets": [
+        1806,
+        16621,
+        16706
+      ],
+      "length": 32
+    },
+    {
+      "name": "__self",
+      "type": "address",
+      "offsets": [
+        2195,
+        8974
+      ],
+      "length": 32
+    },
+    {
+      "name": "gasPerBlob",
+      "type": "uint256",
+      "offsets": [
+        4736,
+        5566,
+        7787,
+        8581
+      ],
+      "length": 32
+    },
+    {
+      "name": "deployTimeChainId",
+      "type": "uint256",
+      "offsets": [
+        8847,
+        14191
+      ],
+      "length": 32
+    },
+    {
+      "name": "hostChainIsArbitrum",
+      "type": "bool",
+      "offsets": [
+        10222,
+        13316,
+        15876
+      ],
+      "length": 32
+    }
+  ],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "batchPosterManager()",
+      "selector": "0xcc2a1a0c",
+      "kind": "single"
+    },
+    {
+      "signature": "bridge()",
+      "selector": "0xe78cea92",
+      "kind": "single"
+    },
+    {
+      "signature": "reader4844()",
+      "selector": "0x8d910dde",
+      "kind": "single"
+    },
+    {
+      "signature": "rollup()",
+      "selector": "0xcb23bcb5",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x02c99275",
+    "0x06f13056",
+    "0x1637be48",
+    "0x16af91a7",
+    "0x1ad87e45",
+    "0x1f956632",
+    "0x1ff64790",
+    "0x258f0495",
+    "0x27957a49",
+    "0x2cbf74e5",
+    "0x2f3985a7",
+    "0x3e5aa082",
+    "0x4b678a66",
+    "0x69cacded",
+    "0x6ae71f12",
+    "0x6c890450",
+    "0x6d46e987",
+    "0x6e620055",
+    "0x6e7df3e7",
+    "0x6f12b0c9",
+    "0x715ea34b",
+    "0x71c3e6fe",
+    "0x7fa3a40e",
+    "0x84420860",
+    "0x8d910dde",
+    "0x8f111f3c",
+    "0x917cf8ac",
+    "0x92d9f782",
+    "0x96cc5c78",
+    "0xa655d937",
+    "0xb31761f8",
+    "0xcb23bcb5",
+    "0xcc2a1a0c",
+    "0xd1ce8da8",
+    "0xd9dd67ab",
+    "0xdd44e6e0",
+    "0xe0bc9729",
+    "0xe5a358c8",
+    "0xe78cea92",
+    "0xe8eb1dc3",
+    "0xebea461d",
+    "0xedaafe20",
+    "0xf1981578",
+    "0xf60a5091"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

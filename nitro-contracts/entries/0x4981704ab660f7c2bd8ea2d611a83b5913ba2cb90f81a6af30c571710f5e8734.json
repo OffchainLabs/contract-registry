@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x4981704ab660f7c2bd8ea2d611a83b5913ba2cb90f81a6af30c571710f5e8734",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/FactoryDeployerHelper.sol:FactoryDeployerHelper"
+  ],
+  "role": "logic",
+  "codeLength": 1224,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "DEPLOY_HELPER()",
+      "selector": "0x6d739b42",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x13a694a9",
+    "0x4956eaf0",
+    "0x4c96a389",
+    "0x6d739b42"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

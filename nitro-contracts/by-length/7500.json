@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 7500,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x07cf25128a3730bee7c472d11625e0cb33420e8bab440a164da9105cf0d18480",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/BridgeCreator.sol:BridgeCreator"
+      ],
+      "role": "logic",
+      "codeLength": 7500,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x11f02227",
+        "0x57d3a200",
+        "0x715018a6",
+        "0x76768ab9",
+        "0x8da5cb5b",
+        "0xceab9410",
+        "0xe83b0e16",
+        "0xf2fde38b"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0"
+      ]
+    }
+  ]
+}

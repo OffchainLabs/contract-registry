@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 24245,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xa08828cd35af7260dfdb9ee1b8a2817926aebd6fda33fef433c951ee87637f57",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/rollup/RollupAdminLogic.sol:RollupAdminLogic"
+      ],
+      "role": "logic",
+      "codeLength": 24245,
+      "maskedRanges": [
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            3991,
+            4124,
+            4429,
+            4562,
+            8224,
+            8357,
+            8751,
+            8884,
+            9242,
+            10492,
+            10625
+          ],
+          "length": 32
+        },
+        {
+          "name": "_hostChainIsArbitrum",
+          "type": "bool",
+          "offsets": [
+            7465,
+            7802,
+            17971
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "anyTrustFastConfirmer()",
+          "selector": "0x55840a58",
+          "kind": "single"
+        },
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "challengeManager()",
+          "selector": "0x023a96fe",
+          "kind": "single"
+        },
+        {
+          "signature": "inbox()",
+          "selector": "0xfb0e722b",
+          "kind": "single"
+        },
+        {
+          "signature": "loserStakeEscrow()",
+          "selector": "0xf065de3f",
+          "kind": "single"
+        },
+        {
+          "signature": "outbox()",
+          "selector": "0xce11e6ab",
+          "kind": "single"
+        },
+        {
+          "signature": "rollupEventInbox()",
+          "selector": "0xaa38a6e7",
+          "kind": "single"
+        },
+        {
+          "signature": "sequencerInbox()",
+          "selector": "0xee35f327",
+          "kind": "single"
+        },
+        {
+          "signature": "stakeToken()",
+          "selector": "0x51ed6a30",
+          "kind": "single"
+        },
+        {
+          "signature": "validatorWalletCreator()",
+          "selector": "0xbc45e0ae",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x023a96fe",
+        "0x046f7da2",
+        "0x04972af9",
+        "0x06ae5851",
+        "0x0d40a0fd",
+        "0x0d561b37",
+        "0x0ee5ef0c",
+        "0x11715585",
+        "0x12ab3d3b",
+        "0x13af4035",
+        "0x13c56ca7",
+        "0x1b1689e9",
+        "0x2abdd230",
+        "0x2e7acfa6",
+        "0x2f30cabd",
+        "0x30836228",
+        "0x353325e0",
+        "0x3659cfe6",
+        "0x3be680ea",
+        "0x45e38b64",
+        "0x47fb24c5",
+        "0x4f1ef286",
+        "0x4f61f850",
+        "0x51ed6a30",
+        "0x52d1902d",
+        "0x53b60c4a",
+        "0x55840a58",
+        "0x567ca41b",
+        "0x56bbc9e6",
+        "0x5bf03833",
+        "0x5c975abb",
+        "0x6177fd18",
+        "0x65f7f80d",
+        "0x6ddd3744",
+        "0x71ef232c",
+        "0x76e7e23b",
+        "0x7c75c298",
+        "0x8456cb59",
+        "0x84728cd0",
+        "0x88302884",
+        "0x89384960",
+        "0x8ee1a126",
+        "0x948d6588",
+        "0x9846129a",
+        "0x9a7b4556",
+        "0x9a8a0592",
+        "0xa23c44b1",
+        "0xa2b4f1d8",
+        "0xa3ffb772",
+        "0xaa38a6e7",
+        "0xb7626e73",
+        "0xb7ab4db5",
+        "0xbc45e0ae",
+        "0xce11e6ab",
+        "0xce66d05c",
+        "0xdff69787",
+        "0xe51019a6",
+        "0xe531d8c7",
+        "0xe6b3082c",
+        "0xe78cea92",
+        "0xe8bd4922",
+        "0xee35f327",
+        "0xef40a670",
+        "0xf065de3f",
+        "0xf112cea3",
+        "0xfacd743b",
+        "0xfb0e722b",
+        "0xfc8ffa03",
+        "0xff204f3b"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}

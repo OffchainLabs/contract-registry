@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xf99063c95ec8bf906a1e4a92c1a671cc04118ae687de5757ff7e10ba313a2f2a",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/osp/HashProofHelper.sol:HashProofHelper"
+  ],
+  "role": "logic",
+  "codeLength": 7768,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0x740085d7",
+    "0x79754cba",
+    "0xae364ac2",
+    "0xb7465799",
+    "0xd4e5dd2b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

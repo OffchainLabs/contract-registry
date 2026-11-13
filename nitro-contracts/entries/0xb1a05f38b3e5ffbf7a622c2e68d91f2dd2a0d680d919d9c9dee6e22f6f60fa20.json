@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xb1a05f38b3e5ffbf7a622c2e68d91f2dd2a0d680d919d9c9dee6e22f6f60fa20",
+  "repo": "OffchainLabs/nitro-contracts",
+  "contracts": [
+    "src/rollup/ValidatorWalletCreator.sol:ValidatorWalletCreator"
+  ],
+  "role": "logic",
+  "codeLength": 7527,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "template()",
+      "selector": "0x6f2ddd93",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x1cf89b4b",
+    "0x6f2ddd93",
+    "0x715018a6",
+    "0x89c716d1",
+    "0x8da5cb5b",
+    "0xf2fde38b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.17+commit.8df45f5f",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 2000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v3.0.0",
+  "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba"
+}

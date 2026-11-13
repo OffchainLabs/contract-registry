@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/nitro-contracts",
+  "codeLength": 6743,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x0771a668edae93389e27358767d0752df8a6e4b42bff213cd076165b732a28bf",
+      "repo": "OffchainLabs/nitro-contracts",
+      "contracts": [
+        "src/bridge/Outbox.sol:Outbox"
+      ],
+      "role": "logic",
+      "codeLength": 6743,
+      "maskedRanges": [
+        {
+          "name": "__self",
+          "type": "address",
+          "offsets": [
+            1938,
+            2711
+          ],
+          "length": 32
+        }
+      ],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "bridge()",
+          "selector": "0xe78cea92",
+          "kind": "single"
+        },
+        {
+          "signature": "l2ToL1Sender()",
+          "selector": "0x80648b02",
+          "kind": "single"
+        },
+        {
+          "signature": "rollup()",
+          "selector": "0xcb23bcb5",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x007436d3",
+        "0x08635a95",
+        "0x11985271",
+        "0x288e5b10",
+        "0x46547790",
+        "0x5a129efe",
+        "0x6ae71f12",
+        "0x72f2a8c7",
+        "0x80648b02",
+        "0x8515bc6a",
+        "0x95fcea78",
+        "0x9f0c04bf",
+        "0xa04cee60",
+        "0xae6dead7",
+        "0xb0f30537",
+        "0xc4d66de8",
+        "0xc75184df",
+        "0xcb23bcb5",
+        "0xd5b5cc23",
+        "0xe78cea92"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.17+commit.8df45f5f",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 2000
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v3.0.0",
+      "commit": "780366a0c40caf694ed544a6a1d52c0de56573ba",
+      "tags": [
+        "v3.0.0",
+        "v3.1.0",
+        "v3.1.1"
+      ]
+    }
+  ]
+}
