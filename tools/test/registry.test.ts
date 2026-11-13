@@ -61,6 +61,8 @@ const C = {
 const A = {
   logic: addr(1), tup: addr(2), rollup: addr(3), admin: addr(4), pre: addr(5), branchOnly: addr(6), manual: addr(7), unknown: addr(8),
   account: addr(9), tupUnknownImpl: addr(10), tupZeroSlot: addr(11), tupNoCodeImpl: addr(12), rollupLogic: addr(13), unknownImpl: addr(14), tupPreImpl: addr(15),
+  // Proxies whose own code the registry doesn't know.
+  unknownTup: addr(16), unknownRollup: addr(17), unknownTupUnknownImpl: addr(18), unknownTupNoCodeImpl: addr(19),
 }
 const OZ_TUP = '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy'
 
@@ -89,6 +91,7 @@ function versionChain() {
     [A.logic]: C.logic, [A.tup]: C.tup, [A.rollup]: C.rollupProxy, [A.admin]: C.admin, [A.pre]: C.pre, [A.branchOnly]: C.branchOnly,
     [A.manual]: C.manual, [A.unknown]: C.unknown, [A.tupUnknownImpl]: C.tup, [A.tupZeroSlot]: C.tup, [A.tupNoCodeImpl]: C.tup,
     [A.rollupLogic]: C.logic, [A.unknownImpl]: C.unknown, [A.tupPreImpl]: C.tup,
+    [A.unknownTup]: C.unknown, [A.unknownRollup]: C.unknown, [A.unknownTupUnknownImpl]: C.unknown, [A.unknownTupNoCodeImpl]: C.unknown,
   }
   const storage: Record<string, Record<string, string>> = {
     [A.tup]: { [EIP1967]: word(A.logic) },
@@ -96,6 +99,11 @@ function versionChain() {
     [A.tupUnknownImpl]: { [EIP1967]: word(A.unknownImpl) },
     [A.tupNoCodeImpl]: { [EIP1967]: word(A.account) },
     [A.tupPreImpl]: { [EIP1967]: word(A.pre) },
+    [A.unknownTup]: { [EIP1967]: word(A.logic) },
+    // Its EIP-1967 slot holds known logic (as an old RollupProxy's holds RollupAdminLogic), which it must not report.
+    [A.unknownRollup]: { [EIP1967]: word(A.logic), [SECONDARY]: word(A.rollupLogic) },
+    [A.unknownTupUnknownImpl]: { [EIP1967]: word(A.unknownImpl) },
+    [A.unknownTupNoCodeImpl]: { [EIP1967]: word(A.account) },
   }
   const storageReads: string[] = []
   const rpc = {
@@ -121,10 +129,21 @@ test('getVersion: RollupProxy (two slots) reports itself, even when its logic is
   assert.deepEqual(storageReads, [])
 })
 
-test('getVersion: unknown code, an account, and an unknown, zero or codeless implementation give null', async () => {
+test('getVersion: unknown code is probed at the EIP-1967 slot, after checking the secondary slot is zero', async () => {
+  const reg = versionRegistry()
+  const { rpc, storageReads } = versionChain()
+  assert.equal(await reg.getVersion(rpc, A.unknownTup), 'v3.2.0', "an unknown proxy reports its known implementation's version")
+  assert.deepEqual(storageReads.splice(0), [`${A.unknownTup} ${SECONDARY}`, `${A.unknownTup} ${EIP1967}`], 'secondary slot first')
+  assert.equal(await reg.getVersion(rpc, A.unknownRollup), null, 'an unknown two-slot proxy has no version of its own')
+  assert.deepEqual(storageReads.splice(0), [`${A.unknownRollup} ${SECONDARY}`], 'its EIP-1967 slot is never read')
+  assert.equal(await reg.getVersion(rpc, A.unknown), null, 'unknown code with neither slot set')
+  assert.equal(await reg.getVersion(rpc, A.unknownTupUnknownImpl), null, 'an unknown proxy whose implementation is unknown')
+  assert.equal(await reg.getVersion(rpc, A.unknownTupNoCodeImpl), null, 'an unknown proxy whose implementation has no code')
+})
+
+test('getVersion: an account, and a known proxy with an unknown, zero or codeless implementation give null', async () => {
   const reg = versionRegistry()
   const { rpc } = versionChain()
-  assert.equal(await reg.getVersion(rpc, A.unknown), null, 'unknown code')
   assert.equal(await reg.getVersion(rpc, A.account), null, 'no code')
   assert.equal(await reg.getVersion(rpc, A.tupUnknownImpl), null, 'an implementation the registry does not know')
   assert.equal(await reg.getVersion(rpc, A.tupZeroSlot), null, 'a zero implementation slot')

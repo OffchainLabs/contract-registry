@@ -24,15 +24,24 @@ const version = await registry.getVersion(new Rpc(rpcUrl), address) // e.g. 'v3.
 `getVersion` does this:
 
 ```
+EIP1967_IMPLEMENTATION_SLOT   = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+SECONDARY_IMPLEMENTATION_SLOT = 0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d
+
 getVersion(rpc, address) -> string | null:
   entry = lookup(rpc.getCode(address))
-  if entry == null: return null
+  if entry == null:              # unknown code: maybe a proxy the registry doesn't have
+    if rpc.getStorageAt(address, SECONDARY_IMPLEMENTATION_SLOT) != 0:
+      return null                # a two-slot proxy (an old RollupProxy): no version of its own
+    return implementationVersion(rpc, address, EIP1967_IMPLEMENTATION_SLOT)
   if entry.role == "proxy" and len(entry.implementationSlots) == 1:
-    impl = lastTwentyBytes(rpc.getStorageAt(address, entry.implementationSlots[0]))
-    if impl is zero or has no code: return null
-    implEntry = lookup(rpc.getCode(impl))
-    return implEntry ? versionOf(implEntry) : null
+    return implementationVersion(rpc, address, entry.implementationSlots[0])
   return versionOf(entry)        # logic, proxy admins, and two-slot proxies report themselves
+
+implementationVersion(rpc, proxy, slot) -> string | null:
+  impl = lastTwentyBytes(rpc.getStorageAt(proxy, slot))
+  if impl is zero or has no code: return null
+  implEntry = lookup(rpc.getCode(impl))
+  return implEntry ? versionOf(implEntry) : null
 
 versionOf(entry) -> string:
   releases = [t for t in entry.tags if not isPrerelease(t)]   # tags are in semver order
@@ -67,8 +76,17 @@ The choices it makes:
   e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
   commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
 - A manual entry with no tag gives its label.
-- Unknown code gives null, as does a one-slot proxy whose slot is zero or whose implementation is
-  unknown or has no code.
+- Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
+  One, for example, most proxies are early nitro-contracts builds, and the Inbox proxy an Arbitrum
+  Classic build. So unknown code is probed at the EIP-1967 implementation slot and, like a one-slot
+  proxy, reports the version of the implementation there. That is safe for any unknown code:
+  every nitro-contracts proxy uses that standard slot, and the fallback can only return a version
+  if the slot holds code the registry recognises.
+- Unknown code whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives
+  null, since a two-slot proxy reports its own version, which here is unknown. The secondary slot
+  is read first, so such a proxy never reports the admin logic in its EIP-1967 slot.
+- Unknown code gives null if neither slot is set, or the implementation is unknown or has no code.
+  So does a one-slot proxy whose slot is zero or whose implementation is unknown or has no code.
 
 For more than a version: `registry.lookup(code)` returns the matched entry (contracts, role, tags,
 `ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables (`maxDataSize`,

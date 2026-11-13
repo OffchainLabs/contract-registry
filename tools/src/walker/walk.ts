@@ -8,7 +8,8 @@ import type { Registry } from './registry.ts'
 
 /**
  * Proxy entries list the slots to read. These two are probed only for code the registry doesn't
- * know (e.g. a chain deployed before the registry's start), so such walks still reach the logic.
+ * know (e.g. a chain deployed before the registry's start), so such walks still reach the logic
+ * and `Registry.getVersion` can still report it.
  */
 export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 /** AdminFallbackProxy (RollupProxy) secondary, user-logic implementation slot. */
