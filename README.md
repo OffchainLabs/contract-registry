@@ -182,8 +182,8 @@ match }`, where `match` is the one matching entry with its `tags` and the code's
 a `proxy` entry it reads the slots the entry lists: the
 first gives the node's `implementation`, the second its `secondaryImplementation`. Logic and
 proxy-admin code isn't probed. Code the registry doesn't know (for example a release older than
-the registry's range, or a one-off build like Arbitrum One's patched Bridge) is probed at the
-EIP-1967 slot and, if that is set, at the secondary slot.
+the registry's range, or a proxy built outside it, like Arbitrum One's Arbitrum Classic-era Inbox
+proxy) is probed at the EIP-1967 slot and, if that is set, at the secondary slot.
 
 `summary.tags` is the intersection of the tag sets of the matched in-scope logic code: the releases
 the deployment is consistent with. Proxies and proxy admins are still identified in the nodes, but
