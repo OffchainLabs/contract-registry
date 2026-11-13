@@ -47,7 +47,7 @@ lookup(code) -> entry | null:
       for offset in range.offsets: zero masked[offset : offset + range.length]
     zero the last entry.cborMetadataLength bytes of masked
     if keccak256(masked) == entry.fingerprint: return entry
-  return null                    # at most one entry can match; see "At most one match"
+  return null
 ```
 
 The choices it makes:
@@ -87,35 +87,6 @@ code was deployed, not how it was configured.
 Libraries with no external functions are not recorded: they are only ever inlined, never linked or
 deployed, and all compile to the same 45-byte stub. Libraries with an external function (a public
 constant's getter counts) are kept.
-
-### At most one match
-
-A lookup returns the one entry the code matches, or none. The registry guarantees there is never
-more than one, through an invariant on each source directory: entries with the same code length
-mask the same bytes (the same set of bytes, however the ranges are named or split). Code that
-matches two such entries would give both the same hash, so their fingerprints would be equal, and
-each fingerprint has one entry. `Registry.lookup` relies on this: it returns the first entry that
-matches and doesn't look for a second.
-
-Two entries of one length that mask different bytes could both match some code: exactly when their
-builds agree on every byte neither masks. The registry doesn't store bytecode, so it can't rule
-that out itself. Instead, the publish run checks every entry of the source after writing a run's
-new ones, so new entries are checked against existing ones and against each other. A conflict
-fails the whole run: nothing is published, and a `publish-error` alert names both fingerprints and
-their contracts, shows the bytes only one of them masks, and gives a snippet to paste once the pair
-is reviewed. `ci-check` runs the same check over every entry, manual ones included.
-
-To clear a conflict, rebuild both entries and confirm that their code differs at some byte neither
-masks. Then add the pair to `reviewedRangePairs` in `config/<source>/sources.json`:
-
-```json
-"reviewedRangePairs": [
-  { "fingerprints": ["0x…", "0x…"], "note": "rebuilt both at <commits>; they differ at byte 1234, which neither masks" }
-]
-```
-
-Reviewed pairs pass the check. A pair can be added before the run that would publish one of its
-entries; that's the usual order, since the failing run publishes nothing.
 
 ## Entries
 
@@ -191,9 +162,10 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
 
 - `publish.yml` (schedule, manual): builds every new commit on a published branch in history order
   (so `firstCommit` is exact), rebuilds every new tag from scratch and checks it reproduces its
-  commit, writes entries, tag and branch files, checks the range invariant (see "At most one
-  match"), regenerates the views, deploys test chains from each new head and tag and walks them,
-  and lands everything as one commit. The test-chain check
+  commit, writes entries, tag and branch files, checks that entries of one code length mask the
+  same bytes (so no code can match two; a conflict fails the whole run, and its alert says how to
+  review the pair and list it in `reviewedRangePairs`), regenerates the views, deploys test chains
+  from each new head and tag and walks them, and lands everything as one commit. The test-chain check
   requires all in-scope code, proxies and proxy admins included, to match an entry from that
   commit's build. It also reads both known implementation slots on every matched contract, and
   fails if one holds an address the walk didn't read: a proxy missing from `contractRoles`.
