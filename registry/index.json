@@ -471,6 +471,10 @@
         }
       ]
     },
+    "token-bridge-contracts": {
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "getters": []
+    },
     "upgrade-executor": {
       "repo": "OffchainLabs/upgrade-executor",
       "getters": []

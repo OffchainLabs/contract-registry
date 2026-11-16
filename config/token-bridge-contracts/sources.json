@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "url": "https://github.com/OffchainLabs/token-bridge-contracts.git",
+  "directory": "token-bridge-contracts",
+  "start": { "tag": "v1.0.1-beta.0" },
+  "publishedRefs": {
+    "tags": ["v*"],
+    "branches": ["release-*", "hotfix*"]
+  },
+  "tagValidation": {
+    "rule": "tag-equals-v-package-version",
+    "allowlist": {}
+  },
+  "outOfScopeGetters": "config/token-bridge-contracts/out-of-scope-getters.json",
+  "contractRoles": {
+    "@openzeppelin/contracts/proxy/BeaconProxy.sol:BeaconProxy": { "role": "proxy", "beaconSlot": "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50" },
+    "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
+    "@openzeppelin/contracts/proxy/ProxyAdmin.sol:ProxyAdmin": { "role": "proxy-admin" },
+    "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
+    "@openzeppelin/contracts/proxy/UpgradeableBeacon.sol:UpgradeableBeacon": { "role": "proxy-admin" },
+    "@openzeppelin/contracts/proxy/UpgradeableProxy.sol:UpgradeableProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
+    "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy": { "role": "proxy", "beaconSlot": "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50" },
+    "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon": { "role": "proxy-admin" },
+    "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin": { "role": "proxy-admin" },
+    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy": { "role": "proxy", "implementationSlots": ["0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"] },
+    "contracts/tokenbridge/libraries/ClonableBeaconProxy.sol:ClonableBeaconProxy": { "role": "proxy", "beaconSlot": "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50" }
+  },
+  "reviewedRangePairs": [],
+  "testChains": null,
+  "reconcileGraceMinutes": 60,
+  "builds": [
+    {
+      "name": "hardhat-0.6.11-oz3",
+      "when": { "notDescendantOf": ["v1.1.0-beta.0"] },
+      "toolchain": { "node": "24", "yarn": "1.22.22" },
+      "setup": [
+        "git -c url.https://github.com/.insteadOf=git@github.com: submodule update --init --recursive",
+        "yarn install --frozen-lockfile --ignore-engines --non-interactive --ignore-scripts"
+      ],
+      "outputs": [
+        {
+          "name": "hardhat",
+          "env": { "INTERFACE_TESTER_SOLC_VERSION": "" },
+          "commands": ["npx hardhat compile --force --quiet"],
+          "buildInfo": "build/contracts/build-info",
+          "layout": "hardhat",
+          "artifacts": "build/contracts",
+          "deployed": true
+        }
+      ],
+      "include": ["**"],
+      "exclude": ["contracts/tokenbridge/test/**", "test/**", "test-foundry/**", "test-e2e/**", "lib/**", "forge-std/**", "@offchainlabs/upgrade-executor/**", "@arbitrum/nitro-contracts/**"]
+    },
+    {
+      "name": "hardhat-0.8.16-oz4",
+      "when": { "descendantOf": ["v1.1.0-beta.0"], "notDescendantOf": ["3f643a0c5882b2627c201e6e0d40a06867fdf2b4"] },
+      "toolchain": { "node": "24", "yarn": "1.22.22" },
+      "setup": [
+        "git -c url.https://github.com/.insteadOf=git@github.com: submodule update --init --recursive",
+        "yarn install --frozen-lockfile --ignore-engines --non-interactive --ignore-scripts"
+      ],
+      "outputs": [
+        {
+          "name": "hardhat",
+          "env": { "INTERFACE_TESTER_SOLC_VERSION": "" },
+          "commands": ["npx hardhat compile --force --quiet"],
+          "buildInfo": "build/contracts/build-info",
+          "layout": "hardhat",
+          "artifacts": "build/contracts",
+          "deployed": true
+        }
+      ],
+      "include": ["**"],
+      "exclude": ["contracts/tokenbridge/test/**", "test/**", "test-foundry/**", "test-e2e/**", "lib/**", "forge-std/**", "@offchainlabs/upgrade-executor/**", "@arbitrum/nitro-contracts/**"]
+    }
+  ]
+}
