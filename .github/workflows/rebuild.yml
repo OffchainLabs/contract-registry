@@ -1,0 +1,70 @@
+# Rebuild (manual): rebuilds a source's published tags from scratch and checks that each
+# reproduces the fingerprints in its tags/ file. Reads the data at the ref it runs on, so it can
+# check a data branch before its PR merges, and writes nothing back: read-only token, no push.
+# The JSON report and the build logs are uploaded as the run's artifact.
+name: rebuild
+run-name: rebuild ${{ inputs.source }} ${{ inputs.tag || '(all tags)' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Source id (its directory under registry/, e.g. nitro-contracts)'
+        required: true
+        type: string
+      tag:
+        description: 'One tag to rebuild; empty for every tag file of the source'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      # The builds run the source repos' installs; nothing here needs the token afterwards.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Node, yarn, Foundry, and the work caches (the source clones save a fetch; tag builds
+      # never use cached results).
+      - uses: ./.github/actions/setup
+      - name: Rebuild
+        env:
+          SOURCE: ${{ inputs.source }}
+          TAG: ${{ inputs.tag }}
+          REGISTRY_WORK_DIR: ${{ runner.temp }}/registry-work
+          REPORT: ${{ runner.temp }}/rebuild-report.json
+        run: |
+          if [ -n "$TAG" ]; then which=(--tag "$TAG"); else which=(--all); fi
+          node tools/src/cli/rebuild.ts --source "$SOURCE" "${which[@]}" --work-dir "$REGISTRY_WORK_DIR" > "$REPORT"
+      - name: Summary
+        if: always()
+        env:
+          REPORT: ${{ runner.temp }}/rebuild-report.json
+        run: |
+          if [ ! -s "$REPORT" ]; then echo "No report: the rebuild didn't run (see its log)." >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          cat "$REPORT"
+          jq -r '
+            "### rebuild \(.source) (\(.repo)): \(if .reproduced then "all reproduced" else "NOT reproduced" end)",
+            "",
+            "| Tag | Commit | Profile | Contracts | Result |",
+            "|---|---|---|---|---|",
+            (.tags[] | "| \(.tag) | \(.commit[0:12]) | \(.profile // "-") | \(.contracts) | \(
+              if .reproduced then "reproduced"
+              elif .failure then .failure.kind
+              else "\(.differences | length) differ" end) |")
+          ' "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report and build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-report
+          path: |
+            ${{ runner.temp }}/rebuild-report.json
+            ${{ runner.temp }}/registry-work/logs
+          if-no-files-found: warn

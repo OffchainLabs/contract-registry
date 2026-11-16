@@ -252,11 +252,36 @@ writes the same alerts as JSON files.
 ```sh
 node tools/src/cli/publish.ts [--source nitro-contracts ...] [--reconcile] [--push] [--alerts github:<owner>/<repo>]
 node tools/src/cli/check.ts --source nitro-contracts --rev v3.2.0    # test-chain check of one commit, writes nothing
-node tools/src/cli/rebuild.ts --source nitro-contracts --tag v3.2.0  # rebuild a tag and compare with its tags/ file
+node tools/src/cli/rebuild.ts --source nitro-contracts (--tag v3.2.0 | --all)  # rebuild tags, compare with their tags/ files
 node tools/src/cli/generate.ts [--check]   # regenerate the views (--check: compare only)
 node tools/src/cli/ci-check.ts --base origin/main
 npm test && npm run test:integration
 ```
+
+### Rebuilding tags: `rebuild.yml`
+
+`rebuild.ts` shows that a source's published tags reproduce. It rebuilds each tag from scratch,
+at the commit its tag file records and with the build profile that commit selects, and compares
+the fingerprints with the tag file. `--tag` names tags; `--all` takes every tag file of the
+source, building a commit that several tags share once. It prints one JSON report on stdout: per
+tag, the commit, profile, contract count, whether it reproduced, and a build failure or the
+contracts that differ. It exits 0 if every tag reproduced, 1 if any differs or fails to build, and
+2 if it can't run (an unknown source or tag, or no tag files). It writes nothing to the data; build
+logs are under the work directory, in `logs/<source>/<commit>.fresh.log`.
+
+`rebuild.yml` (manual) runs it in CI, on the same toolchain as publish. Inputs: `source`
+(required) and `tag` (empty for every tag file). It has read-only permissions and never pushes.
+The run's summary lists each tag's result, and the report and build logs are uploaded as the
+`rebuild-report` artifact. It reads the data at the ref it runs on, so a data branch can be
+checked before its PR merges:
+
+```sh
+gh workflow run rebuild.yml --ref <branch> -f source=<id>                       # every tag file of the source
+gh workflow run rebuild.yml --ref main -f source=nitro-contracts -f tag=v3.2.0   # one tag
+```
+
+GitHub only dispatches a workflow that is on the default branch; the run then uses the branch's
+copy of the workflow and of the data.
 
 ### Backfill
 
