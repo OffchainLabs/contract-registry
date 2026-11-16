@@ -28,6 +28,24 @@ export interface Checkout { dir: string; remove(): void }
 /** Serializes git worktree operations and dependency installs across parallel builds. */
 const setupLock = new Mutex()
 
+/**
+ * Removes every `submodule.<name>` section from the source repo's config. Checkouts are worktrees
+ * of one bare clone and share its config, where `git submodule init` records each submodule's URL
+ * from `.gitmodules`, keeping one already recorded. So a build's submodules would otherwise be
+ * cloned from the URLs of whichever commit was set up first (an SSH URL in an old tag's
+ * `.gitmodules`, say), not its own. Called before each build's setup, under `setupLock`.
+ */
+function forgetSubmodules(gitDir: string): void {
+  let keys: string
+  try {
+    keys = git(['config', '--name-only', '--get-regexp', '^submodule\\.'], gitDir)
+  } catch {
+    return // none
+  }
+  const sections = new Set(keys.split('\n').filter(Boolean).map(k => k.slice(0, k.lastIndexOf('.'))))
+  for (const s of sections) git(['config', '--remove-section', s], gitDir)
+}
+
 export interface BuildOptions {
   /** Ignore cached results (tag builds must really rebuild). */
   fresh?: boolean
@@ -115,6 +133,7 @@ export class Builder {
       await setupLock.run(async () => {
         fs.mkdirSync(path.dirname(dir), { recursive: true })
         git(['worktree', 'add', '--detach', '--force', dir, commit], this.src.gitDir)
+        forgetSubmodules(this.src.gitDir)
         for (const cmd of profile.setup) { log(`$ ${cmd}\n`); await sh(cmd, { cwd: dir, log }) }
       })
       const pkg = this.src.fileAt(commit, 'package.json')
