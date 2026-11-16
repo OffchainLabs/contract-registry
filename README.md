@@ -14,13 +14,24 @@ every tag from `v3.2.0` onward, plus the releases from `v3.0.0` on (backfilled; 
 To get the version of the contract at an address:
 
 ```ts
-import { openSource, Registry, Rpc } from '<this repo>/walker'
+import { Registry, Rpc } from '<this repo>/walker'
 
-// openSource resolves `main` to a commit once, so every file is read from one snapshot.
-// One registry covers every source repo: a lookup searches all of them.
-const registry = new Registry(await openSource('github:<owner>/<repo>@main'))
-const version = await registry.getVersion(new Rpc(rpcUrl), address) // e.g. 'v3.2.0', or null
+// Registry.open() reads this repo's main branch, resolved to a commit once, so every file comes
+// from one snapshot. One registry covers every source repo: a lookup searches all of them.
+const registry = await Registry.open()
+const v = await registry.getVersion(new Rpc(rpcUrl), address)
+// e.g. { version: 'v3.2.0', repo: 'OffchainLabs/nitro-contracts' }, or null
 ```
+
+`getVersion` returns the repo with the version, because tag names overlap across source repos.
+`Registry.open(spec)` opens another snapshot: `github:<owner>/<repo>@<ref>`, `git:<path>@<rev>`,
+or a directory.
+
+**What a version means.** A version is the earliest release in the registry's range for that
+source whose build contains the code: the first non-prerelease tag, else the first prerelease tag,
+else a manual entry's label, else `<ref>@<commit>`. So nitro-contracts code unchanged since
+`v2.1.0` reports `v3.0.0`, the first release the registry builds. "Backfill" gives each
+source's range.
 
 `getVersion` does this:
 
@@ -28,21 +39,27 @@ const version = await registry.getVersion(new Rpc(rpcUrl), address) // e.g. 'v3.
 EIP1967_IMPLEMENTATION_SLOT   = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
 SECONDARY_IMPLEMENTATION_SLOT = 0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d
 
-getVersion(rpc, address) -> string | null:
+getVersion(rpc, address) -> { version, repo } | null:
   entry = lookup(rpc.getCode(address))
-  if entry == null:              # unknown code: maybe a proxy the registry doesn't have
-    if rpc.getStorageAt(address, SECONDARY_IMPLEMENTATION_SLOT) != 0:
-      return null                # a two-slot proxy (an old RollupProxy): no version of its own
-    return implementationVersion(rpc, address, EIP1967_IMPLEMENTATION_SLOT)
-  if entry.role == "proxy" and len(entry.implementationSlots) == 1:
-    return implementationVersion(rpc, address, entry.implementationSlots[0])
-  return versionOf(entry)        # logic, proxy admins, and two-slot proxies report themselves
+  if entry != null and not (entry.role == "proxy" and len(entry.implementationSlots) == 1):
+    return versionAndRepo(entry)   # logic, proxy admins, and two-slot proxies report themselves
+  # a one-slot proxy, or unknown code (maybe a proxy the registry doesn't have)
+  impls = implementations(rpc, address, entry)
+  if impls.secondary: return null  # unknown code with both slots set (an old RollupProxy): no version of its own
+  if not impls.implementation: return null
+  implEntry = lookup(rpc.getCode(impls.implementation))
+  return implEntry ? versionAndRepo(implEntry) : null
 
-implementationVersion(rpc, proxy, slot) -> string | null:
-  impl = lastTwentyBytes(rpc.getStorageAt(proxy, slot))
-  if impl is zero or has no code: return null
-  implEntry = lookup(rpc.getCode(impl))
-  return implEntry ? versionOf(implEntry) : null
+implementations(rpc, address, entry) -> { implementation?, secondary? }:
+  # an address is the last 20 bytes of a slot whose other 12 bytes are zero; zero slots are left out
+  if entry != null:                # a one-slot proxy: the slot its entry lists
+    return { implementation: slot(entry.implementationSlots[0]) }
+  impl = slot(EIP1967_IMPLEMENTATION_SLOT)   # unknown code: probe the known slots
+  if not impl: return {}
+  return { implementation: impl, secondary: slot(SECONDARY_IMPLEMENTATION_SLOT) }
+
+versionAndRepo(entry) -> { version, repo }:
+  return { version: versionOf(entry), repo: entry.repo }
 
 versionOf(entry) -> string:
   releases = [t for t in entry.tags if not isPrerelease(t)]   # tags are in semver order
@@ -52,8 +69,10 @@ versionOf(entry) -> string:
   return entry.ref + "@" + entry.commit[:12]                 # e.g. release-3.3.0@abcdef012345
 
 lookup(code) -> entry | null:
-  # every read at one commit of this repo; one file holds that length's entries of every source
-  for entry in registry/by-length/<len(code)>.json .entries:
+  # every read at one commit of this repo
+  index = registry/index.json      # read once; if it is missing, this isn't a layout-v2 snapshot: fail
+  if len(code) not in index.codeLengths: return null
+  for entry in registry/by-length/<len(code)>.json .entries:   # that length's entries of every source
     masked = copy of code
     for range in entry.maskedRanges:
       for offset in range.offsets: zero masked[offset : offset + range.length]
@@ -65,34 +84,34 @@ lookup(code) -> entry | null:
 The choices it makes:
 
 - A proxy with one implementation slot (`TransparentUpgradeableProxy`, `ERC1967Proxy`) reports its
-  implementation's version.
+  implementation's version and repo. The implementation can come from another source than the
+  proxy: a nitro-contracts proxy in front of another repo's logic reports that repo.
 - `RollupProxy` and `AdminFallbackProxy`, which have two slots, report themselves, as do logic and
   `ProxyAdmin`. A two-slot proxy's version is the release its proxy code came from, and it can lag
   the logic behind it: upgrades replace the logic, never the proxy.
-- The version is the first non-prerelease tag whose build contains the code: the earliest release
-  with that exact code.
-- Code in no release gives its first prerelease tag.
 - Code in no tag at all was built only as the head of a release or hotfix branch. It gives
   `<ref>@<first 12 hex digits of commit>`, the branch and head commit it was first built from,
   e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
   commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
-- A manual entry with no tag gives its label.
 - Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
   One, for example, most proxies are early nitro-contracts builds, and the Inbox proxy an Arbitrum
   Classic build. So unknown code is probed at the EIP-1967 implementation slot and, like a one-slot
   proxy, reports the version of the implementation there. That is safe for any unknown code:
   every nitro-contracts proxy uses that standard slot, and the fallback can only return a version
   if the slot holds code the registry recognises.
-- Unknown code whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives
-  null, since a two-slot proxy reports its own version, which here is unknown. The secondary slot
-  is read first, so such a proxy never reports the admin logic in its EIP-1967 slot.
-- Unknown code gives null if neither slot is set, or the implementation is unknown or has no code.
-  So does a one-slot proxy whose slot is zero or whose implementation is unknown or has no code.
+- Unknown code whose secondary slot is also set is a two-slot proxy (an old `RollupProxy`) and
+  gives null, since a two-slot proxy reports its own version, which here is unknown. It never
+  reports the admin logic in its EIP-1967 slot.
+- Unknown code gives null if its EIP-1967 slot is zero, or the implementation is unknown or has no
+  code. So does a one-slot proxy whose slot is zero or whose implementation is unknown or has no
+  code.
+- A snapshot with no `registry/index.json` (an older commit of this repo, from before layout v2)
+  makes every lookup throw, rather than answer null.
 
-For more than a version: `registry.lookup(code)` returns the matched entry (contracts, role, tags,
-`ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables (`maxDataSize`,
-`isUsingFeeToken`, ...). `walk` discovers and identifies every contract of a chain from one address
-(see "Look up and walk").
+For more than a version: `registry.lookup(code)` returns the matched entry (`repo`, contracts,
+role, tags, `ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables
+(`maxDataSize`, `isUsingFeeToken`, ...). `walk` discovers and identifies every contract of a chain
+from one address (see "Look up and walk").
 
 ## Fingerprints
 
@@ -180,35 +199,57 @@ Read every file at one commit of this repo, never across a push.
 ```sh
 npm ci
 # version of the contract at an address, as getVersion gives it (a proxy reports its implementation)
-node tools/src/cli/version.ts --rpc $RPC --address 0x...       # prints e.g. v3.2.0; unknown: exit 1
+node tools/src/cli/version.ts --rpc $RPC --address 0x...   # prints e.g. "v3.2.0 OffchainLabs/nitro-contracts"; unknown: exit 1
 # identify one contract (the code at the address itself, as JSON)
 node tools/src/cli/lookup.ts --rpc $RPC --address 0x...
 # walk a chain from any core contract (JSON on stdout)
-node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> --source nitro-contracts [--registry github:<owner>/<repo>@main]
+node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> [--source nitro-contracts] [--registry github:<owner>/<repo>@main]
 ```
 
-`version` and `lookup` search every source. A walk belongs to one source (`--source`, its id):
-code the registry doesn't know is probed with that source's getters, and that source's
-out-of-scope list applies. Every CLI reads the registry in this checkout unless given `--registry`.
+`version` and `lookup` search every source. Given several `--address`es, `version` prints
+`<address> <version> <repo>`, or `<address> unknown`, per line. The `lookup` CLI prints, for each
+address, the entry as `match` (or null), with its `repo`, `version` and `immutables`. Every CLI
+reads the registry in this checkout unless given `--registry`.
 
-From TypeScript: `import { walk, Registry, openSource, Rpc } from '<this repo>/walker'` (run
-`npm run build:walker` to emit `dist/`). `Registry.lookup(code)` returns the matched entry or null,
-and `decodeImmutables(code, entry)` its immutables. The `lookup` CLI prints, for each address, the
-entry as `match` (or null), with its `version` and `immutables`.
+A walk belongs to one source: code the registry doesn't know is probed with that source's
+getters, that source's out-of-scope list applies (unless `--out-of-scope` gives another), and the
+summary intersects that source's logic. `--source` names it, by id. Without it, the walk takes the
+source of the start contract's logic: of the first of these that matches an entry, in order: its
+implementation, its secondary implementation, its own code. So a proxy belongs to the source of the
+logic behind it, not to the source that owns its proxy code. If nothing at the start matches and the registry has
+only one source, the walk takes that one; otherwise it fails and asks for `--source`. Arbitrum
+One's rollup (`0x5eF0D09d…` on Ethereum) is such a start: its proxy and both implementations
+predate the registry's range.
+
+From TypeScript: `import { walk, Registry, Rpc } from '<this repo>/walker'` (run
+`npm run build:walker` to emit `dist/`). `walk({ start, rpc, registry })` takes `source` and
+`outOfScope` (a list of getter signatures) as options, with the same defaults.
 
 The walker identifies each contract's code: matched code is `{ status: "matched", codeLength,
-match }`, where `match` is the one matching entry with its `tags` and the code's `immutables`. For
-a `proxy` entry it reads the slots the entry lists: the
-first gives the node's `implementation`, the second its `secondaryImplementation`. Logic and
-proxy-admin code isn't probed. Code the registry doesn't know (for example a release older than
-the registry's range, or a proxy built outside it, like Arbitrum One's Arbitrum Classic-era Inbox
-proxy) is probed at the EIP-1967 slot and, if that is set, at the secondary slot.
+match }`, where `match` is the one matching entry with its `repo`, its own `version`, its `tags`
+and the code's `immutables`. For a `proxy` entry it reads the slots the entry lists: the first
+gives the node's `implementation`, the second its `secondaryImplementation`. Logic and proxy-admin
+code isn't probed. Code the registry doesn't know (for example a release older than the registry's
+range, or a proxy built outside it, like Arbitrum One's Arbitrum Classic-era Inbox proxy) is probed
+at the EIP-1967 slot and, if that is set, at the secondary slot.
 
-`summary.tags` is the intersection of the tag sets of the matched in-scope logic code: the releases
-the deployment is consistent with. Proxies and proxy admins are still identified in the nodes, but
-left out of the summary: upgrades replace implementations, never proxies, so after an upgrade to a
-release that changed proxy code they would empty the intersection. `summary.matchedInScope` counts
-every role.
+A getter in the source's out-of-scope list (`config/<source>/out-of-scope-getters.json`) leads to a
+leaf. A leaf is labelled with the edges that reached it (`RollupProxy.owner()`) and identified like
+any other contract, implementations included, so a rollup's `owner()` shows which upgrade executor
+owns it. A leaf is never expanded: no getters are called on it and no closest entry is looked for,
+and its code raises no warning and doesn't count in the summary.
+
+`summary.tags` is the intersection of the tag sets of the matched in-scope logic code of the walk's
+repo: the releases the deployment is consistent with. Proxies and proxy admins are still identified
+in the nodes, but left out of the summary: upgrades replace implementations, never proxies, so
+after an upgrade to a release that changed proxy code they would empty the intersection.
+`summary.matchedInScope` counts every role. In-scope code matched to another repo never enters the
+intersection, since its tags are another repo's releases: `summary.otherRepoInScope` lists it, with
+its address, repo and version.
+
+The output doesn't depend on RPC timing: nodes come in order of depth, then in-scope first, then
+by address; warnings by kind (unknown code, implementations with no code, reverted getters,
+conflicting getters), then in node order.
 
 ## Publishing
 
@@ -406,8 +447,9 @@ To add one:
    required, with no default: it picks the entry's directory (`registry/<source>/entries/`), its
    `repo` and the `contractRoles` its role comes from, and the entry is write-once. `--block`
    defaults to `latest`.
-3. Check what it prints: `getVersion` should give your label (a one-slot proxy gives its
-   implementation's version), and any names it lists must be public (see below).
+3. Check what it prints: `getVersion` should give your label and the source's repo (here
+   `v3.1.0-callfilter OffchainLabs/nitro-contracts`; a one-slot proxy gives its implementation's
+   version and repo), and any names it lists must be public (see below).
 4. Run `node tools/src/cli/ci-check.ts --base origin/main`, commit on a branch and open a PR.
 
 `add-entry` extracts the contract as publish does, and writes nothing unless the result matches the
@@ -437,3 +479,27 @@ Before committing, grep the diff and the commit message for the private repo's i
 **Trust.** CI checks the schema, the generated views, one entry per fingerprint, range conflicts
 across sources and that entries are append-only. Nothing rebuilds a manual entry. Its correctness
 rests on the person who added it; the on-chain match when `add-entry` writes it is the check.
+
+## Changes
+
+**Layout v2 and one lookup across sources (2026-11).** One break for every client that reads
+`main`. Clients pinned to an earlier commit keep working, since old commits keep the old layout.
+
+- Data moved under `registry/`: a source's inputs are in `registry/<source>/` (was `<source>/`), and
+  the generated views combine every source, in `registry/by-length/` and `registry/index.json`
+  (`schemaVersion` 2). A `by-length` entry keeps its own `repo`; the index lists each source's
+  `repo` and getters.
+- `new Registry(source, 'nitro-contracts')` is now `new Registry(source)`, or `await
+  Registry.open(spec)`, which also resolves the spec (default: this repo's `main`).
+- `getVersion` returns `{ version, repo }` instead of a string, because tag names overlap across
+  sources.
+- Lookups read `registry/index.json` first. A snapshot without it, such as an older commit of this
+  repo, throws instead of answering null for everything.
+- `walk` takes an optional `source` (a source id, inferred from the start) instead of `repo`, and
+  `outOfScope` is optional (default: the source's list in the registry). Walk output has
+  `schemaVersion` 2: out-of-scope leaves are identified, each match has its `version`, the summary
+  intersects only the walk's repo and lists other repos' code in `otherRepoInScope`, and warnings
+  come in a fixed order.
+- CLIs: `version` prints `<version> <repo>`; `version` and `lookup` search every source and take no
+  `--source`; `walk`'s `--source` is optional; `add-entry`, `check` and `rebuild` require
+  `--source`, with no default.
