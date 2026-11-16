@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/upgrade-executor",
+  "url": "https://github.com/OffchainLabs/upgrade-executor.git",
+  "directory": "upgrade-executor",
+  "start": { "tag": "v1.0.0" },
+  "publishedRefs": {
+    "tags": ["v*"],
+    "branches": ["release-*", "hotfix*"]
+  },
+  "tagValidation": {
+    "rule": "tag-equals-v-package-version",
+    "allowlist": { "v1.1.0": "package.json at 66be85c says 1.1.0-beta.0; v1.1.0 was tagged later on the v1.1.0-beta.0 commit" }
+  },
+  "outOfScopeGetters": "config/upgrade-executor/out-of-scope-getters.json",
+  "contractRoles": {},
+  "reviewedRangePairs": [],
+  "testChains": null,
+  "reconcileGraceMinutes": 60,
+  "builds": [
+    {
+      "name": "hardhat-0.8.16",
+      "when": {},
+      "toolchain": { "node": "24", "foundry": "v1.9.0", "yarn": "1.22.22" },
+      "setup": [
+        "git submodule update --init --recursive",
+        "yarn install --frozen-lockfile --ignore-engines --non-interactive"
+      ],
+      "outputs": [
+        {
+          "name": "hardhat",
+          "env": { "FOUNDRY_PROFILE": "default", "TS_NODE_SKIP_PROJECT": "true" },
+          "commands": ["npx hardhat compile --force --quiet"],
+          "buildInfo": "build/contracts/build-info",
+          "layout": "hardhat",
+          "artifacts": "build/contracts",
+          "deployed": true
+        }
+      ],
+      "include": ["**"],
+      "exclude": ["lib/**", "test/**", "forge-std/**"]
+    }
+  ]
+}

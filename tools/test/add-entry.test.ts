@@ -207,7 +207,8 @@ test('add-entry: refuses without a source or a label, with a label that is a pub
     // --source has no default: it picks where the write-once entry goes, its repo and its role.
     const noSource = await t.run(t.bridge(A.bridge, '--label', 'x'), { withSource: false })
     assert.equal(noSource.status, 2)
-    assert.match(noSource.stderr, /--source is required: the source whose directory, repo and contractRoles the entry gets \(configured: nitro-contracts\)/)
+    // The data repo copies this repo's config/, so every configured source is listed.
+    assert.match(noSource.stderr, /--source is required: the source whose directory, repo and contractRoles the entry gets \(configured: nitro-contracts(, [a-z0-9-]+)*\)/)
     const unknown = await t.run([...t.bridge(A.bridge, '--label', 'x'), '--source', 'nitro'], { withSource: false })
     assert.equal(unknown.status, 2)
     assert.match(unknown.stderr, /--source nitro is not a configured source/)
