@@ -58,8 +58,9 @@ implementations(rpc, address, entry) -> { implementation?, secondary? }:
   if entry != null:                          # a one-slot proxy: the slot its entry lists
     return { implementation: slot(entry.implementationSlots[0]) }
   impl = slot(EIP1967_IMPLEMENTATION_SLOT)   # unknown code: probe the known slots
-  if not impl: return { implementation: beaconImplementation(rpc, slot(EIP1967_BEACON_SLOT)) }
-  return { implementation: impl, secondary: slot(SECONDARY_IMPLEMENTATION_SLOT) }
+  secondary = slot(SECONDARY_IMPLEMENTATION_SLOT)
+  if impl or secondary: return { implementation: impl, secondary: secondary }
+  return { implementation: beaconImplementation(rpc, slot(EIP1967_BEACON_SLOT)) }
 
 beaconImplementation(rpc, beacon) -> address | null:
   if not beacon: return null
@@ -111,13 +112,14 @@ The choices it makes:
 - Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
   One, for example, most proxies are early nitro-contracts builds, and the Inbox proxy an Arbitrum
   Classic build. So unknown code is probed at the EIP-1967 implementation slot and, like a one-slot
-  proxy, reports the version of the implementation there. If that slot is zero, the EIP-1967
-  beacon slot is probed, and a beacon there is asked for its implementation, as for a beacon proxy.
-  That is safe for any unknown code: these are the standard slots, and the fallback can only
-  return a version if it reaches code the registry recognises.
-- Unknown code whose secondary slot is also set is a two-slot proxy (an old `RollupProxy`) and
-  gives null, since a two-slot proxy reports its own version, which here is unknown. It never
-  reports the admin logic in its EIP-1967 slot.
+  proxy, reports the version of the implementation there. If that slot and the secondary slot are
+  both zero, the EIP-1967 beacon slot is probed, and a beacon there is asked for its
+  implementation, as for a beacon proxy. That is safe for any unknown code: these are the standard
+  slots, and the fallback can only return a version if it reaches code the registry recognises.
+- Unknown code whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives
+  null, whatever its other slots hold, since a two-slot proxy reports its own version, which here
+  is unknown. It never reports the admin logic in its EIP-1967 slot, and its beacon slot isn't
+  read.
 - Unknown code gives null if its EIP-1967 and beacon slots are both zero, or the implementation is
   unknown or has no code. So does a one-slot proxy whose slot is zero or whose implementation is
   unknown or has no code, and a beacon proxy whose beacon slot is zero, whose beacon's
@@ -260,8 +262,8 @@ address. A beacon whose `implementation()` reverts or returns no address gives n
 Either way, the getters of the proxy's code and of its implementation are called on the proxy.
 Logic and proxy-admin code isn't probed. Code the registry doesn't know (for example a release
 older than the registry's range, or a proxy built outside it, like Arbitrum One's Arbitrum
-Classic-era Inbox proxy) is probed at the EIP-1967 slot and, if that is set, at the secondary
-slot; if it is zero, at the beacon slot.
+Classic-era Inbox proxy) is probed at the EIP-1967 and secondary slots and, if both are zero, at
+the beacon slot.
 
 A getter in the source's out-of-scope list (`config/<source>/out-of-scope-getters.json`) leads to a
 leaf. A leaf is labelled with the edges that reached it (`RollupProxy.owner()`) and identified like
@@ -549,6 +551,7 @@ rests on the person who added it; the on-chain match when `add-entry` writes it 
 - Beacon proxies: a proxy entry (and its `contractRoles` value) can have a `beaconSlot` instead of
   `implementationSlots`, and `getVersion`, the walker and the test-chain check follow it to the
   beacon's implementation. `getVersion`'s `rpc` needs `call` as well as `getCode` and
-  `getStorageAt`. Unknown code is also probed at the beacon slot when its EIP-1967 slot is zero.
+  `getStorageAt`. Unknown code is also probed at the beacon slot when its EIP-1967 and secondary
+  slots are zero.
 - Out-of-scope keys can name a contract (`L1WethGateway.l2Weth()`) as well as be a bare getter
   signature.

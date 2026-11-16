@@ -13,6 +13,7 @@ import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
 import { HttpSource, Registry, resolveRemote, versionOf } from '../src/walker/registry.ts'
+import { readImplementations } from '../src/walker/proxy.ts'
 import { ExecutionError, RpcError } from '../src/walker/rpc.ts'
 import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
 
@@ -209,7 +210,7 @@ test('getVersion: unknown code reports the implementation at its EIP-1967 slot, 
   assert.deepEqual(storageReads.splice(0), [`${A.unknownTup} ${EIP1967}`, `${A.unknownTup} ${SECONDARY}`], 'probed as the walker probes it')
   assert.equal(await reg.getVersion(rpc, A.unknownRollup), null, 'an unknown two-slot proxy has no version of its own, not its admin logic\'s')
   assert.equal(await reg.getVersion(rpc, A.unknown), null, 'unknown code with neither slot set')
-  assert.deepEqual(storageReads.splice(0).filter(r => r.startsWith(A.unknown + ' ')), [`${A.unknown} ${EIP1967}`, `${A.unknown} ${BEACON}`], 'a zero EIP-1967 slot is followed by the beacon slot, not the secondary')
+  assert.deepEqual(storageReads.splice(0).filter(r => r.startsWith(A.unknown + ' ')), [`${A.unknown} ${EIP1967}`, `${A.unknown} ${SECONDARY}`, `${A.unknown} ${BEACON}`], 'both implementation slots zero: then the beacon slot')
   assert.equal(await reg.getVersion(rpc, A.unknownTupUnknownImpl), null, 'an unknown proxy whose implementation is unknown')
   assert.equal(await reg.getVersion(rpc, A.unknownTupNoCodeImpl), null, 'an unknown proxy whose implementation has no code')
 })
@@ -272,19 +273,19 @@ function beaconFixture() {
     // Beacon proxies whose beacon slot is zero, or holds a beacon that reverts, has no code, returns
     // zero, returns an unknown implementation, returns one with no code, or returns too few bytes.
     zeroSlot: addr(0x10), reverting: addr(0x11), noCodeBeacon: addr(0x12), zeroBeacon: addr(0x13), unknownImpl: addr(0x14), noCodeImpl: addr(0x15), short: addr(0x16),
-    // Unknown code with only the beacon slot set; with both slots set; behind an RPC that fails.
-    unknownBeaconProxy: addr(0x20), unknownBoth: addr(0x21), flaky: addr(0x22),
+    // Unknown code with only the beacon slot set; with both slots set; with its secondary and beacon slots set; behind an RPC that fails.
+    unknownBeaconProxy: addr(0x20), unknownBoth: addr(0x21), flaky: addr(0x22), unknownSecondary: addr(0x23),
     beaconReverting: addr(0x30), beaconZero: addr(0x31), beaconUnknown: addr(0x32), beaconNoCodeImpl: addr(0x33), beaconShort: addr(0x34), beaconFlaky: addr(0x35),
   }
   const codes: Record<string, Hex> = {
     [B.logic]: BC.logic, [B.beacon]: BC.beacon, [B.unknownLogic]: BC.unknown,
     [B.beaconReverting]: BC.beacon, [B.beaconZero]: BC.beacon, [B.beaconUnknown]: BC.beacon, [B.beaconNoCodeImpl]: BC.beacon, [B.beaconShort]: BC.beacon, [B.beaconFlaky]: BC.beacon,
-    [B.unknownBeaconProxy]: BC.unknown, [B.unknownBoth]: BC.unknown, [B.flaky]: BC.proxy,
+    [B.unknownBeaconProxy]: BC.unknown, [B.unknownBoth]: BC.unknown, [B.flaky]: BC.proxy, [B.unknownSecondary]: BC.unknown,
   }
   for (const a of [B.proxy, B.zeroSlot, B.reverting, B.noCodeBeacon, B.zeroBeacon, B.unknownImpl, B.noCodeImpl, B.short]) codes[a] = BC.proxy
   const beaconOf: Record<string, string> = {
     [B.proxy]: B.beacon, [B.reverting]: B.beaconReverting, [B.noCodeBeacon]: B.account, [B.zeroBeacon]: B.beaconZero, [B.unknownImpl]: B.beaconUnknown,
-    [B.noCodeImpl]: B.beaconNoCodeImpl, [B.short]: B.beaconShort, [B.unknownBeaconProxy]: B.beacon, [B.unknownBoth]: B.beacon, [B.flaky]: B.beaconFlaky,
+    [B.noCodeImpl]: B.beaconNoCodeImpl, [B.short]: B.beaconShort, [B.unknownBeaconProxy]: B.beacon, [B.unknownBoth]: B.beacon, [B.flaky]: B.beaconFlaky, [B.unknownSecondary]: B.beacon,
   }
   const implementationOf: Record<string, string> = { [B.beacon]: word(B.logic), [B.beaconZero]: word('0x'), [B.beaconUnknown]: word(B.unknownLogic), [B.beaconNoCodeImpl]: word(B.account), [B.beaconShort]: '0x' + B.logic.slice(2) }
   const storageReads: string[] = [], calls: string[] = []
@@ -294,6 +295,7 @@ function beaconFixture() {
       storageReads.push(`${a.toLowerCase()} ${slot}`)
       if (slot === BEACON && beaconOf[a.toLowerCase()]) return word(beaconOf[a.toLowerCase()])
       if (slot === EIP1967 && a.toLowerCase() === B.unknownBoth) return word(B.logic)
+      if (slot === SECONDARY && a.toLowerCase() === B.unknownSecondary) return word(B.logic)
       return word('0x')
     },
     call: async (to: string, data: string) => {
@@ -331,12 +333,21 @@ test('getVersion: a beacon proxy gives null for a zero slot, a reverting or code
 test("getVersion: unknown code with a zero EIP-1967 slot reports the implementation of the beacon in its beacon slot", async () => {
   const { reg, B, rpc, storageReads, calls } = beaconFixture()
   assert.deepEqual(await reg.getVersion(rpc, B.unknownBeaconProxy), v('v1.2.0'))
-  assert.deepEqual(storageReads.splice(0), [`${B.unknownBeaconProxy} ${EIP1967}`, `${B.unknownBeaconProxy} ${BEACON}`])
+  assert.deepEqual(storageReads.splice(0), [`${B.unknownBeaconProxy} ${EIP1967}`, `${B.unknownBeaconProxy} ${SECONDARY}`, `${B.unknownBeaconProxy} ${BEACON}`])
   assert.deepEqual(calls.splice(0), [`${B.beacon} 0x5c60da1b`])
   // A set EIP-1967 slot wins: the beacon slot isn't read.
   assert.deepEqual(await reg.getVersion(rpc, B.unknownBoth), v('v1.2.0'))
   assert.deepEqual(storageReads.splice(0), [`${B.unknownBoth} ${EIP1967}`, `${B.unknownBoth} ${SECONDARY}`])
   assert.deepEqual(calls, [])
+})
+
+test('getVersion: unknown code with its secondary slot set gives null, even with a zero EIP-1967 slot and a beacon in its beacon slot', async () => {
+  const { reg, B, rpc, storageReads, calls } = beaconFixture()
+  assert.equal(await reg.getVersion(rpc, B.unknownSecondary), null, 'a two-slot proxy, not a beacon proxy')
+  assert.deepEqual(storageReads.splice(0), [`${B.unknownSecondary} ${EIP1967}`, `${B.unknownSecondary} ${SECONDARY}`], 'the beacon slot is not read')
+  assert.deepEqual(calls, [])
+  // The walker sees the same (readImplementations is shared): the secondary implementation only.
+  assert.deepEqual(await readImplementations(rpc, B.unknownSecondary, null, 'latest'), [{ role: 'secondaryImplementation', slot: SECONDARY, address: B.logic }])
 })
 
 test('versionOf: release, then prerelease, then a manual entry\'s label, then ref@commit', () => {

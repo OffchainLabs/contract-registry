@@ -380,11 +380,11 @@ test("walker: a beacon proxy's implementation is its beacon's implementation(); 
   // Getters come from both pieces: StandardArbERC20's gateway() was called on the proxy.
   assert.ok(node(w, GW).edges.some(e => e.from === token.address && e.getter === 'gateway()' && e.inScope))
 
-  // Unknown code with a zero EIP-1967 slot: the beacon slot is probed and followed.
+  // Unknown code with zero EIP-1967 and secondary slots: the beacon slot is probed and followed.
   const clone = node(w, CLONE)
   assert.equal(clone.code?.status, 'unknown')
   assert.deepEqual([clone.implementation?.slot, clone.implementation?.beacon, names(clone.implementation?.code)], [BEACON, node(w, BCN).address, 'StandardArbERC20 logic'])
-  assert.deepEqual(tb.readsAt(CLONE), [EIP1967, BEACON])
+  assert.deepEqual(tb.readsAt(CLONE), [EIP1967, SECONDARY, BEACON])
   // Unknown code with a set EIP-1967 slot: as before, no beacon read.
   assert.deepEqual(tb.readsAt(L1GW), [EIP1967, SECONDARY])
   assert.equal(node(w, L1GW).implementation?.beacon, undefined)

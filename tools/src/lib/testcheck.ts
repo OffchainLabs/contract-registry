@@ -10,7 +10,7 @@ import { abbreviate } from './abbrev.ts'
 import type { Hex } from './types.ts'
 
 /** Bump when the walker or the check's rules change, so cached check results are not reused. */
-export const CHECK_VERSION = 6
+export const CHECK_VERSION = 7
 
 export interface ChainCheck { chain: string; start: string; problems: string[]; summary?: WalkResult['summary']; warnings?: number }
 export interface CheckResult { commit: string; key: string; ok: boolean; problems: string[]; chains: ChainCheck[] }

@@ -46,9 +46,10 @@ export type ProxyFields = Pick<Entry, 'role' | 'implementationSlots' | 'beaconSl
  *   - A `proxy` entry with `implementationSlots`: those slots, in order.
  *   - A `proxy` entry with a `beaconSlot`: the beacon in that slot, and its `implementation()`.
  *   - Logic and proxy admins: none, and no storage is read.
- *   - Unknown code, in case it is a proxy the registry doesn't have: the EIP-1967 slot and, if that
- *     is set, the secondary slot; if the EIP-1967 slot is zero, the beacon slot and its beacon's
- *     implementation.
+ *   - Unknown code, in case it is a proxy the registry doesn't have: the EIP-1967 and secondary
+ *     slots; if both are zero, the beacon slot and its beacon's implementation. So a set secondary
+ *     slot (a two-slot proxy, which `getVersion` gives null) wins over the beacon slot, whatever
+ *     the EIP-1967 slot holds.
  */
 export async function readImplementations(rpc: Pick<Rpc, 'getStorageAt' | 'call'>, address: string, entry: ProxyFields | null, block: string): Promise<ImplementationSlot[]> {
   const read = async (role: ImplementationRole, slot: Hex): Promise<ImplementationSlot | null> => {
@@ -75,10 +76,12 @@ export async function readImplementations(rpc: Pick<Rpc, 'getStorageAt' | 'call'
     }
     return out
   }
+  // Unknown code: a two-slot proxy if its secondary slot is set, else a one-slot proxy if its
+  // EIP-1967 slot is, else maybe a beacon proxy. The beacon slot is read only if both are zero.
   const impl = await read('implementation', EIP1967_IMPLEMENTATION_SLOT)
-  if (!impl) return viaBeacon(EIP1967_BEACON_SLOT)
   const secondary = await read('secondaryImplementation', SECONDARY_IMPLEMENTATION_SLOT)
-  return secondary ? [impl, secondary] : [impl]
+  if (impl || secondary) return [impl, secondary].filter(i => i !== null)
+  return viaBeacon(EIP1967_BEACON_SLOT)
 }
 
 /**
