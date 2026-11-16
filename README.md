@@ -303,18 +303,21 @@ To add one:
 1. Build the contract. The build must reproduce the deployed bytecode exactly, so use the build
    the deployment used: its source, solc version and settings (optimizer runs, `evmVersion`,
    `viaIR`, metadata hash). These may differ from the source's build profiles in `sources.json`.
-2. Run `add-entry` on the build output, with the address of a deployed instance:
+2. Run `add-entry` on the build output, with the address of a deployed instance. This Bridge, for
+   example, matches only a Foundry build with the metadata hash turned off
+   (`bytecode_hash = 'none'`), so the example reads what `forge build --build-info` writes:
 
    ```sh
    node tools/src/cli/add-entry.ts --checkout /path/to/checkout \
-     --build-info build/contracts/build-info --layout hardhat --artifacts build/contracts \
+     --build-info out/build-info --layout standard-json \
      --contract src/bridge/Bridge.sol:Bridge \
      --rpc $RPC --address 0xfE4749061Fb052c354aaC65b9Fb0cCD7e20D2418 \
      --label v3.1.0-callfilter --notes 'Arbitrum One Bridge implementation, a patched build based on v3.1.0'
    ```
 
    `--build-info`, `--layout` and `--artifacts` are as in a `sources.json` output, relative to
-   `--checkout`. `--source` defaults to `nitro-contracts`, `--block` to `latest`.
+   `--checkout`. A Hardhat build takes `--layout hardhat` and `--artifacts`. `--source` defaults to
+   `nitro-contracts`, `--block` to `latest`.
 3. Check what it prints: `getVersion` should give your label (a one-slot proxy gives its
    implementation's version), and any names it lists must be public (see below).
 4. Run `node tools/src/cli/ci-check.ts --base origin/main`, commit on a branch and open a PR.

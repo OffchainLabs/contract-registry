@@ -55,6 +55,18 @@ export function git(args: string[], cwd?: string, input?: string): string {
   })
 }
 
+/**
+ * The commits that branch `ref` and tag `ref` point at in a remote repo (`git ls-remote`), each if
+ * it exists. An annotated tag gives the commit it points at (the peeled `^{}` line), not the tag
+ * object. Names must match exactly: `main` doesn't match `refs/heads/feature/main`.
+ */
+export function remoteRefCommits(url: string, ref: string): { branch?: string; tag?: string } {
+  // `<ref>` alone lists an annotated tag's object; `<ref>^{}` lists its commit.
+  const listed = git(['ls-remote', url, ref, `${ref}^{}`])
+  const at = new Map(listed.trim().split('\n').filter(Boolean).map(l => l.split('\t').reverse() as [string, string]))
+  return { branch: at.get(`refs/heads/${ref}`), tag: at.get(`refs/tags/${ref}^{}`) ?? at.get(`refs/tags/${ref}`) }
+}
+
 export function gitOk(args: string[], cwd?: string): boolean {
   try { git(args, cwd); return true } catch { return false }
 }

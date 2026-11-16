@@ -16,7 +16,7 @@ import { parseArgs } from 'node:util'
 import { cborMetadataFields, cborMetadataLength } from '../lib/cbor.ts'
 import { loadSourceConfig } from '../lib/config.ts'
 import { SourceData, entryFromBuild } from '../lib/datarepo.ts'
-import { git } from '../lib/exec.ts'
+import { git, remoteRefCommits } from '../lib/exec.ts'
 import { extractContract, loadBuildInfos, packageOf, runtimeCode, selectArtifacts } from '../lib/extract.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
@@ -149,11 +149,9 @@ console.log(out.join('\n'))
  * must be that commit with no changes to tracked files, so it is what was built.
  */
 function publicCommitProblem(url: string, checkout: string, ref: string, commit: string): string | null {
-  let listed: string
-  // `<ref>^{}` lists the commit an annotated tag points at; `<ref>` alone lists only the tag object.
-  try { listed = git(['ls-remote', url, ref, `${ref}^{}`]) } catch (e) { return `can't list the refs of ${url}: ${(e as Error).message.split('\n')[0]}` }
-  const at = new Map(listed.trim().split('\n').filter(Boolean).map(l => l.split('\t').reverse() as [string, string]))
-  const points = [at.get(`refs/heads/${ref}`), at.get(`refs/tags/${ref}^{}`) ?? at.get(`refs/tags/${ref}`)].filter(x => x !== undefined)
+  let remote: { branch?: string; tag?: string }
+  try { remote = remoteRefCommits(url, ref) } catch (e) { return `can't list the refs of ${url}: ${(e as Error).message.split('\n')[0]}` }
+  const points = [remote.branch, remote.tag].filter(x => x !== undefined)
   if (!points.length) return `--ref ${ref} is not a branch or tag of ${url}`
   if (!points.includes(commit)) return `--ref ${ref} points at ${points.join(' and ')} in ${url}, not --commit ${commit}`
   const head = git(['rev-parse', 'HEAD'], checkout).trim()

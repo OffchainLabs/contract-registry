@@ -1,12 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { keccak256 } from 'viem'
 import { generateViews } from '../src/lib/datarepo.ts'
 import { decodeImmutables, fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
-import { Registry, versionOf } from '../src/walker/registry.ts'
+import { Registry, resolveRemote, versionOf } from '../src/walker/registry.ts'
 import { EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
 
 const REPO = 'OffchainLabs/nitro-contracts'
@@ -169,4 +173,31 @@ test('versionOf: release, then prerelease, then a manual entry\'s label, then re
   assert.equal(versionOf({ ...manual, tags: [] }), 'Arbitrum One Bridge (patched v3.0.0)')
   assert.equal(versionOf({ ...base, label: 'patched one-off', tags: [] }), 'patched one-off')
   assert.equal(versionOf({ ...manual, tags: ['v3.0.0'] }), 'v3.0.0')
+})
+
+test('resolveRemote: an annotated tag gives its commit, not the tag object; names match exactly; a branch wins over a tag', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-remote-'))
+  const git = (...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'init.defaultBranch=main', ...a], { cwd: dir, encoding: 'utf8' }).trim()
+  try {
+    git('init', '-q')
+    const commit = (m: string) => { git('commit', '-q', '--allow-empty', '-m', m); return git('rev-parse', 'HEAD') }
+    const c1 = commit('one')
+    git('tag', '-a', 'v1.0.0', '-m', 'an annotated tag')
+    git('branch', 'feature/main') // sorts before refs/heads/main
+    git('branch', 'both')
+    const c2 = commit('two')
+    git('tag', 'v1.0.1') // lightweight
+    git('tag', 'both')
+    const c3 = commit('three')
+
+    assert.notEqual(git('rev-parse', 'v1.0.0'), c1, 'the tag object is not the commit')
+    assert.equal(resolveRemote(dir, 'v1.0.0'), c1)
+    assert.equal(resolveRemote(dir, 'v1.0.1'), c2)
+    assert.equal(resolveRemote(dir, 'main'), c3, 'not refs/heads/feature/main')
+    assert.equal(resolveRemote(dir, 'feature/main'), c1)
+    assert.equal(resolveRemote(dir, 'both'), c1, 'the branch, not the tag')
+    assert.throws(() => resolveRemote(dir, 'v9.9.9'), /can't resolve v9\.9\.9/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { remoteRefCommits } from '../lib/exec.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import { isPrerelease } from '../lib/semver.ts'
@@ -83,9 +84,10 @@ function splitAt(s: string): [string, string | undefined] {
   return i > 0 ? [s.slice(0, i), s.slice(i + 1)] : [s, undefined]
 }
 
-function resolveRemote(url: string, ref: string): string {
-  const out = execFileSync('git', ['-c', 'credential.helper=', 'ls-remote', url, ref, `refs/heads/${ref}`, `refs/tags/${ref}`], { encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })
-  const sha = out.split('\n').find(Boolean)?.split('\t')[0]
+/** The commit a branch or tag points at in a remote repo; a branch wins over a tag of the same name. */
+export function resolveRemote(url: string, ref: string): string {
+  const { branch, tag } = remoteRefCommits(url, ref)
+  const sha = branch ?? tag
   if (!sha) throw new Error(`can't resolve ${ref} in ${url}`)
   return sha
 }
