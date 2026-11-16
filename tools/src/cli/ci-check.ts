@@ -10,6 +10,7 @@ import { appendOnlyViolations, configuredIds, treeBlobs } from '../lib/appendonl
 import { listSources, loadSourceConfig } from '../lib/config.ts'
 import { SourceData } from '../lib/datarepo.ts'
 import { git } from '../lib/exec.ts'
+import { DATA_DIR } from '../lib/layout.ts'
 import { rangeConflictReport, rangeConflicts } from '../lib/ranges.ts'
 import { sourceConfigProblems, strayLayout, validateDataRepo } from '../lib/schema.ts'
 
@@ -32,7 +33,7 @@ for (const e of schemaErrors) console.error(`schema: ${e}`)
 console.error(schemaErrors.length ? `schema validation: ${schemaErrors.length} error(s)` : 'schema validation: ok')
 failed ||= schemaErrors.length > 0
 
-report('layout', strayLayout(root, sources), 'every data file under registry/')
+report('layout', strayLayout(root, sources), `every data file under ${DATA_DIR}/`)
 
 try {
   execFileSync(process.execPath, [path.join(import.meta.dirname, 'generate.ts'), '--check', '--data-repo', root], { stdio: 'inherit' })

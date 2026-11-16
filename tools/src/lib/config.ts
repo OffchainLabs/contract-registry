@@ -65,6 +65,10 @@ export interface SourceConfig {
   schemaVersion: number
   repo: string
   url: string
+  /**
+   * The source's id, e.g. `nitro-contracts`: the name of its directories under `config/` and
+   * `registry/` (see `layout.ts`), and what CLIs take as `--source`.
+   */
   directory: string
   start: StartConfig
   publishedRefs: { tags: string[]; branches: string[] }
