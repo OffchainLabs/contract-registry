@@ -36,7 +36,8 @@ function sink(spec: string | undefined): AlertSink {
 }
 
 const alerts = sink(a.alerts)
-// In id order, as listSources gives them, so a run's order never depends on how it was invoked.
+// In id order, as listSources gives them, so a run's order never depends on how it was invoked:
+// on a fresh backfill, code that several sources build gets its entry from the first by id.
 const sources = a.source ? [...new Set(a.source)].sort() : listSources(dataRepo)
 let ok = true
 for (const source of sources) {

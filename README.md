@@ -150,7 +150,8 @@ config/<source>/sources.json                  which refs are published; how to f
                                               reviewed range pairs
 config/<source>/out-of-scope-getters.json     getters the walker doesn't follow
 schema/                                       JSON schemas for every file type
-registry/<source>/entries/<fingerprint>.json  one per distinct fingerprint; write-once
+registry/<source>/entries/<fingerprint>.json  one per distinct fingerprint, in one source only (see
+                                              "Across sources"); write-once
 registry/<source>/tags/<tag>.json             contract -> fingerprint for a tag's build; write-once
 registry/<source>/branches/<branch>.json      same for the head of a live release or hotfix branch;
                                               overwritten, and removed with the branch
@@ -219,10 +220,11 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   from scratch, with the build profile its commit selects. If its
   commit was also built as a release or hotfix head (recorded in a branch file, or built in the
   same run), the tag build must reproduce that build's fingerprints; otherwise there is nothing to
-  compare it with. The run writes entries, tag files and branch files (a deleted branch's file is
-  removed; its entries stay), checks that entries of one code length mask the same bytes (so no
-  code can match two; a conflict fails the whole run, and its alert says how to review the pair
-  and list it in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
+  compare it with. The run writes entries (for code no source has an entry for yet; see "Across
+  sources"), tag files and branch files (a deleted branch's file is removed; its entries stay),
+  checks that entries of one code length mask the same bytes, in every source (so no code can
+  match two; a conflict fails the whole run, and its alert says how to review the pair and list it
+  in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
   tag and changed head in the check's range and walks them, and lands everything as one commit.
   It checks that each new tag equals `v` + `package.json` version at its commit; a mismatch is
   published anyway and raises an alert until the tag is listed in `tagValidation.allowlist`.
@@ -234,10 +236,11 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   have been processed.
 - `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; nothing outside the
   layout (a source's directory at the top of the repo, or anything in `registry/` but configured
-  sources, `by-length/` and `index.json`); generated files match their inputs; the range invariant
-  (with `reviewedRangePairs`); `entries/` and `tags/` files are append-only. Append-only compares
-  content with the base, so a file moved into `registry/` passes, and a changed or deleted one
-  fails wherever it moved.
+  sources, `by-length/` and `index.json`); generated files match their inputs; one entry per
+  fingerprint across sources, and an entry for every fingerprint a tag or branch file lists; the
+  range invariant across sources (with every source's `reviewedRangePairs`); `entries/` and
+  `tags/` files are append-only. Append-only compares content with the base, so a file moved into
+  `registry/` passes, and a changed or deleted one fails wherever it moved.
 
 A run publishes each source in turn, in id order (every configured source unless `--source` names
 some), and lands each as its own commit: the source's files under `registry/<source>/` and the
@@ -257,6 +260,35 @@ node tools/src/cli/generate.ts [--check]   # regenerate the views (--check: comp
 node tools/src/cli/ci-check.ts --base origin/main
 npm test && npm run test:integration
 ```
+
+### Across sources
+
+One lookup searches every source, so the registry's rules hold across sources. Publish,
+`add-entry` and `ci-check` apply them to the entries of every configured source:
+
+- **One entry per fingerprint.** A fingerprint has one entry, in one source's `entries/`. Publish
+  and `add-entry` look a fingerprint up in every source before writing one. When a build produces
+  code that another source already has an entry for (shared code, such as a proxy both repos
+  compile from the same package), publish writes no entry. The build's tag or branch file lists
+  the fingerprint as usual, and the other source's entry is the one lookups find. That entry's
+  `tags` come from its own source's tag files only (tag names overlap across sources), so shared
+  code reports the version and repo of the source that owns it; its `packages` says where the
+  code comes from.
+- **Who owns shared code.** The source that published it first. A run publishes sources in id
+  order, whatever order `--source` names them in, so on a fresh backfill the owner is the first
+  source by id whose build produced the code.
+- **Roles agree.** The role a source's `contractRoles` gives shared code must be the owner's
+  entry's `role` and `implementationSlots`. Otherwise the run fails and publishes nothing, and its
+  alert names both configs. The entry is write-once, so the fix is normally in the publishing
+  source's `contractRoles`. Within one source, roles aren't rechecked: a proxy added to
+  `contractRoles` after its first build was published keeps its old entry, and failing every
+  later build that contains it would leave no way forward.
+- **The range invariant spans sources.** Entries of one code length mask the same bytes, whichever
+  source they are in, apart from reviewed pairs. Every source's `reviewedRangePairs` counts for
+  every check, so a pair from two sources goes in either source's config. The conflict report
+  names each entry's source and the configs the pair can go in.
+- **Every listed fingerprint has an entry.** Each fingerprint in a tag or branch file has an entry
+  in some source (`ci-check`).
 
 ### Rebuilding tags: `rebuild.yml`
 
@@ -341,7 +373,8 @@ and names it in the data commit's message. `check.ts --rev` refuses such a commi
    exact name. Entries are write-once, and the role is copied in when one is written.
 3. Check that each new tag equals `v` + `package.json` version, or allowlist it.
 
-The run checks the range invariant against every existing entry, as for any new tag.
+The run checks the range invariant against every existing entry of every source, as for any new
+tag.
 
 ## Manual entries
 
@@ -381,11 +414,13 @@ To add one:
 code at the address. On a mismatch it prints both lengths and metadata trailers, and where the code
 before the trailers differs. A trailer that differs alone usually means another metadata hash
 setting; a different solc version or code means other settings or source. It also refuses a
-missing label, a label that is a published tag, a fingerprint that already has an entry, and an
-entry that breaks the range invariant (see "Publishing"). The role comes from `contractRoles` and
-`packages` from the checkout, as in publish. It then writes the entry, regenerates
-`registry/by-length/` and `registry/index.json`, and prints the entry's path, its fingerprint and
-what `getVersion` reports for the address. It builds nothing and commits nothing.
+missing label, a label that is a published tag of the source, a fingerprint that already has an
+entry in any source (it names that source and what its entry reports), and an entry that breaks
+the range invariant, checked against every source's entries (see "Across sources"). The role
+comes from `contractRoles` and `packages` from the checkout, as in publish. It then writes the
+entry, regenerates `registry/by-length/` and `registry/index.json`, and prints the entry's path,
+its fingerprint and what `getVersion` reports for the address. It builds nothing and commits
+nothing.
 
 `--ref` and `--commit` default to null. Set them only for a build of a public commit: `--ref` must
 point at `--commit` in the source repo at its `url` in `sources.json`, and the checkout must be at
@@ -396,9 +431,9 @@ in the entry, its label or notes, the commit message, or config: not the repo's 
 commit, author or commit message, nor a file, contract or function name that only exists there.
 Never add a private repo to `sources.json`. Fields derived from the bytecode are fine, since the
 deployed code is public on chain. The names in `contracts`, `getters` and `maskedRanges` come from
-the source, not the bytecode, so `add-entry` lists any that no other entry has. Before committing,
-grep the diff and the commit message for the private repo's identifiers.
+the source, not the bytecode, so `add-entry` lists any that no other entry, of any source, has.
+Before committing, grep the diff and the commit message for the private repo's identifiers.
 
-**Trust.** CI checks the schema, the generated views, range conflicts and that entries are
-append-only. Nothing rebuilds a manual entry. Its correctness rests on the person who added it;
-the on-chain match when `add-entry` writes it is the check.
+**Trust.** CI checks the schema, the generated views, one entry per fingerprint, range conflicts
+across sources and that entries are append-only. Nothing rebuilds a manual entry. Its correctness
+rests on the person who added it; the on-chain match when `add-entry` writes it is the check.
