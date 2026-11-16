@@ -21,11 +21,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - name: Schema, generated files, append-only
+        # Event fields reach the script through env, never pasted into it (a branch name is free text).
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = pull_request ]; then
-            base="origin/${{ github.base_ref }}"
-          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != 0000000000000000000000000000000000000000 ]; then
-            base="${{ github.event.before }}"
+          if [ "$EVENT" = pull_request ]; then
+            base="origin/$BASE_REF"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            base="$BEFORE"
           else
             base=""
           fi
