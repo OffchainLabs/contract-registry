@@ -4,8 +4,8 @@ import { git, gitOk, mapLimit } from './exec.ts'
 import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, tagInRange, testChainsApply, type SourceConfig } from './config.ts'
 import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
-import { DataRepo, SourceData, byFingerprint, contractsMap, describeRole, entryFromBuild, roleOf } from './datarepo.ts'
-import { BY_LENGTH_DIR, INDEX_PATH, inputPath, sourceDir, sourcesConfigPath } from './layout.ts'
+import { DataRepo, SourceData, byFingerprint, contractsMap, entryFromBuild, sharedRoleDisagreement } from './datarepo.ts'
+import { BY_LENGTH_DIR, INDEX_PATH, sourceDir } from './layout.ts'
 import { validateDataRepo } from './schema.ts'
 import { rangeConflictReport } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
@@ -295,23 +295,12 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
 }
 
 /**
- * Code that another source has already published (shared code) keeps that source's entry, whose
- * role was copied from that source's config when it was written. This source's `contractRoles`
- * must give the build's contracts of that fingerprint the same role; otherwise one config is
- * wrong, and the run fails naming both. Drift within one source isn't checked: a proxy missed
- * from `contractRoles` until after its first build was published would otherwise block every
- * later build that contains it.
+ * Shared code's role must agree with its owner's entry (see `sharedRoleDisagreement`); otherwise
+ * the run fails, naming both configs.
  */
 function checkSharedRole(cfg: SourceConfig, contracts: string[], ownerId: string, owner: Entry): void {
-  const mine = describeRole(roleOf(cfg.contractRoles, contracts))
-  const theirs = describeRole(owner)
-  if (mine === theirs) return
-  throw new Error(
-    `shared code's role disagrees with its owner's entry; nothing published. ${owner.fingerprint}: ${sourcesConfigPath(cfg.directory)} ` +
-    `gives ${contracts.join(', ')} the role ${mine}, but the entry ${inputPath(ownerId, 'entries', owner.fingerprint)} ` +
-    `(${owner.contracts.join(', ')}, its role from ${sourcesConfigPath(ownerId)}) has the role ${theirs}. Code that two sources build ` +
-    `has one entry, from the source that published it first, and entries are write-once: make contractRoles in ${sourcesConfigPath(cfg.directory)} agree with it.`,
-  )
+  const problem = sharedRoleDisagreement(cfg, contracts, ownerId, owner)
+  if (problem) throw new Error(`shared code's role disagrees with its owner's entry; nothing published. ${problem}`)
 }
 
 function diffMaps(a: Record<string, string>, b: Record<string, string>): string[] {

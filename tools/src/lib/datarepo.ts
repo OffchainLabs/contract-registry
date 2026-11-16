@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { listSources, loadSourceConfig, type ReviewedRangePair } from './config.ts'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
-import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir } from './layout.ts'
+import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir, sourcesConfigPath } from './layout.ts'
 import { rangeConflicts, type RangeConflict } from './ranges.ts'
 import { compareTags } from './semver.ts'
 import { SCHEMA_VERSION, VIEW_SCHEMA_VERSION } from './types.ts'
@@ -89,6 +89,25 @@ export function describeRole(r: { role: ContractRole; implementationSlots?: Hex[
   if (r.role !== 'proxy') return r.role
   const slots = [...(r.implementationSlots ?? []), ...(r.beaconSlot !== undefined ? [`beacon ${r.beaconSlot}`] : [])]
   return `proxy [${slots.join(', ').toLowerCase()}]`
+}
+
+/**
+ * Code that another source has already published (shared code) keeps that source's entry, whose
+ * role was copied from that source's config when it was written. `source`'s `contractRoles` must
+ * give its contracts of that fingerprint the same role; otherwise one config is wrong. Returns
+ * what disagrees, naming both configs, or null. Publish checks this for each build's shared
+ * code, and `ci-check` for every tag and branch file (`DataRepo.sharedRoleProblems`). Drift
+ * within one source isn't checked: a proxy missed from `contractRoles` until after its first
+ * build was published would otherwise block every later build that contains it.
+ */
+export function sharedRoleDisagreement(source: { directory: string; contractRoles: Record<string, RoleConfig> }, contracts: string[], ownerId: string, owner: Entry): string | null {
+  const mine = describeRole(roleOf(source.contractRoles, contracts))
+  const theirs = describeRole(owner)
+  if (mine === theirs) return null
+  return `${owner.fingerprint}: ${sourcesConfigPath(source.directory)} gives ${contracts.join(', ')} the role ${mine}, but the entry ` +
+    `${inputPath(ownerId, 'entries', owner.fingerprint)} (${owner.contracts.join(', ')}, its role from ${sourcesConfigPath(ownerId)}) has the role ${theirs}. ` +
+    'Code that two sources build has one entry, from the source that published it first, and entries are write-once: ' +
+    `make contractRoles in ${sourcesConfigPath(source.directory)} agree with it.`
 }
 
 /** Groups a build's contracts by fingerprint (several names can compile to the same code). */
@@ -184,12 +203,15 @@ export class DataRepo {
 
   /** Every source's reviewed range pairs, in source id order. */
   private readonly pairs: ReviewedRangePair[]
+  /** Each source's `contractRoles` by id (none given: every contract is logic). */
+  private readonly roles: Map<string, Record<string, RoleConfig>>
 
-  constructor(root: string, sources: { directory: string; repo: string; reviewedRangePairs?: ReviewedRangePair[] }[]) {
+  constructor(root: string, sources: { directory: string; repo: string; reviewedRangePairs?: ReviewedRangePair[]; contractRoles?: Record<string, RoleConfig> }[]) {
     this.root = root
     const ordered = [...sources].sort((a, b) => compareIds(a.directory, b.directory))
     this.sources = ordered.map(s => new SourceData(root, s.directory, s.repo))
     this.pairs = ordered.flatMap(s => s.reviewedRangePairs ?? [])
+    this.roles = new Map(ordered.map(s => [s.directory, s.contractRoles ?? {}]))
   }
 
   /** The data repo with the sources configured under `config/`. */
@@ -260,6 +282,49 @@ export class DataRepo {
       }
     }
     return problems.sort()
+  }
+
+  /**
+   * Shared code's roles (see `sharedRoleDisagreement`): for every fingerprint a source's tag or
+   * branch files list whose entry another source owns, this source's `contractRoles` must give the
+   * contracts a file lists for it the owner's entry's role, as publish required when it wrote the
+   * file. A config changed since can break that; this catches it. One problem per disagreement,
+   * naming the files that list it.
+   */
+  sharedRoleProblems(): string[] {
+    const owners = new Map<string, { id: string; entry: Entry }>()
+    // The first source by id, as `ownerOf` (two owners are `entryProblems`' to report).
+    for (const s of this.sources) for (const e of s.entries()) if (!owners.has(e.fingerprint.toLowerCase())) owners.set(e.fingerprint.toLowerCase(), { id: s.id, entry: e })
+    const found = new Map<string, string[]>() // problem -> the files that give it
+    for (const s of this.sources) {
+      const source = { directory: s.id, contractRoles: this.roles.get(s.id) ?? {} }
+      const files = [
+        ...s.tags().map(t => ({ path: inputPath(s.id, 'tags', t.tag), contracts: t.contracts })),
+        ...s.branches().map(b => ({ path: inputPath(s.id, 'branches', b.branch), contracts: b.contracts })),
+      ]
+      for (const f of files) {
+        // The file's contracts per shared fingerprint, as publish groups a build's contracts.
+        const shared = new Map<string, string[]>()
+        for (const [contract, fp] of Object.entries(f.contracts ?? {})) {
+          const owner = owners.get(String(fp).toLowerCase())
+          if (owner && owner.id !== s.id) shared.set(owner.entry.fingerprint, [...(shared.get(owner.entry.fingerprint) ?? []), contract])
+        }
+        for (const [fp, contracts] of shared) {
+          const owner = owners.get(fp.toLowerCase())!
+          let problem: string | null
+          try {
+            problem = sharedRoleDisagreement(source, contracts.sort(), owner.id, owner.entry)
+          } catch (e) {
+            problem = (e as Error).message // contracts of one fingerprint with different roles in contractRoles
+          }
+          if (problem) found.set(problem, [...(found.get(problem) ?? []), f.path])
+        }
+      }
+    }
+    return [...found].map(([problem, files]) => {
+      const [first, ...rest] = files.sort()
+      return `${first}${rest.length ? ` and ${rest.length} other file(s)` : ''}: shared code's role disagrees with its owner's entry. ${problem}`
+    }).sort()
   }
 
   /** Every generated file, keyed by its path relative to the data repo root. */

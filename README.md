@@ -318,7 +318,8 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
 - `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; nothing outside the
   layout (a source's directory at the top of the repo, or anything in `registry/` but configured
   sources, `by-length/` and `index.json`); generated files match their inputs; one entry per
-  fingerprint across sources, and an entry for every fingerprint a tag or branch file lists; the
+  fingerprint across sources, and an entry for every fingerprint a tag or branch file lists;
+  shared code's role agrees with its owner's entry in every source's `contractRoles`; the
   range invariant across sources (with every source's `reviewedRangePairs`); `entries/` and
   `tags/` files are append-only. Append-only compares content with the base, so a file moved into
   `registry/` passes, and a changed or deleted one fails wherever it moved.
@@ -359,9 +360,11 @@ One lookup searches every source, so the registry's rules hold across sources. P
   order, whatever order `--source` names them in, so on a fresh backfill the owner is the first
   source by id whose build produced the code.
 - **Roles agree.** The role a source's `contractRoles` gives shared code must be the owner's
-  entry's `role` and `implementationSlots`. Otherwise the run fails and publishes nothing, and its
-  alert names both configs. The entry is write-once, so the fix is normally in the publishing
-  source's `contractRoles`. Within one source, roles aren't rechecked: a proxy added to
+  entry's `role`, `implementationSlots` and `beaconSlot`. Otherwise the run fails and publishes
+  nothing, and its alert names both configs. `ci-check` applies the same rule to every fingerprint
+  a source's tag and branch files list whose entry another source owns, so a later change to
+  either config can't break it unnoticed. The entry is write-once, so the fix is normally in the
+  publishing source's `contractRoles`. Within one source, roles aren't rechecked: a proxy added to
   `contractRoles` after its first build was published keeps its old entry, and failing every
   later build that contains it would leave no way forward.
 - **The range invariant spans sources.** Entries of one code length mask the same bytes, whichever

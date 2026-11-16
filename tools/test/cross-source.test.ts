@@ -122,6 +122,10 @@ test('publish across sources: shared code has one entry, its owner\'s; roles mus
   assert.equal(git(data, 'status', '--porcelain'), '', "the run's files are discarded")
   assert.ok(!beta.hasTag('v2.1.0'))
   assert.equal(beta.entries().length, 1, 'B@2 not published either')
+  // CI catches the same config against the tag file already published.
+  const ciRoles = ciCheck()
+  assert.notEqual(ciRoles.status, 0)
+  assert.ok(ciRoles.stderr.includes(`roles: registry/beta/tags/v2.0.0.json: shared code's role disagrees with its owner's entry. ${sFp}: config/beta/sources.json gives src/S.sol:S the role proxy-admin,`), ciRoles.stderr)
 
   // Roles agreeing again, the tag is published; S still has only alpha's entry.
   setConfig('beta', c => { c.contractRoles = {} })

@@ -243,6 +243,41 @@ test('ci-check: across sources, a fingerprint has one entry, and every tag and b
   t.close()
 })
 
+test("ci-check: shared code must have its owner's entry's role in every other source's contractRoles that lists it", () => {
+  const t = setup()
+  const other = addOther(t.dir)
+  // nitro-contracts owns fp 1 (logic); two of other's tag files and a branch file list it as lib/X1.sol:X1.
+  t.data.writeEntry(entry(1)); t.data.writeTag(tag('v1.0.0', 1))
+  for (const v of ['v9.0.0', 'v9.1.0']) other.writeTag({ ...tag(v, 1), repo: 'Example/other', contracts: { 'lib/X1.sol:X1': fp(1) } })
+  other.writeBranch({ schemaVersion: 1, repo: 'Example/other', branch: 'release/x', commit: '8'.repeat(40), contracts: { 'lib/X1.sol:X1': fp(1) } })
+  t.views(); t.commit('shared code')
+  const ok = t.check('HEAD')
+  assert.ok(ok.ok, ok.out)
+  assert.match(ok.out, /roles: ok/)
+
+  // other's config gives the shared contract another role than the owner's entry has.
+  const cfgFile = path.join(t.dir, 'config/other/sources.json')
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'))
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, contractRoles: { ...cfg.contractRoles, 'lib/X1.sol:X1': { role: 'proxy-admin' } } }))
+  const bad = t.check()
+  assert.ok(!bad.ok)
+  for (const line of [
+    `roles: registry/other/branches/release/x.json and 2 other file(s): shared code's role disagrees with its owner's entry. ${fp(1)}: config/other/sources.json gives lib/X1.sol:X1 the role proxy-admin, ` +
+      `but the entry registry/nitro-contracts/entries/${fp(1)}.json (src/X1.sol:X1, its role from config/nitro-contracts/sources.json) has the role logic.`,
+    'roles: 1 problem(s)',
+  ]) assert.ok(bad.out.includes(line), `${line}\n---\n${bad.out}`)
+  assert.match(bad.out, /entries: ok/)
+
+  // The owner's own config isn't rechecked against its entries (a proxy listed after its first build keeps its entry).
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg))
+  const ncFile = path.join(t.dir, 'config/nitro-contracts/sources.json')
+  const nc = JSON.parse(fs.readFileSync(ncFile, 'utf8'))
+  fs.writeFileSync(ncFile, JSON.stringify({ ...nc, contractRoles: { ...nc.contractRoles, 'src/X1.sol:X1': { role: 'proxy-admin' } } }))
+  const own = t.check()
+  assert.ok(own.ok, own.out)
+  t.close()
+})
+
 test('ci-check: same-length entries of two sources that mask different bytes fail, until the pair is listed in either source\'s config', () => {
   const t = setup()
   const other = addOther(t.dir)

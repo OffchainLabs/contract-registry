@@ -1,8 +1,9 @@
 // The data repo's own CI (every push and PR): source configs agree with each other, schema
 // validation, nothing outside the layout, generated files equal what the generator produces, one
 // entry per fingerprint across sources and an entry for every fingerprint a tag or branch file
-// lists, entries of one code length mask the same bytes across sources (so a lookup matches at
-// most one entry), and entries/ and tags/ files are append-only relative to the base commit.
+// lists, shared code has its owner's entry's role in every other source's contractRoles, entries
+// of one code length mask the same bytes across sources (so a lookup matches at most one entry),
+// and entries/ and tags/ files are append-only relative to the base commit.
 //   node tools/src/cli/ci-check.ts [--base <rev>]
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -45,6 +46,12 @@ try {
   report('entries', repo.entryProblems(), 'one entry per fingerprint across sources; every tag and branch fingerprint has one')
 } catch (e) {
   console.error(`entries: can't check: ${(e as Error).message}`)
+  failed = true
+}
+try {
+  report('roles', repo.sharedRoleProblems(), "shared code has its owner's role in every source's contractRoles")
+} catch (e) {
+  console.error(`roles: can't check: ${(e as Error).message}`)
   failed = true
 }
 
