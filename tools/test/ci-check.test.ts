@@ -163,6 +163,28 @@ test('ci-check: no two sources share a directory or a repo, and each config sits
   t.close()
 })
 
+test("ci-check: a source's outOfScopeGetters is the file the walker reads, config/<source>/out-of-scope-getters.json", () => {
+  const t = setup()
+  t.views(); t.commit('nothing yet')
+  assert.ok(t.check().ok)
+  const cfgFile = path.join(t.dir, 'config/nitro-contracts/sources.json')
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'))
+  // Another file, valid on its own: publish would check against it, the walker against the default.
+  fs.copyFileSync(path.join(t.dir, 'config/nitro-contracts/out-of-scope-getters.json'), path.join(t.dir, 'config/nitro-contracts/getters.json'))
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, outOfScopeGetters: 'config/nitro-contracts/getters.json' }))
+  const bad = t.check()
+  assert.ok(!bad.ok)
+  assert.ok(bad.out.includes('sources: config/nitro-contracts/sources.json: outOfScopeGetters is config/nitro-contracts/getters.json, but the walker reads config/nitro-contracts/out-of-scope-getters.json; make it that file\n'), bad.out)
+  // Another source's list (a copied config) is as wrong; the same path, written another way, is fine.
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, outOfScopeGetters: 'config/other/out-of-scope-getters.json' }))
+  assert.match(t.check().out, /sources: config\/nitro-contracts\/sources\.json: outOfScopeGetters is config\/other\/out-of-scope-getters\.json, but the walker reads config\/nitro-contracts\/out-of-scope-getters\.json/)
+  fs.rmSync(path.join(t.dir, 'config/nitro-contracts/getters.json'))
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, outOfScopeGetters: './config/nitro-contracts/out-of-scope-getters.json' }))
+  const same = t.check()
+  assert.ok(same.ok, same.out)
+  t.close()
+})
+
 test('ci-check: same-length entries that mask different bytes fail, manual entries included, until the pair is reviewed', () => {
   const t = setup()
   const built: Entry = { ...entry(1), codeLength: 300, maskedRanges: [{ name: 'maxDataSize', type: 'uint256', offsets: [10], length: 32 }] }
@@ -202,7 +224,10 @@ test('ci-check: same-length entries that mask different bytes fail, manual entri
 function addOther(dir: string): SourceData {
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'config/nitro-contracts/sources.json'), 'utf8'))
   fs.mkdirSync(path.join(dir, 'config/other'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'config/other/sources.json'), JSON.stringify({ ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [] }))
+  fs.writeFileSync(path.join(dir, 'config/other/sources.json'), JSON.stringify({
+    ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [], outOfScopeGetters: 'config/other/out-of-scope-getters.json',
+  }))
+  fs.writeFileSync(path.join(dir, 'config/other/out-of-scope-getters.json'), JSON.stringify({ schemaVersion: 1, repo: 'Example/other', getters: {} }))
   return new SourceData(dir, 'other', 'Example/other')
 }
 

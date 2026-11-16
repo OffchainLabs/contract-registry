@@ -28,7 +28,7 @@ const report = (what: string, problems: string[], ok: string) => {
   failed ||= problems.length > 0
 }
 
-report('sources', sourceConfigProblems(configs.map(c => ({ configDir: c.configDir, directory: c.cfg.directory, repo: c.cfg.repo }))), 'unique directories and repos')
+report('sources', sourceConfigProblems(configs.map(c => ({ configDir: c.configDir, directory: c.cfg.directory, repo: c.cfg.repo, outOfScopeGetters: c.cfg.outOfScopeGetters }))), 'unique directories and repos; out-of-scope lists where the walker reads them')
 
 const schemaErrors = validateDataRepo(root, sources)
 for (const e of schemaErrors) console.error(`schema: ${e}`)

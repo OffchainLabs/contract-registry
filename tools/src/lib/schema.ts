@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { listJsonFiles, readJson } from './json.ts'
-import { BY_LENGTH_DIR, CONFIG_DIR, DATA_DIR, INDEX_PATH, RESERVED_NAMES, parseDataPath, sourceDir } from './layout.ts'
+import { BY_LENGTH_DIR, CONFIG_DIR, DATA_DIR, INDEX_PATH, RESERVED_NAMES, outOfScopePath, parseDataPath, sourceDir } from './layout.ts'
 
 const KINDS = ['entry', 'tag', 'branch', 'by-length', 'index', 'sources', 'out-of-scope'] as const
 export type FileKind = (typeof KINDS)[number]
@@ -69,13 +69,18 @@ export function validateDataRepo(dataRepo: string, sources: { directory: string;
 
 /**
  * Rules across the source configs: each lives in `config/<its directory>/`, no two share a
- * `directory` or a `repo`, and none uses a name the generated views need.
+ * `directory` or a `repo`, and none uses a name the generated views need. Each one's
+ * `outOfScopeGetters` is `config/<directory>/out-of-scope-getters.json`, the file the walker
+ * reads (`outOfScopePath`): publish's test-chain check reads the field, so another file would
+ * check walks against one list and leave the walker to use another.
  */
-export function sourceConfigProblems(configs: { configDir: string; directory: string; repo: string }[]): string[] {
+export function sourceConfigProblems(configs: { configDir: string; directory: string; repo: string; outOfScopeGetters: string }[]): string[] {
   const problems: string[] = []
   for (const c of configs) {
     if (c.directory !== c.configDir) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: directory ${c.directory} must equal its config directory's name, ${c.configDir}`)
     if (RESERVED_NAMES.includes(c.directory)) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: directory ${c.directory} is reserved for the generated views`)
+    const walkerReads = outOfScopePath(c.directory)
+    if (path.posix.normalize(c.outOfScopeGetters) !== walkerReads) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: outOfScopeGetters is ${c.outOfScopeGetters}, but the walker reads ${walkerReads}; make it that file`)
   }
   for (const key of ['directory', 'repo'] as const) {
     const seen = new Map<string, string[]>()

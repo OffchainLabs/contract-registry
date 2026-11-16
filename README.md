@@ -317,13 +317,14 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   address: a proxy missing from `contractRoles`, or listed with the wrong slots.
 - `reconcile.yml` (daily): the same run, plus an alert for any published ref that should already
   have been processed.
-- `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; nothing outside the
-  layout (a source's directory at the top of the repo, or anything in `registry/` but configured
-  sources, `by-length/` and `index.json`); generated files match their inputs; one entry per
-  fingerprint across sources, and an entry for every fingerprint a tag or branch file lists;
-  shared code's role agrees with its owner's entry in every source's `contractRoles`; the
-  range invariant across sources (with every source's `reviewedRangePairs`); `entries/` and
-  `tags/` files are append-only. Append-only compares content with the base, so a file moved into
+- `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; each source's
+  `outOfScopeGetters` is `config/<source>/out-of-scope-getters.json`, the file the walker reads
+  (publish's test-chain check reads the field); nothing outside the layout (a source's directory
+  at the top of the repo, or anything in `registry/` but configured sources, `by-length/` and
+  `index.json`); generated files match their inputs; one entry per fingerprint across sources,
+  and an entry for every fingerprint a tag or branch file lists; shared code's role agrees with
+  its owner's entry in every source's `contractRoles`; the range invariant across sources (with
+  every source's `reviewedRangePairs`); `entries/` and `tags/` files are append-only. Append-only compares content with the base, so a file moved into
   `registry/` passes, and a changed or deleted one fails wherever it moved.
 
 A run publishes each source in turn, in id order (every configured source unless `--source` names
