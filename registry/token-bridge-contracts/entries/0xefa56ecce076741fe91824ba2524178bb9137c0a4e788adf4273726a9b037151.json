@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xefa56ecce076741fe91824ba2524178bb9137c0a4e788adf4273726a9b037151",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/rpc-utils/MulticallV2.sol:Multicall2"
+  ],
+  "role": "logic",
+  "codeLength": 2984,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "getCurrentBlockCoinbase()",
+      "selector": "0xa8b0574e",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x0f28c97d",
+    "0x252dba42",
+    "0x27e86d6e",
+    "0x2935cd90",
+    "0x399542e9",
+    "0x42cbb15c",
+    "0x4d2301cc",
+    "0x72425d9d",
+    "0x86d516e8",
+    "0xa8b0574e",
+    "0xbce38bd7",
+    "0xc3077fa9",
+    "0xee82ac5e"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

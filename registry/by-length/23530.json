@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 23530,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x1a0ad6e5a725c1526d680a7c2c5340ad84e5e746ca9a9ca21ffd4bb357a807b0",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:L2AtomicTokenBridgeFactory"
+      ],
+      "role": "logic",
+      "codeLength": 23530,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0xb1c7a870"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.2.0",
+      "commit": "a459c391050867ee8ace489cc5b1f207db9ea925",
+      "tags": [
+        "v1.2.0",
+        "v1.2.1",
+        "v1.2.2"
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x40fe8185956ab284c32c4fcba650049c718f9186ac04a0a9b5eb7cd2dd4c3a1c",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:L2AtomicTokenBridgeFactory"
+      ],
+      "role": "logic",
+      "codeLength": 23530,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0xb1c7a870"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.2.3",
+      "commit": "5bdf33259d2d9ae52ddc69bc5a9cbc558c4c40c7",
+      "tags": [
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xe2f81c9dfc68aa3e0bdbb05afa1179d95e12ab38c7148d4d6fad6782c32bb376",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/ethereum/gateway/L1OrbitCustomGateway.sol:L1OrbitCustomGateway"
+  ],
+  "role": "logic",
+  "codeLength": 11921,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "counterpartGateway()",
+      "selector": "0x2db09c1c",
+      "kind": "single"
+    },
+    {
+      "signature": "inbox()",
+      "selector": "0xfb0e722b",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "router()",
+      "selector": "0xf887ea40",
+      "kind": "single"
+    },
+    {
+      "signature": "whitelist()",
+      "selector": "0x93e59dc1",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x01ffc9a7",
+    "0x020a6058",
+    "0x13af4035",
+    "0x1d3a689f",
+    "0x2db09c1c",
+    "0x2e567b36",
+    "0x37daacad",
+    "0x3e8ee3df",
+    "0x4fb1a07b",
+    "0x85f25597",
+    "0x8a2dc014",
+    "0x8da5cb5b",
+    "0x93e59dc1",
+    "0x95fcea78",
+    "0xa0c76a96",
+    "0xa7e28d48",
+    "0xbcf2e6eb",
+    "0xbd5f3e7d",
+    "0xca346d4a",
+    "0xd2ce7d65",
+    "0xf26bdead",
+    "0xf68a9082",
+    "0xf887ea40",
+    "0xf8c8765e",
+    "0xfb0e722b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x39bd8ed47504547e4a6e0b0e0893257b19da99a00fc6ba728a7187e43cc99863",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/libraries/Whitelist.sol:Whitelist"
+  ],
+  "role": "logic",
+  "codeLength": 1580,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x13af4035",
+    "0x37ca2617",
+    "0x3b99adf7",
+    "0x8da5cb5b",
+    "0xbabcc539"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.6.11+commit.5ef660b1",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.0.1-beta.0",
+  "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9"
+}

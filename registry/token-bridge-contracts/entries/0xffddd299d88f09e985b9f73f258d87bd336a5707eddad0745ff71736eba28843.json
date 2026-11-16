@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xffddd299d88f09e985b9f73f258d87bd336a5707eddad0745ff71736eba28843",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/arbitrum/gateway/L2ERC20Gateway.sol:L2ERC20Gateway"
+  ],
+  "role": "logic",
+  "codeLength": 5305,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "beaconProxyFactory()",
+      "selector": "0xc05e6a95",
+      "kind": "single"
+    },
+    {
+      "signature": "counterpartGateway()",
+      "selector": "0x2db09c1c",
+      "kind": "single"
+    },
+    {
+      "signature": "router()",
+      "selector": "0xf887ea40",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x015234ab",
+    "0x2db09c1c",
+    "0x2e567b36",
+    "0x569f26ff",
+    "0x7b3a3c8b",
+    "0x95fcea78",
+    "0x97881f8d",
+    "0xa0c76a96",
+    "0xa7e28d48",
+    "0xc05e6a95",
+    "0xc0c53b8b",
+    "0xd2ce7d65",
+    "0xf887ea40"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xd081eb0b81fef745f0b674accb13b359b62944500ab295360d923a50abab92a4",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:L2AtomicTokenBridgeFactory"
+  ],
+  "role": "logic",
+  "codeLength": 24378,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0xb1c7a870"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.2",
+  "commit": "bf9ad3d7f25c0eaf0a5f89eec7a0a370833cea16"
+}

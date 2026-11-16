@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x8219decf9cf7b132d8f810d6eb281df4ff7f38585012509efa5f9df9b86ca288",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/ethereum/L1AtomicTokenBridgeCreator.sol:L1AtomicTokenBridgeCreator"
+  ],
+  "role": "logic",
+  "codeLength": 24061,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "canonicalL2FactoryAddress()",
+      "selector": "0xbfd3e518",
+      "kind": "single"
+    },
+    {
+      "signature": "getCanonicalL2BeaconProxyFactoryAddress(uint256)",
+      "selector": "0x52c8b700",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2CustomGatewayAddress(uint256)",
+      "selector": "0x16d16ba9",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2ProxyAdminAddress(uint256)",
+      "selector": "0x06cac3f9",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2RouterAddress(uint256)",
+      "selector": "0xa2ac80c6",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2StandardGatewayAddress(uint256)",
+      "selector": "0x1f86c0ec",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2UpgradeExecutorAddress(uint256)",
+      "selector": "0x18b4d27e",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2WethAddress(uint256)",
+      "selector": "0xc7c6d01b",
+      "kind": "list"
+    },
+    {
+      "signature": "getCanonicalL2WethGatewayAddress(uint256)",
+      "selector": "0x595172c1",
+      "kind": "list"
+    },
+    {
+      "signature": "l1Weth()",
+      "selector": "0x146bf4b1",
+      "kind": "single"
+    },
+    {
+      "signature": "l2CustomGatewayTemplate()",
+      "selector": "0x41083186",
+      "kind": "single"
+    },
+    {
+      "signature": "l2MulticallTemplate()",
+      "selector": "0x8c99e31c",
+      "kind": "single"
+    },
+    {
+      "signature": "l2RouterTemplate()",
+      "selector": "0x381c9d99",
+      "kind": "single"
+    },
+    {
+      "signature": "l2StandardGatewayTemplate()",
+      "selector": "0xd7eee6ca",
+      "kind": "single"
+    },
+    {
+      "signature": "l2TokenBridgeFactoryTemplate()",
+      "selector": "0x1aeef2e2",
+      "kind": "single"
+    },
+    {
+      "signature": "l2WethGatewayTemplate()",
+      "selector": "0x9095765e",
+      "kind": "single"
+    },
+    {
+      "signature": "l2WethTemplate()",
+      "selector": "0xfd40ad85",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "retryableSender()",
+      "selector": "0x36dddb97",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x041ed50d",
+    "0x06cac3f9",
+    "0x146bf4b1",
+    "0x16d16ba9",
+    "0x18b4d27e",
+    "0x1aeef2e2",
+    "0x1f86c0ec",
+    "0x36dddb97",
+    "0x381c9d99",
+    "0x41083186",
+    "0x52c8b700",
+    "0x595172c1",
+    "0x6563be7e",
+    "0x715018a6",
+    "0x80c7fbf4",
+    "0x8277742b",
+    "0x8369166d",
+    "0x888139d4",
+    "0x8c99e31c",
+    "0x8da5cb5b",
+    "0x9095765e",
+    "0xa2ac80c6",
+    "0xa5595da9",
+    "0xa7752a0e",
+    "0xbfd3e518",
+    "0xc4d66de8",
+    "0xc7c6d01b",
+    "0xd7eee6ca",
+    "0xf2fde38b",
+    "0xfd40ad85"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.1",
+  "commit": "ae6e36541bbce0291ee492f689ccd291948c9dfb"
+}

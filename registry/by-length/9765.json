@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 9765,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x87bf8411b3f1d95a149556937adf9d69e2a0876ccba68968390b50c6b22b3c65",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/ethereum/gateway/L1OrbitERC20Gateway.sol:L1OrbitERC20Gateway"
+      ],
+      "role": "logic",
+      "codeLength": 9765,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "counterpartGateway()",
+          "selector": "0x2db09c1c",
+          "kind": "single"
+        },
+        {
+          "signature": "inbox()",
+          "selector": "0xfb0e722b",
+          "kind": "single"
+        },
+        {
+          "signature": "l2BeaconProxyFactory()",
+          "selector": "0x70fc045f",
+          "kind": "single"
+        },
+        {
+          "signature": "router()",
+          "selector": "0xf887ea40",
+          "kind": "single"
+        },
+        {
+          "signature": "whitelist()",
+          "selector": "0x93e59dc1",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x01ffc9a7",
+        "0x020a6058",
+        "0x2db09c1c",
+        "0x2e567b36",
+        "0x4fb1a07b",
+        "0x70fc045f",
+        "0x93e59dc1",
+        "0x95fcea78",
+        "0x97881f8d",
+        "0xa01893bf",
+        "0xa0c76a96",
+        "0xa7e28d48",
+        "0xbcf2e6eb",
+        "0xbd5f3e7d",
+        "0xd2ce7d65",
+        "0xf68a9082",
+        "0xf887ea40",
+        "0xfb0e722b"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.1.0-beta.0",
+      "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
+      "tags": [
+        "v1.1.0-beta.0",
+        "v1.1.0-beta.1",
+        "v1.1.0-beta.2",
+        "v1.1.0",
+        "v1.1.1",
+        "v1.1.2",
+        "v1.2.0",
+        "v1.2.1",
+        "v1.2.2",
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

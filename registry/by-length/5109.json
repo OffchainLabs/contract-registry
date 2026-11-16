@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 5109,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x4ebf4899b707242c8f69140e7b8481343f297f7bce552cc8f4b3c4fa6265fbec",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/gateway/L2CustomGateway.sol:L2CustomGateway"
+      ],
+      "role": "logic",
+      "codeLength": 5109,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "counterpartGateway()",
+          "selector": "0x2db09c1c",
+          "kind": "single"
+        },
+        {
+          "signature": "router()",
+          "selector": "0xf887ea40",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x015234ab",
+        "0x2db09c1c",
+        "0x2e567b36",
+        "0x485cc955",
+        "0x7b3a3c8b",
+        "0x8a2dc014",
+        "0x95fcea78",
+        "0xa0c76a96",
+        "0xa7e28d48",
+        "0xd2ce7d65",
+        "0xd4f5532f",
+        "0xf887ea40"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.2.3",
+      "commit": "5bdf33259d2d9ae52ddc69bc5a9cbc558c4c40c7",
+      "tags": [
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 23649,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x73fa16765a2208fc907bcdc7dd5938d09f7802a4f69003dffb1f24231df063c7",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/ethereum/L1AtomicTokenBridgeCreator.sol:L1AtomicTokenBridgeCreator"
+      ],
+      "role": "logic",
+      "codeLength": 23649,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "canonicalL2FactoryAddress()",
+          "selector": "0xbfd3e518",
+          "kind": "single"
+        },
+        {
+          "signature": "l1Multicall()",
+          "selector": "0xb1460a71",
+          "kind": "single"
+        },
+        {
+          "signature": "l1Weth()",
+          "selector": "0x146bf4b1",
+          "kind": "single"
+        },
+        {
+          "signature": "l2CustomGatewayTemplate()",
+          "selector": "0x41083186",
+          "kind": "single"
+        },
+        {
+          "signature": "l2MulticallTemplate()",
+          "selector": "0x8c99e31c",
+          "kind": "single"
+        },
+        {
+          "signature": "l2RouterTemplate()",
+          "selector": "0x381c9d99",
+          "kind": "single"
+        },
+        {
+          "signature": "l2StandardGatewayTemplate()",
+          "selector": "0xd7eee6ca",
+          "kind": "single"
+        },
+        {
+          "signature": "l2TokenBridgeFactoryTemplate()",
+          "selector": "0x1aeef2e2",
+          "kind": "single"
+        },
+        {
+          "signature": "l2WethGatewayTemplate()",
+          "selector": "0x9095765e",
+          "kind": "single"
+        },
+        {
+          "signature": "l2WethTemplate()",
+          "selector": "0xfd40ad85",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        },
+        {
+          "signature": "retryableSender()",
+          "selector": "0x36dddb97",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x146bf4b1",
+        "0x1aeef2e2",
+        "0x36dddb97",
+        "0x381c9d99",
+        "0x41083186",
+        "0x46052706",
+        "0x4c149671",
+        "0x715018a6",
+        "0x81fb9184",
+        "0x8277742b",
+        "0x8369166d",
+        "0x888139d4",
+        "0x8c99e31c",
+        "0x8da5cb5b",
+        "0x9095765e",
+        "0xa5595da9",
+        "0xb1460a71",
+        "0xbfd3e518",
+        "0xc4d66de8",
+        "0xd7eee6ca",
+        "0xd9ce0ef9",
+        "0xf2fde38b",
+        "0xfd40ad85"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.2.0",
+      "commit": "a459c391050867ee8ace489cc5b1f207db9ea925",
+      "tags": [
+        "v1.2.0",
+        "v1.2.1"
+      ]
+    }
+  ]
+}

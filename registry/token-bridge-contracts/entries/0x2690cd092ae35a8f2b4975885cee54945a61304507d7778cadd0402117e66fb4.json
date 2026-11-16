@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x2690cd092ae35a8f2b4975885cee54945a61304507d7778cadd0402117e66fb4",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "@openzeppelin/contracts/proxy/UpgradeableProxy.sol:UpgradeableProxy"
+  ],
+  "packages": {
+    "@openzeppelin/contracts/proxy/UpgradeableProxy.sol:UpgradeableProxy": "@openzeppelin/contracts@3.4.2"
+  },
+  "role": "proxy",
+  "implementationSlots": [
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+  ],
+  "codeLength": 726,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.6.11+commit.5ef660b1",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.0.1-beta.0",
+  "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9"
+}

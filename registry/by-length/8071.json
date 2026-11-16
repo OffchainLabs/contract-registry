@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 8071,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x999bfd265dc16a1e5b8c8c41646f684fa4fc5cc496570880c54517caeccf11d7",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/libraries/L2CustomGatewayToken.sol:L2CustomGatewayToken"
+      ],
+      "role": "logic",
+      "codeLength": 8071,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "l1Address()",
+          "selector": "0xc2eeeebd",
+          "kind": "single"
+        },
+        {
+          "signature": "l2Gateway()",
+          "selector": "0x8fa74a0e",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x23b872dd",
+        "0x313ce567",
+        "0x3644e515",
+        "0x39509351",
+        "0x4000aea0",
+        "0x70a08231",
+        "0x74f4f547",
+        "0x7ecebe00",
+        "0x8c2a993e",
+        "0x8fa74a0e",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xc2eeeebd",
+        "0xc820f146",
+        "0xd505accf",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.6.11+commit.5ef660b1",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.0.1-beta.0",
+      "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9",
+      "tags": [
+        "v1.0.1-beta.0",
+        "v1.0.1-beta.1",
+        "v1.0.1-beta.2"
+      ]
+    }
+  ]
+}

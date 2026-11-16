@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xb43191330d19233ad06dfe135af5b02a99a53094845ec79e0347014d32c3e304",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/ethereum/L1TokenBridgeRetryableSender.sol:L1TokenBridgeRetryableSender"
+  ],
+  "role": "logic",
+  "codeLength": 3986,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x18bd1a92",
+    "0x715018a6",
+    "0x8129fc1c",
+    "0x8da5cb5b",
+    "0xc500fad7",
+    "0xf2fde38b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

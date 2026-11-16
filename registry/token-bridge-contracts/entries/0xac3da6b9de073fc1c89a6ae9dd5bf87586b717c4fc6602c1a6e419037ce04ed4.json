@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xac3da6b9de073fc1c89a6ae9dd5bf87586b717c4fc6602c1a6e419037ce04ed4",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon"
+  ],
+  "packages": {
+    "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon": "@openzeppelin/contracts@4.8.3"
+  },
+  "role": "proxy-admin",
+  "codeLength": 850,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "implementation()",
+      "selector": "0x5c60da1b",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x3659cfe6",
+    "0x5c60da1b",
+    "0x715018a6",
+    "0x8da5cb5b",
+    "0xf2fde38b"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x2c6f9afde9c5feb7bea648a26e3b399124b4acd4c952cfcf79d7669df584d2cf",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "@openzeppelin/contracts/proxy/ProxyAdmin.sol:ProxyAdmin"
+  ],
+  "packages": {
+    "@openzeppelin/contracts/proxy/ProxyAdmin.sol:ProxyAdmin": "@openzeppelin/contracts@3.4.2"
+  },
+  "role": "proxy-admin",
+  "codeLength": 2182,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x204e1c7a",
+    "0x715018a6",
+    "0x7eff275e",
+    "0x8da5cb5b",
+    "0x9623609d",
+    "0x99a88ec4",
+    "0xf2fde38b",
+    "0xf3b7dead"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.6.11+commit.5ef660b1",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.0.1-beta.0",
+  "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9"
+}

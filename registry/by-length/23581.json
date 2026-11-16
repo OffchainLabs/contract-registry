@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 23581,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x633d38f622ef25a9a1051bfdf3f33c8d27f4399b29a406fa0cd3c1132749d76a",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:L2AtomicTokenBridgeFactory"
+      ],
+      "role": "logic",
+      "codeLength": 23581,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0xb1c7a870"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.1.0-beta.1",
+      "commit": "ae6e36541bbce0291ee492f689ccd291948c9dfb",
+      "tags": [
+        "v1.1.0-beta.1",
+        "v1.1.0-beta.2",
+        "v1.1.0"
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x728d4ed7b7797f940a4a397e5baf2a545a655ed58a5a2c931421a8388ddd89f8",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:L2AtomicTokenBridgeFactory"
+      ],
+      "role": "logic",
+      "codeLength": 23581,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0xb1c7a870"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.1.0-beta.0",
+      "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
+      "tags": [
+        "v1.1.0-beta.0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x62f677dd1576bda39a1209553da54a7e3aa2df2dd6822eea9771ec6a9b1b1887",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/arbitrum/L2AtomicTokenBridgeFactory.sol:OrbitSalts"
+  ],
+  "role": "logic",
+  "codeLength": 1680,
+  "maskedRanges": [
+    {
+      "name": "<library address>",
+      "type": "address",
+      "offsets": [
+        1
+      ],
+      "length": 20
+    }
+  ],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0x0b122111",
+    "0x19c4d4c6",
+    "0x1a3f9a6f",
+    "0x20fb24d5",
+    "0x25f6a240",
+    "0x28298992",
+    "0x2ed2f497",
+    "0x3fca125c",
+    "0x484eedf5",
+    "0x62ed5edb",
+    "0x7f663578",
+    "0x884c717b",
+    "0x93bf2ebe",
+    "0x9a5a1787",
+    "0xa89f1d7d",
+    "0xab1ff061",
+    "0xb06b8842",
+    "0xc7f53a86",
+    "0xd72874fa",
+    "0xd845c581",
+    "0xea45ce09",
+    "0xf2774011"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

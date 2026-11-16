@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 9178,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xd61895dbb7623fc2cc9f7255da0778c0d43e032ad527e1c3286eecdb9177937f",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/arbitrum/StandardArbERC20.sol:StandardArbERC20"
+      ],
+      "role": "logic",
+      "codeLength": 9178,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "l1Address()",
+          "selector": "0xc2eeeebd",
+          "kind": "single"
+        },
+        {
+          "signature": "l2Gateway()",
+          "selector": "0x8fa74a0e",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x189db7d2",
+        "0x23b872dd",
+        "0x313ce567",
+        "0x3644e515",
+        "0x39509351",
+        "0x4000aea0",
+        "0x6f791d29",
+        "0x70a08231",
+        "0x74f4f547",
+        "0x7ecebe00",
+        "0x8c2a993e",
+        "0x8fa74a0e",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xc2eeeebd",
+        "0xd505accf",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.6.11+commit.5ef660b1",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.0.1-beta.0",
+      "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9",
+      "tags": [
+        "v1.0.1-beta.0",
+        "v1.0.1-beta.1",
+        "v1.0.1-beta.2"
+      ]
+    }
+  ]
+}

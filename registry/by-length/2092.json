@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 2092,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xd645ecda7cd8dad94c3c5939cfe4e9c5b50b66b003964c2ce722cb5e31d77e46",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy"
+      ],
+      "packages": {
+        "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy": "@openzeppelin/contracts@3.4.2"
+      },
+      "role": "proxy",
+      "implementationSlots": [
+        "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+      ],
+      "codeLength": 2092,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x3659cfe6",
+        "0x4f1ef286",
+        "0x5c60da1b",
+        "0x8f283970",
+        "0xf851a440"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.6.11+commit.5ef660b1",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.0.1-beta.0",
+      "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9",
+      "tags": [
+        "v1.0.1-beta.0",
+        "v1.0.1-beta.1",
+        "v1.0.1-beta.2"
+      ]
+    }
+  ]
+}

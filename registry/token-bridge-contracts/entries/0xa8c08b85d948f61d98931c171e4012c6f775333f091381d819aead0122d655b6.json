@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xa8c08b85d948f61d98931c171e4012c6f775333f091381d819aead0122d655b6",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/libraries/ClonableBeaconProxy.sol:BeaconProxyFactory"
+  ],
+  "role": "logic",
+  "codeLength": 3220,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "beacon()",
+      "selector": "0x59659e90",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x29a5c5cf",
+    "0x396a5f95",
+    "0x59659e90",
+    "0x97881f8d",
+    "0xb3e3bf42",
+    "0xc4d66de8",
+    "0xe75b2141"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "8667fb0ff606e89bb7966891613139e729dafc35"
+}

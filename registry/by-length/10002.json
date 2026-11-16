@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 10002,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xc47fbcfe24b89396cca78567faf4a32705c9ac5ab5850d12c576b6d911d219ee",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/ethereum/gateway/L1USDCGateway.sol:L1USDCGateway"
+      ],
+      "role": "logic",
+      "codeLength": 10002,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "burner()",
+          "selector": "0x27810b6e",
+          "kind": "single"
+        },
+        {
+          "signature": "counterpartGateway()",
+          "selector": "0x2db09c1c",
+          "kind": "single"
+        },
+        {
+          "signature": "inbox()",
+          "selector": "0xfb0e722b",
+          "kind": "single"
+        },
+        {
+          "signature": "l1USDC()",
+          "selector": "0xa6f73669",
+          "kind": "single"
+        },
+        {
+          "signature": "l2USDC()",
+          "selector": "0x29e96f9e",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        },
+        {
+          "signature": "router()",
+          "selector": "0xf887ea40",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x01ffc9a7",
+        "0x020a6058",
+        "0x02191980",
+        "0x13af4035",
+        "0x27810b6e",
+        "0x29e96f9e",
+        "0x2db09c1c",
+        "0x2e567b36",
+        "0x486a7e6b",
+        "0x4fb1a07b",
+        "0x60da3e83",
+        "0x63d8882a",
+        "0x8a5e52bb",
+        "0x8da5cb5b",
+        "0x95fcea78",
+        "0xa0c76a96",
+        "0xa6f73669",
+        "0xa7e28d48",
+        "0xa996d6ce",
+        "0xbcf2e6eb",
+        "0xbd5f3e7d",
+        "0xcc2a9a5b",
+        "0xcc43f3d3",
+        "0xd2ce7d65",
+        "0xf68a9082",
+        "0xf887ea40",
+        "0xfb0e722b"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.2.3",
+      "commit": "5bdf33259d2d9ae52ddc69bc5a9cbc558c4c40c7",
+      "tags": [
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

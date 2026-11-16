@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 2143,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xb8f5d28f92c4e1936a38cf3328b1b95a812b876c53ad60ecbd3cac2e4845141a",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/libraries/ERC20Upgradeable.sol:ERC20Upgradeable"
+      ],
+      "role": "logic",
+      "codeLength": 2143,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x23b872dd",
+        "0x313ce567",
+        "0x39509351",
+        "0x70a08231",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.1.0-beta.0",
+      "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
+      "tags": [
+        "v1.1.0-beta.0",
+        "v1.1.0-beta.1",
+        "v1.1.0-beta.2",
+        "v1.1.0",
+        "v1.1.1",
+        "v1.1.2",
+        "v1.2.0",
+        "v1.2.1",
+        "v1.2.2",
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

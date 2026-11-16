@@ -1,10 +1,13 @@
 {
   "schemaVersion": 2,
   "codeLengths": [
+    63,
     87,
     91,
     94,
     95,
+    125,
+    134,
     135,
     136,
     158,
@@ -15,15 +18,31 @@
     492,
     540,
     581,
+    697,
+    726,
+    760,
     802,
+    835,
     843,
+    850,
     949,
+    1131,
     1224,
     1321,
     1362,
+    1580,
+    1621,
+    1680,
+    1681,
+    1700,
     1892,
     1933,
+    2092,
+    2130,
+    2143,
+    2182,
     2201,
+    2202,
     2216,
     2228,
     2242,
@@ -33,55 +52,107 @@
     2532,
     2534,
     2573,
+    2576,
+    2578,
     2665,
     2685,
+    2984,
+    2999,
+    3143,
     3160,
     3180,
+    3220,
+    3339,
     3362,
     3391,
+    3399,
     3403,
     3432,
+    3845,
+    3875,
+    3986,
+    4137,
+    4156,
+    4426,
     4594,
+    4598,
     4617,
     4660,
     4699,
     4742,
     4752,
     4793,
+    5109,
     5171,
     5172,
+    5218,
+    5229,
+    5305,
+    5363,
     5427,
+    5470,
+    5472,
+    5718,
+    5868,
+    5893,
+    6002,
     6204,
     6306,
+    6371,
     6414,
     6455,
+    6500,
+    6533,
     6702,
     6725,
     6743,
     6756,
     6766,
     6952,
+    6961,
     7084,
     7125,
     7190,
     7231,
+    7439,
     7500,
     7527,
     7536,
+    7610,
     7727,
     7768,
+    8071,
+    8203,
     8303,
     8344,
     8375,
+    8409,
     8416,
+    8588,
     8748,
     8789,
+    8877,
+    9178,
+    9244,
+    9352,
+    9400,
+    9670,
+    9765,
+    10002,
+    10168,
     10197,
     10238,
+    10298,
+    10305,
+    10471,
     10483,
     10524,
+    10948,
     11006,
     11047,
+    11614,
+    11788,
+    11921,
     13359,
     13400,
     13402,
@@ -98,12 +169,21 @@
     22343,
     23477,
     23502,
+    23530,
     23538,
     23543,
     23544,
+    23581,
+    23649,
     23670,
     23714,
-    24245
+    24061,
+    24188,
+    24245,
+    24378,
+    24412,
+    24472,
+    24506
   ],
   "sources": {
     "nitro-contracts": {
@@ -473,7 +553,198 @@
     },
     "token-bridge-contracts": {
       "repo": "OffchainLabs/token-bridge-contracts",
-      "getters": []
+      "getters": [
+        {
+          "signature": "beacon()",
+          "selector": "0x59659e90",
+          "kind": "single"
+        },
+        {
+          "signature": "beaconProxyFactory()",
+          "selector": "0xc05e6a95",
+          "kind": "single"
+        },
+        {
+          "signature": "burner()",
+          "selector": "0x27810b6e",
+          "kind": "single"
+        },
+        {
+          "signature": "canonicalL2FactoryAddress()",
+          "selector": "0xbfd3e518",
+          "kind": "single"
+        },
+        {
+          "signature": "counterpartGateway()",
+          "selector": "0x2db09c1c",
+          "kind": "single"
+        },
+        {
+          "signature": "defaultGateway()",
+          "selector": "0x03295802",
+          "kind": "single"
+        },
+        {
+          "signature": "getCanonicalL2BeaconProxyFactoryAddress(uint256)",
+          "selector": "0x52c8b700",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2CustomGatewayAddress(uint256)",
+          "selector": "0x16d16ba9",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2Multicall(uint256)",
+          "selector": "0xbc110c8f",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2ProxyAdminAddress(uint256)",
+          "selector": "0x06cac3f9",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2RouterAddress(uint256)",
+          "selector": "0xa2ac80c6",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2StandardGatewayAddress(uint256)",
+          "selector": "0x1f86c0ec",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2UpgradeExecutorAddress(uint256)",
+          "selector": "0x18b4d27e",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2WethAddress(uint256)",
+          "selector": "0xc7c6d01b",
+          "kind": "list"
+        },
+        {
+          "signature": "getCanonicalL2WethGatewayAddress(uint256)",
+          "selector": "0x595172c1",
+          "kind": "list"
+        },
+        {
+          "signature": "getCurrentBlockCoinbase()",
+          "selector": "0xa8b0574e",
+          "kind": "single"
+        },
+        {
+          "signature": "implementation()",
+          "selector": "0x5c60da1b",
+          "kind": "single"
+        },
+        {
+          "signature": "inbox()",
+          "selector": "0xfb0e722b",
+          "kind": "single"
+        },
+        {
+          "signature": "l1Address()",
+          "selector": "0xc2eeeebd",
+          "kind": "single"
+        },
+        {
+          "signature": "l1Multicall()",
+          "selector": "0xb1460a71",
+          "kind": "single"
+        },
+        {
+          "signature": "l1USDC()",
+          "selector": "0xa6f73669",
+          "kind": "single"
+        },
+        {
+          "signature": "l1Weth()",
+          "selector": "0x146bf4b1",
+          "kind": "single"
+        },
+        {
+          "signature": "l2BeaconProxyFactory()",
+          "selector": "0x70fc045f",
+          "kind": "single"
+        },
+        {
+          "signature": "l2CustomGatewayTemplate()",
+          "selector": "0x41083186",
+          "kind": "single"
+        },
+        {
+          "signature": "l2Gateway()",
+          "selector": "0x8fa74a0e",
+          "kind": "single"
+        },
+        {
+          "signature": "l2MulticallTemplate()",
+          "selector": "0x8c99e31c",
+          "kind": "single"
+        },
+        {
+          "signature": "l2RouterTemplate()",
+          "selector": "0x381c9d99",
+          "kind": "single"
+        },
+        {
+          "signature": "l2StandardGatewayTemplate()",
+          "selector": "0xd7eee6ca",
+          "kind": "single"
+        },
+        {
+          "signature": "l2TokenBridgeFactoryTemplate()",
+          "selector": "0x1aeef2e2",
+          "kind": "single"
+        },
+        {
+          "signature": "l2USDC()",
+          "selector": "0x29e96f9e",
+          "kind": "single"
+        },
+        {
+          "signature": "l2Weth()",
+          "selector": "0x247b2768",
+          "kind": "single"
+        },
+        {
+          "signature": "l2WethGatewayTemplate()",
+          "selector": "0x9095765e",
+          "kind": "single"
+        },
+        {
+          "signature": "l2WethTemplate()",
+          "selector": "0xfd40ad85",
+          "kind": "single"
+        },
+        {
+          "signature": "owner()",
+          "selector": "0x8da5cb5b",
+          "kind": "single"
+        },
+        {
+          "signature": "retryableSender()",
+          "selector": "0x36dddb97",
+          "kind": "single"
+        },
+        {
+          "signature": "router()",
+          "selector": "0xf887ea40",
+          "kind": "single"
+        },
+        {
+          "signature": "usdcOwnershipTransferrer()",
+          "selector": "0x77403988",
+          "kind": "single"
+        },
+        {
+          "signature": "whitelist()",
+          "selector": "0x93e59dc1",
+          "kind": "single"
+        }
+      ]
     },
     "upgrade-executor": {
       "repo": "OffchainLabs/upgrade-executor",

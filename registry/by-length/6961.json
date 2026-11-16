@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 6961,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0x71b062c52e310874cff3d8244d3674a83dc58cff67e793b268ed1f6169c4dee2",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/libraries/aeWETH.sol:aeWETH"
+      ],
+      "role": "logic",
+      "codeLength": 6961,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [
+        {
+          "signature": "l1Address()",
+          "selector": "0xc2eeeebd",
+          "kind": "single"
+        },
+        {
+          "signature": "l2Gateway()",
+          "selector": "0x8fa74a0e",
+          "kind": "single"
+        }
+      ],
+      "selectors": [
+        "0x06fdde03",
+        "0x095ea7b3",
+        "0x18160ddd",
+        "0x205c2878",
+        "0x23b872dd",
+        "0x2e1a7d4d",
+        "0x313ce567",
+        "0x3644e515",
+        "0x39509351",
+        "0x4000aea0",
+        "0x70a08231",
+        "0x74f4f547",
+        "0x7ecebe00",
+        "0x8c2a993e",
+        "0x8fa74a0e",
+        "0x95d89b41",
+        "0xa457c2d7",
+        "0xa9059cbb",
+        "0xb760faf9",
+        "0xc2eeeebd",
+        "0xc820f146",
+        "0xd0e30db0",
+        "0xd505accf",
+        "0xdd62ed3e"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.8.16+commit.07a7930e",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.1.0-beta.0",
+      "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
+      "tags": [
+        "v1.1.0-beta.0",
+        "v1.1.0-beta.1",
+        "v1.1.0-beta.2",
+        "v1.1.0",
+        "v1.1.1",
+        "v1.1.2",
+        "v1.2.0",
+        "v1.2.1",
+        "v1.2.2",
+        "v1.2.3",
+        "v1.2.4",
+        "v1.2.5"
+      ]
+    }
+  ]
+}

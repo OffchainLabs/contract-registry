@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xa5adbb557fe61960a11cf631a0e7e887b0686fb097c744885de256dcec0f7a4b",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "contracts/tokenbridge/arbitrum/gateway/L2USDCGateway.sol:L2USDCGateway"
+  ],
+  "role": "logic",
+  "codeLength": 6371,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [
+    {
+      "signature": "counterpartGateway()",
+      "selector": "0x2db09c1c",
+      "kind": "single"
+    },
+    {
+      "signature": "l1USDC()",
+      "selector": "0xa6f73669",
+      "kind": "single"
+    },
+    {
+      "signature": "l2USDC()",
+      "selector": "0x29e96f9e",
+      "kind": "single"
+    },
+    {
+      "signature": "owner()",
+      "selector": "0x8da5cb5b",
+      "kind": "single"
+    },
+    {
+      "signature": "router()",
+      "selector": "0xf887ea40",
+      "kind": "single"
+    },
+    {
+      "signature": "usdcOwnershipTransferrer()",
+      "selector": "0x77403988",
+      "kind": "single"
+    }
+  ],
+  "selectors": [
+    "0x015234ab",
+    "0x13af4035",
+    "0x1459457a",
+    "0x29e96f9e",
+    "0x2db09c1c",
+    "0x2e567b36",
+    "0x54d3a598",
+    "0x56bb54a7",
+    "0x77403988",
+    "0x7b3a3c8b",
+    "0x8da5cb5b",
+    "0x95fcea78",
+    "0xa0c76a96",
+    "0xa6f73669",
+    "0xa7e28d48",
+    "0xc689fc34",
+    "0xd2ce7d65",
+    "0xe4c4be58",
+    "0xe9f2838e",
+    "0xf887ea40"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.2.3",
+  "commit": "5bdf33259d2d9ae52ddc69bc5a9cbc558c4c40c7"
+}

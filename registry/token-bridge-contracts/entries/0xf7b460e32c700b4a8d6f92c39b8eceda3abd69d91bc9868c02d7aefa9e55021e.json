@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0xf7b460e32c700b4a8d6f92c39b8eceda3abd69d91bc9868c02d7aefa9e55021e",
+  "repo": "OffchainLabs/token-bridge-contracts",
+  "contracts": [
+    "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable"
+  ],
+  "packages": {
+    "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol:ERC20Upgradeable": "@openzeppelin/contracts-upgradeable@3.4.2"
+  },
+  "role": "logic",
+  "codeLength": 2578,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0x06fdde03",
+    "0x095ea7b3",
+    "0x18160ddd",
+    "0x23b872dd",
+    "0x313ce567",
+    "0x39509351",
+    "0x70a08231",
+    "0x95d89b41",
+    "0xa457c2d7",
+    "0xa9059cbb",
+    "0xdd62ed3e"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.6.11+commit.5ef660b1",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 100
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.0.1-beta.0",
+  "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9"
+}

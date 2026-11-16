@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "codeLength": 134,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "fingerprint": "0xa51dcee651fc48429130c81b8dfea1fcc09775ff437f825e1dde5c666b0ea4d6",
+      "repo": "OffchainLabs/token-bridge-contracts",
+      "contracts": [
+        "contracts/tokenbridge/libraries/Cloneable.sol:Cloneable"
+      ],
+      "role": "logic",
+      "codeLength": 134,
+      "maskedRanges": [],
+      "cborMetadataLength": 53,
+      "getters": [],
+      "selectors": [
+        "0x6f791d29"
+      ],
+      "compiler": {
+        "language": "Solidity",
+        "version": "0.6.11+commit.5ef660b1",
+        "evmVersion": null,
+        "optimizer": {
+          "enabled": true,
+          "runs": 100
+        },
+        "viaIR": false,
+        "metadata": {
+          "bytecodeHash": null,
+          "appendCBOR": true
+        }
+      },
+      "ref": "v1.0.1-beta.0",
+      "commit": "ebb7862c127d5e3dee07fae746c52dced6afd2f9",
+      "tags": [
+        "v1.0.1-beta.0",
+        "v1.0.1-beta.1",
+        "v1.0.1-beta.2"
+      ]
+    }
+  ]
+}
