@@ -1,19 +1,14 @@
 import { getAddress, keccak256 } from 'viem'
 import { hexToBytes, ZERO_ADDRESS } from '../lib/hex.ts'
 import { decodeImmutables, type ImmutableValue } from '../lib/fingerprint.ts'
+import { outOfScopePath } from '../lib/layout.ts'
 import type { ByLengthEntry, ContractRole, Getter, Hex } from '../lib/types.ts'
+import { readImplementations, type ImplementationRole } from './proxy.ts'
+import { versionOf, type Registry } from './registry.ts'
 import { ExecutionError, Rpc } from './rpc.ts'
 import { codeSelectors } from './selectors.ts'
-import type { Registry } from './registry.ts'
 
-/**
- * Proxy entries list the slots to read. These two are probed only for code the registry doesn't
- * know (e.g. a chain deployed before the registry's start), so such walks still reach the logic
- * and `Registry.getVersion` can still report it.
- */
-export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
-/** AdminFallbackProxy (RollupProxy) secondary, user-logic implementation slot. */
-export const SECONDARY_IMPLEMENTATION_SLOT = '0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d'
+export { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './proxy.ts'
 
 export interface WalkOptions {
   start: string
@@ -21,11 +16,14 @@ export interface WalkOptions {
   registry: Registry
   /**
    * The source the walk belongs to, by id (e.g. `nitro-contracts`): unknown code is probed with
-   * that source's getters from the registry's index.
+   * that source's getters from the registry's index, and the summary intersects that source's
+   * logic. Default: the source of the start contract's logic, which is the first piece that
+   * matches an entry of: its implementation, its secondary implementation, its own code. If none
+   * does, and the registry has one source, that one; otherwise the walk throws, asking for it.
    */
-  source: string
-  /** Getter signatures whose targets are labelled leaves, never expanded. */
-  outOfScope: Iterable<string>
+  source?: string
+  /** Getter signatures whose targets are labelled leaves, never expanded. Default: the source's list in the registry. */
+  outOfScope?: Iterable<string>
   /** Max items read from a `list` getter. */
   listCap?: number
   /** Block to read at; defaults to the latest block when the walk starts. */
@@ -43,6 +41,8 @@ export interface MatchedEntry {
   /** Proxies: the slots read for the node's `implementation` and `secondaryImplementation`. */
   implementationSlots?: Hex[]
   fingerprint: Hex
+  /** This code's own version (`versionOf` the entry), of `repo`. */
+  version: string
   tags: string[]
   /** The ref (tag or branch) and commit the entry was first built from; null on a manual entry. */
   ref: string | null
@@ -54,6 +54,7 @@ export interface MatchedEntry {
 
 export interface ClosestEntry {
   fingerprint: Hex
+  repo: string
   contracts: string[]
   tags: string[]
   ref: string | null
@@ -64,12 +65,14 @@ export interface ClosestEntry {
   score: number
 }
 
-/** What a piece of code is. `matched` names the one entry it matches (the registry guarantees at most one). */
+/**
+ * What a piece of code is. `matched` names the one entry it matches (the registry guarantees at
+ * most one). `closest` and `answeredGetters` are only filled in on in-scope nodes.
+ */
 export type CodeId =
   | { status: 'matched'; codeLength: number; match: MatchedEntry }
   | { status: 'unknown'; codeLength: number; codeHash: Hex; answeredGetters: string[]; closest: ClosestEntry | null }
   | { status: 'no-code' }
-  | { status: 'not-identified'; codeLength: number; codeHash: Hex }
 
 export interface Edge { from: string; getter: string; index: number | null; inScope: boolean }
 
@@ -77,7 +80,11 @@ export interface WalkNode {
   address: string
   name: string
   kind: 'account' | 'contract'
-  /** True for the start node and every node reached through an in-scope edge (these are expanded). */
+  /**
+   * True for the start node and every node reached through an in-scope edge: these are expanded
+   * (their getters called). Other contracts are leaves: identified like any node, code and
+   * implementations, but never expanded.
+   */
   inScope: boolean
   depth: number
   edges: Edge[]
@@ -98,13 +105,34 @@ export interface WalkNode {
 export interface Implementation { slot: Hex; address: string; code: CodeId }
 
 export type Warning =
-  | { kind: 'unknown-code'; address: string; role: 'code' | 'implementation' | 'secondaryImplementation'; via: Edge[] }
-  | { kind: 'conflicting-getter'; getter: string; values: { value: string; nodes: string[] }[] }
-  | { kind: 'getter-reverted'; address: string; getter: string; index: number | null; entry: Hex }
+  | { kind: 'unknown-code'; address: string; role: 'code' | ImplementationRole; via: Edge[] }
   | { kind: 'no-implementation-code'; address: string; implementation: string }
+  | { kind: 'getter-reverted'; address: string; getter: string; index: number | null; entry: Hex }
+  | { kind: 'conflicting-getter'; getter: string; values: { value: string; nodes: string[] }[] }
+
+/** In-scope code matched to an entry of another repo than the walk's. */
+export interface OtherRepoCode { address: string; repo: string; version: string }
+
+export interface WalkSummary {
+  /**
+   * Intersection of the tag sets of all matched in-scope logic code of the walk's repo: the
+   * releases the deployment is consistent with. Proxies and proxy admins are left out (they are
+   * still identified in the nodes): upgrades replace implementations, never proxies, so after an
+   * upgrade to a release that changed proxy code they would empty the intersection. So is code of
+   * other repos, whose tags are another repo's releases (see `otherRepoInScope`).
+   */
+  tags: string[]
+  /** Matched in-scope code of every role and repo, proxies included. */
+  matchedInScope: number
+  unknownInScope: number
+  /** Matched in-scope logic code of the walk's repo whose tag set is empty (unreleased builds); these empty the intersection. */
+  untaggedInScope: string[]
+  /** Matched in-scope code of any role from another repo, with its own version: listed here, never in `tags`. */
+  otherRepoInScope: OtherRepoCode[]
+}
 
 export interface WalkResult {
-  schemaVersion: 1
+  schemaVersion: 2
   /** The walk's source, by id, and its repo. */
   source: string
   repo: string
@@ -113,43 +141,32 @@ export interface WalkResult {
   blockNumber: string
   start: string
   outOfScope: string[]
+  /** By depth, then in-scope first, then by address. */
   nodes: WalkNode[]
+  /** By kind (unknown code, implementations with no code, reverted getters, conflicting getters), then in node order. */
   warnings: Warning[]
-  summary: {
-    /**
-     * Intersection of the tag sets of all matched in-scope logic code: the releases the deployment
-     * is consistent with. Proxies and proxy admins are left out (they are still identified in the
-     * nodes): upgrades replace implementations, never proxies, so after an upgrade to a release
-     * that changed proxy code they would empty the intersection.
-     */
-    tags: string[]
-    /** Matched in-scope code of every role, proxies included. */
-    matchedInScope: number
-    unknownInScope: number
-    /** Matched in-scope logic code whose tag set is empty (unreleased builds); these empty the intersection. */
-    untaggedInScope: string[]
-  }
+  summary: WalkSummary
   stats: { rpcRequests: number; ms: number }
 }
 
 interface GetterToCall extends Getter { fromEntry: Hex | null }
+
+/** One piece of a contract: its own code, or the code behind one of its implementation slots. */
+interface Piece { role: 'code' | ImplementationRole; id: CodeId; entry: ByLengthEntry | null; code: Uint8Array }
 
 /** Walks a chain's contracts from one starting address (spec §5.6). Read-only RPC calls only. */
 export async function walk(opts: WalkOptions): Promise<WalkResult> {
   const t0 = Date.now()
   const { rpc, registry } = opts
   const listCap = opts.listCap ?? 64
-  const outOfScope = new Set(opts.outOfScope)
   const log = opts.log ?? (() => {})
   const chainId = await rpc.chainId()
   const blockNumber = opts.blockNumber ?? (await rpc.blockNumber())
   const block = '0x' + blockNumber.toString(16)
   const index = await registry.index()
-  const sourceIndex = index.sources[opts.source]
-  if (!sourceIndex) throw new Error(`the registry has no source ${opts.source} (it has ${Object.keys(index.sources).join(', ') || 'none'})`)
 
   const nodes = new Map<string, WalkNode>()
-  const warnings: Warning[] = []
+  const reverted: Extract<Warning, { kind: 'getter-reverted' }>[] = []
   const codeCache = new Map<string, Promise<Uint8Array>>()
   const getCode = (a: string) => {
     let p = codeCache.get(a)
@@ -176,10 +193,61 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     return { id: { status: 'matched', codeLength: code.length, match: matchedEntry(e, code) }, entry: e }
   }
 
-  const visited = new Set<string>()
-  const expanded = new Set<string>()
+  // A contract's code and, for a proxy (or unknown code with a slot set), the code behind its
+  // implementation slots. Done once per address, for in-scope nodes and leaves alike.
+  const identified = new Map<string, Promise<Piece[]>>()
+  const identifyContract = (node: WalkNode, code: Uint8Array): Promise<Piece[]> => {
+    let p = identified.get(node.address)
+    if (!p) {
+      p = (async () => {
+        const own = await identify(code)
+        node.code = own.id
+        const pieces: Piece[] = [{ role: 'code', ...own, code }]
+        for (const impl of await readImplementations(rpc, node.address, own.entry, block)) {
+          const implCode = await getCode(impl.address)
+          const r = await identify(implCode)
+          node[impl.role] = { slot: impl.slot, address: checksum(impl.address), code: r.id }
+          pieces.push({ role: impl.role, ...r, code: implCode })
+        }
+        return pieces
+      })()
+      identified.set(node.address, p)
+    }
+    return p
+  }
+
   const start = nodeFor(opts.start, 0)
   start.inScope = true
+
+  // The walk's source: given, or that of the start's logic (its implementations first, then its own code).
+  let source = opts.source
+  if (source === undefined) {
+    const startCode = await getCode(start.address)
+    const pieces = startCode.length ? await identifyContract(start, startCode) : []
+    const logic = [...pieces.slice(1), ...pieces.slice(0, 1)].find(p => p.entry)?.entry
+    const ids = Object.keys(index.sources)
+    if (logic) {
+      source = ids.find(id => index.sources[id].repo === logic.repo)
+      if (source === undefined) throw new Error(`the start's logic matches an entry of ${logic.repo}, which no source in the registry's index has`)
+    } else if (ids.length === 1) {
+      source = ids[0]
+    } else {
+      throw new Error(`can't tell which source the walk belongs to: ${startCode.length ? `nothing at ${start.address}, its code or an implementation behind it, matches an entry` : `${start.address} has no code`}; pass the source (one of ${ids.join(', ') || 'none'})`)
+    }
+    log(`source ${source}`)
+  }
+  const sourceIndex = index.sources[source]
+  if (!sourceIndex) throw new Error(`the registry has no source ${source} (it has ${Object.keys(index.sources).join(', ') || 'none'})`)
+  let outOfScopeList = opts.outOfScope
+  if (outOfScopeList === undefined) {
+    const getters = await registry.outOfScope(source)
+    if (!getters) throw new Error(`the registry has no out-of-scope list for ${source} (${outOfScopePath(source)}); pass one`)
+    outOfScopeList = Object.keys(getters)
+  }
+  const outOfScope = new Set(outOfScopeList)
+
+  const visited = new Set<string>()
+  const expanded = new Set<string>()
   let frontier: WalkNode[] = [start]
 
   while (frontier.length) {
@@ -192,39 +260,16 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
         node.kind = 'contract'
       }
       if (node.kind === 'account') return
+      const pieces = await identifyContract(node, code)
       if (!node.inScope) {
-        // Out-of-scope leaf: marked as a contract, not identified or expanded.
-        node.code ??= { status: 'not-identified', codeLength: code.length, codeHash: keccak256(code) }
+        // Out-of-scope leaf: identified, not expanded. No getters, and no closest entry (that
+        // would fetch every shard).
+        node.name = nodeName(node)
         return
       }
       if (expanded.has(node.address)) return
       expanded.add(node.address)
       log(`expand ${node.address}`)
-
-      // Identify the code at the address, and the implementation(s) if it's a proxy.
-      const own = await identify(code)
-      node.code = own.id
-      const pieces: { role: 'code' | 'implementation' | 'secondaryImplementation'; id: CodeId; entry: ByLengthEntry | null; code: Uint8Array }[] = [{ role: 'code', ...own, code }]
-      const readImplementation = async (role: 'implementation' | 'secondaryImplementation', slot: Hex): Promise<boolean> => {
-        const impl = slotAddress(await rpc.getStorageAt(node.address, slot, block))
-        if (!impl) return false
-        const implCode = await getCode(impl)
-        const r = await identify(implCode)
-        node[role] = { slot, address: checksum(impl), code: r.id }
-        pieces.push({ role, ...r, code: implCode })
-        if (!implCode.length) warnings.push({ kind: 'no-implementation-code', address: node.address, implementation: checksum(impl) })
-        return true
-      }
-      if (own.entry) {
-        // Known code: read exactly the slots a proxy entry lists (none for logic or a proxy admin).
-        const slots = own.entry.role === 'proxy' ? (own.entry.implementationSlots ?? []).map(s => s.toLowerCase() as Hex) : []
-        if (slots.length > 2) throw new Error(`${node.address}: its entry lists ${slots.length} implementation slots; this walker reads at most two`)
-        if (slots[0]) await readImplementation('implementation', slots[0])
-        if (slots[1]) await readImplementation('secondaryImplementation', slots[1])
-      } else if (await readImplementation('implementation', EIP1967_IMPLEMENTATION_SLOT)) {
-        // Unknown code: probe the known slots, in case it's a proxy the registry doesn't have.
-        await readImplementation('secondaryImplementation', SECONDARY_IMPLEMENTATION_SLOT)
-      }
       for (const p of pieces) if (p.id.status === 'unknown') p.id.closest = await closestEntry(registry, p.code)
       node.name = nodeName(node)
 
@@ -239,7 +284,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       const results = await Promise.all([...toCall.values()].map(async g => ({ g, values: await callGetter(rpc, node.address, g, block, listCap) })))
       for (const { g, values } of results.sort((a, b) => a.g.signature.localeCompare(b.g.signature))) {
         const inScope = !outOfScope.has(g.signature)
-        if (values.reverted && g.fromEntry) warnings.push({ kind: 'getter-reverted', address: node.address, getter: g.signature, index: values.revertedAt, entry: g.fromEntry })
+        if (values.reverted && g.fromEntry) reverted.push({ kind: 'getter-reverted', address: node.address, getter: g.signature, index: values.revertedAt, entry: g.fromEntry })
         if (!values.reverted || values.items.length) answered.push(g.signature)
         for (const { index: i, value } of values.items) {
           if (value === null) { node.unset.push({ getter: g.signature, index: i, inScope }); continue }
@@ -267,29 +312,46 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     frontier = [...new Map(next.map(n => [n.address, n])).values()]
   }
 
-  // Unknown code behind in-scope edges.
-  for (const n of nodes.values()) {
+  // Everything below reads the sorted nodes, so the output doesn't depend on RPC timing.
+  const sortedNodes = [...nodes.values()].sort((a, b) => a.depth - b.depth || (b.inScope ? 1 : 0) - (a.inScope ? 1 : 0) || a.address.localeCompare(b.address))
+  for (const n of sortedNodes) {
+    n.edges.sort((a, b) => a.from.localeCompare(b.from) || a.getter.localeCompare(b.getter) || (a.index ?? -1) - (b.index ?? -1))
+    n.labels = [...new Set(n.labels)].sort()
+    n.unset.sort((a, b) => a.getter.localeCompare(b.getter))
+  }
+  const pieceIds = (n: WalkNode) => [['code', n.address, n.code], ['implementation', n.implementation?.address, n.implementation?.code], ['secondaryImplementation', n.secondaryImplementation?.address, n.secondaryImplementation?.code]] as const
+
+  // Warnings: unknown code behind in-scope edges, implementations with no code, reverted getters,
+  // conflicting getters; each kind in node order.
+  const unknownCode: Warning[] = [], noImplementationCode: Warning[] = []
+  for (const n of sortedNodes) {
     if (!n.inScope) continue
     const via = n.edges.filter(e => e.inScope)
-    if (n.code?.status === 'unknown') warnings.push({ kind: 'unknown-code', address: n.address, role: 'code', via })
-    if (n.implementation?.code.status === 'unknown') warnings.push({ kind: 'unknown-code', address: n.address, role: 'implementation', via })
-    if (n.secondaryImplementation?.code.status === 'unknown') warnings.push({ kind: 'unknown-code', address: n.address, role: 'secondaryImplementation', via })
+    for (const [role, where, id] of pieceIds(n)) {
+      if (id?.status === 'unknown') unknownCode.push({ kind: 'unknown-code', address: n.address, role, via })
+      if (id?.status === 'no-code' && role !== 'code') noImplementationCode.push({ kind: 'no-implementation-code', address: n.address, implementation: where! })
+    }
   }
-  for (const [getter, m] of [...zeroArgResults].sort()) {
-    if (m.size > 1) warnings.push({ kind: 'conflicting-getter', getter, values: [...m].map(([value, from]) => ({ value, nodes: [...from].sort() })).sort((a, b) => a.value.localeCompare(b.value)) })
+  const position = new Map(sortedNodes.map((n, i) => [n.address, i]))
+  reverted.sort((a, b) => position.get(a.address)! - position.get(b.address)! || a.getter.localeCompare(b.getter) || (a.index ?? -1) - (b.index ?? -1))
+  const conflicting: Warning[] = []
+  for (const [getter, m] of [...zeroArgResults].sort(([a], [b]) => a.localeCompare(b))) {
+    if (m.size > 1) conflicting.push({ kind: 'conflicting-getter', getter, values: [...m].map(([value, from]) => ({ value, nodes: [...from].sort() })).sort((a, b) => a.value.localeCompare(b.value)) })
   }
 
-  // Deployment summary: intersection of the tag sets of all matched in-scope logic code.
+  // Deployment summary: intersection of the tag sets of all matched in-scope logic code of the walk's repo.
   let tags = null as Set<string> | null
   let matched = 0, unknown = 0
   const untagged: string[] = []
-  for (const n of nodes.values()) {
+  const otherRepo: OtherRepoCode[] = []
+  for (const n of sortedNodes) {
     if (!n.inScope) continue
-    for (const [where, id] of [[n.address, n.code], [n.implementation?.address, n.implementation?.code], [n.secondaryImplementation?.address, n.secondaryImplementation?.code]] as const) {
+    for (const [, where, id] of pieceIds(n)) {
       if (!id) continue
       if (id.status === 'unknown') unknown++
       if (id.status !== 'matched') continue
       matched++
+      if (id.match.repo !== sourceIndex.repo) { otherRepo.push({ address: where!, repo: id.match.repo, version: id.match.version }); continue }
       if (id.match.role !== 'logic') continue // a proxy or proxy admin
       const t = new Set(id.match.tags)
       if (!t.size) untagged.push(where!)
@@ -297,15 +359,9 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     }
   }
 
-  const sortedNodes = [...nodes.values()].sort((a, b) => a.depth - b.depth || (b.inScope ? 1 : 0) - (a.inScope ? 1 : 0) || a.address.localeCompare(b.address))
-  for (const n of sortedNodes) {
-    n.edges.sort((a, b) => a.from.localeCompare(b.from) || a.getter.localeCompare(b.getter) || (a.index ?? -1) - (b.index ?? -1))
-    n.labels = [...new Set(n.labels)].sort()
-    n.unset.sort((a, b) => a.getter.localeCompare(b.getter))
-  }
   return {
-    schemaVersion: 1,
-    source: opts.source,
+    schemaVersion: 2,
+    source,
     repo: sourceIndex.repo,
     registry: registry.source.describe(),
     chainId,
@@ -313,8 +369,8 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     start: checksum(opts.start),
     outOfScope: [...outOfScope].sort(),
     nodes: sortedNodes,
-    warnings,
-    summary: { tags: [...(tags ?? [])].sort(), matchedInScope: matched, unknownInScope: unknown, untaggedInScope: untagged },
+    warnings: [...unknownCode, ...noImplementationCode, ...reverted, ...conflicting],
+    summary: { tags: [...(tags ?? [])].sort(), matchedInScope: matched, unknownInScope: unknown, untaggedInScope: untagged, otherRepoInScope: otherRepo },
     stats: { rpcRequests: rpc.requests, ms: Date.now() - t0 },
   }
 }
@@ -323,7 +379,7 @@ function matchedEntry(e: ByLengthEntry, code: Uint8Array): MatchedEntry {
   return {
     repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
-    fingerprint: e.fingerprint, tags: e.tags, ref: e.ref, commit: e.commit,
+    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }
@@ -345,13 +401,6 @@ function nodeName(n: WalkNode): string {
     if (id?.status === 'unknown' && id.closest) return `unknown(~${id.closest.contracts[0].split(':').pop()})`
   }
   return `unknown@${n.address}`
-}
-
-function slotAddress(word: string): string | null {
-  const h = word.replace(/^0x/, '').padStart(64, '0')
-  if (!/^0{24}/.test(h)) return null
-  const a = '0x' + h.slice(24)
-  return a === ZERO_ADDRESS ? null : a
 }
 
 interface GetterValues { items: { index: number | null; value: string | null }[]; reverted: boolean; revertedAt: number | null }
@@ -408,7 +457,7 @@ async function closestEntry(registry: Registry, code: Uint8Array): Promise<Close
   }
   if (!best) return null
   return {
-    fingerprint: best.e.fingerprint, contracts: best.e.contracts, tags: best.e.tags, ref: best.e.ref, commit: best.e.commit,
+    fingerprint: best.e.fingerprint, repo: best.e.repo, contracts: best.e.contracts, tags: best.e.tags, ref: best.e.ref, commit: best.e.commit,
     sharedSelectors: best.shared, entrySelectors: best.e.selectors.length, score: Math.round(best.score * 1000) / 1000,
   }
 }

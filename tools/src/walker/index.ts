@@ -1,8 +1,10 @@
 // Public API of the reference walker, for TypeScript consumers.
-export { walk, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './walk.ts'
-export type { WalkOptions, WalkResult, WalkNode, Warning, Edge, CodeId, MatchedEntry, ClosestEntry, Implementation } from './walk.ts'
+export { walk } from './walk.ts'
+export type { WalkOptions, WalkResult, WalkSummary, WalkNode, Warning, Edge, CodeId, MatchedEntry, ClosestEntry, Implementation, OtherRepoCode } from './walk.ts'
+export { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './proxy.ts'
+export type { ImplementationRole } from './proxy.ts'
 export { Registry, versionOf, openSource, DirSource, GitSource, HttpSource } from './registry.ts'
-export type { RegistrySource } from './registry.ts'
+export type { RegistrySource, ContractVersion } from './registry.ts'
 export { Rpc, RpcError, ExecutionError } from './rpc.ts'
 export { mask, matches, fingerprintOf, decodeImmutables } from '../lib/fingerprint.ts'
 export type { MaskSpec, ImmutableValue } from '../lib/fingerprint.ts'
