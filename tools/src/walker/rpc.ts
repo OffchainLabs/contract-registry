@@ -81,8 +81,21 @@ export class Rpc {
   call(to: string, data: string, block: string): Promise<string> { return this.request('eth_call', [{ to, data }, block]) }
 }
 
+/**
+ * Whether an eth_call error is the call itself failing on chain (a revert or an exceptional halt),
+ * not the node failing to run it. The forms of the RPCs this repo uses:
+ *   - a revert, everywhere: code 3, `execution reverted[: <reason>]`
+ *   - a halt on reth (Alchemy's Ethereum) and anvil: `EVM error[:] <reason>` (`InvalidFEOpcode`,
+ *     `PrecompileError`, `OutOfGas`, ...), or reth's `out of gas: ...`
+ *   - a halt on geth and Nitro (Arbitrum One): `invalid opcode: ...`, `stack underflow (...)`,
+ *     `invalid jump destination`, `out of gas`
+ * A timeout never is, even one that names execution (geth's `execution aborted (timeout = 5s)`):
+ * it is retried and then thrown as an `RpcError`, never taken for a revert.
+ */
 function isExecutionFailure(code: number | undefined, msg: string): boolean {
-  return code === 3 || /revert|invalid opcode|out of gas|stack (underflow|overflow)|invalid jump|execution|bad instruction|opcode|EVM error|precompile/i.test(msg)
+  if (code === 3) return true
+  if (/timeout|timed out/i.test(msg)) return false
+  return /revert|invalid opcode|out of gas|stack (underflow|overflow)|invalid jump|bad instruction|opcode|EVM error|precompile/i.test(msg)
 }
 
 function isRetryable(code: number | undefined, msg: string): boolean {
