@@ -1,13 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/by-length.schema.json",
-  "title": "Generated lookup shard (<source-repo>/by-length/<codeLength>.json): every entry of that length, as in entries/ (role, implementationSlots and packages included), each with the tags whose builds produced it. Never hand-edited.",
+  "title": "Generated lookup shard (registry/by-length/<codeLength>.json): every entry of that length, of every source, sorted by fingerprint, as in its entries/ file (repo, role, implementationSlots and packages included), each with the tags of its own source's tag files whose builds produced it. Never hand-edited.",
   "type": "object",
-  "required": ["schemaVersion", "repo", "codeLength", "entries"],
+  "required": ["schemaVersion", "codeLength", "entries"],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
-    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/viewSchemaVersion" },
     "codeLength": { "type": "integer", "minimum": 1 },
     "entries": {
       "type": "array",

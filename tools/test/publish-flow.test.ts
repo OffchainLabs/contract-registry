@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process'
 import { publish } from '../src/lib/publish.ts'
 import { LocalAlertSink } from '../src/lib/alerts.ts'
 import { stableJson } from '../src/lib/json.ts'
-import { SourceData } from '../src/lib/datarepo.ts'
+import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { ByLengthEntry, Entry } from '../src/lib/types.ts'
 import { EIP1967_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
 import { versionOf } from '../src/walker/registry.ts'
@@ -96,13 +96,13 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   const alerts = new LocalAlertSink(alertsDir)
   const open = () => (fs.existsSync(alertsDir) ? fs.readdirSync(alertsDir) : []).map(f => JSON.parse(fs.readFileSync(path.join(alertsDir, f), 'utf8'))).filter(a => a.state === 'open')
   const run = () => publish({ dataRepo: data, workDir: path.join(tmp, 'work'), source: 'fake', alerts, sourceUrl: srcDir, concurrency: 4, log: () => {} })
-  const entries = (): Entry[] => fs.readdirSync(path.join(data, 'fake/entries')).map(f => JSON.parse(fs.readFileSync(path.join(data, 'fake/entries', f), 'utf8')))
+  const entries = (): Entry[] => fs.readdirSync(path.join(data, 'registry/fake/entries')).map(f => JSON.parse(fs.readFileSync(path.join(data, 'registry/fake/entries', f), 'utf8')))
   /** The entries of one contract first built from `ref`. */
   const builtFrom = (name: string, ref: string) => entries().filter(e => e.contracts.includes(name) && e.ref === ref)
   const only = (es: Entry[], what: string) => { assert.equal(es.length, 1, what); return es[0] }
-  const tagFile = (t: string) => JSON.parse(fs.readFileSync(path.join(data, `fake/tags/${t}.json`), 'utf8'))
-  const branchFile = (b: string) => { const f = path.join(data, `fake/branches/${b}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null }
-  const shardOf = (e: Entry): ByLengthEntry => JSON.parse(fs.readFileSync(path.join(data, `fake/by-length/${e.codeLength}.json`), 'utf8')).entries.find((x: Entry) => x.fingerprint === e.fingerprint)
+  const tagFile = (t: string) => JSON.parse(fs.readFileSync(path.join(data, `registry/fake/tags/${t}.json`), 'utf8'))
+  const branchFile = (b: string) => { const f = path.join(data, `registry/fake/branches/${b}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null }
+  const shardOf = (e: Entry): ByLengthEntry => JSON.parse(fs.readFileSync(path.join(data, `registry/by-length/${e.codeLength}.json`), 'utf8')).entries.find((x: Entry) => x.fingerprint === e.fingerprint)
 
   // --- Run 1: tags v1.0.0 and v9.9.9, and the heads of release-1.1.0 and hotfix/y ---
   const r1 = await run()
@@ -180,7 +180,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   assert.deepEqual(tagFile('v1.1.0').contracts, releaseBuild.contracts)
   assert.deepEqual(r3.branchesDeleted, ['hotfix/y', 'release-1.1.0'])
   assert.equal(branchFile('release-1.1.0'), null, 'deleted branch file removed')
-  assert.ok(!fs.existsSync(path.join(data, 'fake/branches/hotfix')), 'and its directory')
+  assert.ok(!fs.existsSync(path.join(data, 'registry/fake/branches/hotfix')), 'and its directory')
   assert.equal(only(builtFrom('src/A.sol:A', 'release-1.1.0'), 'its entries stay').commit, rel2)
   assert.equal(builtFrom('src/A.sol:A', 'hotfix/y').length, 1)
   assert.deepEqual(shardOf(a2).tags, ['v1.1.0'])
@@ -219,7 +219,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
 
   // --- Run 7: a tag on a commit built as a release head must reproduce that build. ---
   // Stand in for a nondeterministic build by altering the recorded head build.
-  const relFile = path.join(data, 'fake/branches/release-1.2.0.json')
+  const relFile = path.join(data, 'registry/fake/branches/release-1.2.0.json')
   const altered = JSON.parse(fs.readFileSync(relFile, 'utf8')); altered.contracts['src/B.sol:B'] = `0x${'cd'.repeat(32)}`
   fs.writeFileSync(relFile, stableJson(altered))
   git(data, 'commit', '-qam', 'test: a head build the tag build does not reproduce')
@@ -229,7 +229,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   const nd = r7.failures['tag-nondeterministic']![0]
   assert.equal(nd.message, `tag v1.2.0 build doesn't reproduce the fingerprints of ${fixed.slice(0, 12)} built as the head of release-1.2.0; tag file not written`)
   assert.equal(nd.details, `release-1.2.0: src/B.sol:B: branch head build 0x${'cd'.repeat(32)} vs tag build ${b5.fingerprint}`)
-  assert.ok(!fs.existsSync(path.join(data, 'fake/tags/v1.2.0.json')))
+  assert.ok(!fs.existsSync(path.join(data, 'registry/fake/tags/v1.2.0.json')))
   assert.equal(r7.commit, null)
 
   // --- Run 8: the head build restored: the tag reproduces it and is published. ---
@@ -253,7 +253,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
     getters: [], selectors: [], compiler: null, ref: null, commit: null, label: 'B, patched one-off',
   }
   const sd = new SourceData(data, 'fake', 'Example/fake')
-  sd.writeEntry(manual); sd.writeViews()
+  sd.writeEntry(manual); DataRepo.open(data).writeViews()
   cfg.reviewedRangePairs = sameLength.map(b => ({ fingerprints: [manual.fingerprint, b.fingerprint], note: 'test: reviewed' }))
   fs.writeFileSync(cfgFile, stableJson(cfg))
   git(data, 'add', '-A'); git(data, 'commit', '-qm', 'manual entry')

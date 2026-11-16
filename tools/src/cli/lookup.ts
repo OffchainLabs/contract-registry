@@ -1,5 +1,5 @@
-// Identifies one piece of runtime code (spec §5.5): the one entry it matches, or null.
-//   node tools/src/cli/lookup.ts --rpc <url> --address <address> [--registry ...] [--source nitro-contracts]
+// Identifies one piece of runtime code (spec §5.5): the one entry it matches, of any source, or null.
+//   node tools/src/cli/lookup.ts --rpc <url> --address <address> [--registry ...]
 //   node tools/src/cli/lookup.ts --code <0x...>
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -14,10 +14,9 @@ const { values: a } = parseArgs({
   options: {
     rpc: { type: 'string' }, address: { type: 'string', multiple: true }, code: { type: 'string' }, block: { type: 'string', default: 'latest' },
     registry: { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
-    source: { type: 'string', default: 'nitro-contracts' },
   },
 })
-const registry = new Registry(await openSource(a.registry!), a.source!)
+const registry = new Registry(await openSource(a.registry!))
 const targets: { address?: string; code: string }[] = []
 if (a.code) targets.push({ code: a.code })
 if (a.address?.length) {

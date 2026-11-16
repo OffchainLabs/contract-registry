@@ -32,8 +32,8 @@ want.OneStepProverMemory = await get(want.OneStepProofEntry, 'proverMem()')
 want.OneStepProverMath = await get(want.OneStepProofEntry, 'proverMath()')
 want.OneStepProverHostIo = await get(want.OneStepProofEntry, 'proverHostIo()')
 
-const registry = new Registry(await openSource(a.registry!), 'nitro-contracts')
-const w = await walk({ start: INBOX, rpc, registry, repo: 'OffchainLabs/nitro-contracts', outOfScope: Object.keys((await registry.outOfScope())!), blockNumber })
+const registry = new Registry(await openSource(a.registry!))
+const w = await walk({ start: INBOX, rpc, registry, source: 'nitro-contracts', outOfScope: Object.keys((await registry.outOfScope('nitro-contracts'))!), blockNumber })
 if (a.out) fs.writeFileSync(a.out, JSON.stringify(w, null, 2))
 let fail = 0
 const rows = []

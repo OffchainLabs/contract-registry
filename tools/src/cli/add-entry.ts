@@ -2,10 +2,13 @@
 // builds (a one-off or patched build deployed somewhere). Extracts the contract as publish does and
 // writes nothing unless it matches the code deployed at --address, its fingerprint has no entry yet,
 // its label isn't a published tag, and entries of one code length still mask the same bytes. Then
-// writes the entry and regenerates by-length/ and index.json. Builds nothing; commits nothing.
-//   node tools/src/cli/add-entry.ts --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>]
+// writes the entry and regenerates registry/by-length/ and registry/index.json. Builds nothing;
+// commits nothing.
+//   node tools/src/cli/add-entry.ts --source <id> --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>]
 //        --contract <file>:<name> --rpc <url> --address <address> [--block latest] --label <label> [--notes <text>]
-//        [--ref <tag or branch> --commit <sha>] [--source nitro-contracts] [--data-repo <dir>]
+//        [--ref <tag or branch> --commit <sha>] [--data-repo <dir>]
+// --source (e.g. nitro-contracts) has no default: it picks the entry's directory, its repo and the
+// contractRoles its role comes from, and entries are write-once.
 // --build-info and --artifacts are relative to --checkout, as in sources.json. --ref and --commit
 // (default null) are only for a build of a public commit: --ref must point at --commit in the
 // source's configured repo URL, and the checkout must be that commit with no changes to tracked files.
@@ -14,12 +17,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { cborMetadataFields, cborMetadataLength } from '../lib/cbor.ts'
-import { loadSourceConfig } from '../lib/config.ts'
-import { SourceData, entryFromBuild } from '../lib/datarepo.ts'
+import { listSources, loadSourceConfig } from '../lib/config.ts'
+import { DataRepo, SourceData, entryFromBuild } from '../lib/datarepo.ts'
 import { git, remoteRefCommits } from '../lib/exec.ts'
 import { extractContract, loadBuildInfos, packageOf, runtimeCode, selectArtifacts } from '../lib/extract.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
+import { INDEX_PATH, byLengthPath } from '../lib/layout.ts'
 import { rangeConflictReport, rangeConflicts } from '../lib/ranges.ts'
 import { SchemaValidator } from '../lib/schema.ts'
 import type { BuiltContract, CompilerInfo, Entry } from '../lib/types.ts'
@@ -29,7 +33,7 @@ import { Rpc } from '../walker/rpc.ts'
 const { values: a } = parseArgs({
   options: {
     'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
-    source: { type: 'string', default: 'nitro-contracts' },
+    source: { type: 'string' },
     checkout: { type: 'string' },
     'build-info': { type: 'string' },
     layout: { type: 'string' },
@@ -47,8 +51,8 @@ const { values: a } = parseArgs({
 
 function usage(problem: string): never {
   console.error(problem)
-  console.error('usage: add-entry.ts --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>] --contract <file>:<name>')
-  console.error('         --rpc <url> --address <address> [--block latest] --label <label> [--notes <text>] [--ref <ref> --commit <sha>] [--source ...] [--data-repo ...]')
+  console.error('usage: add-entry.ts --source <id> --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>] --contract <file>:<name>')
+  console.error('         --rpc <url> --address <address> [--block latest] --label <label> [--notes <text>] [--ref <ref> --commit <sha>] [--data-repo ...]')
   process.exit(2)
 }
 
@@ -58,6 +62,10 @@ function refuse(lines: string | string[]): never {
   process.exit(1)
 }
 
+const root = path.resolve(a['data-repo']!)
+const configured = listSources(root)
+if (!a.source) usage(`--source is required: the source whose directory, repo and contractRoles the entry gets (configured: ${configured.join(', ')})`)
+if (!configured.includes(a.source)) usage(`--source ${a.source} is not a configured source (configured: ${configured.join(', ')})`)
 for (const k of ['checkout', 'build-info', 'layout', 'contract', 'rpc', 'address'] as const) if (!a[k]) usage(`--${k} is required`)
 const label = a.label?.trim()
 if (!label) usage('--label is required: a manual entry has no tag, so its label is the version getVersion reports')
@@ -74,8 +82,7 @@ for (const d of [checkout, buildInfoDir, artifactsDir]) if (d && !fs.existsSync(
 const commit = a.commit?.toLowerCase() ?? null
 const block = /^\d+$/.test(a.block!) ? `0x${BigInt(a.block!).toString(16)}` : a.block!
 
-const root = path.resolve(a['data-repo']!)
-const cfg = loadSourceConfig(root, a.source!)
+const cfg = loadSourceConfig(root, a.source)
 const data = new SourceData(root, cfg.directory, cfg.repo)
 if (data.hasTag(label)) refuse(`--label ${label} is a published tag of ${cfg.repo}; getVersion would report it for code that tag doesn't contain. Choose another label.`)
 
@@ -91,7 +98,7 @@ const extracted = extractContract(ref)
 if (!extracted) refuse(`${a.contract} has no code to fingerprint: an interface, an abstract contract, or a library with no external functions`)
 const built: BuiltContract = { ...extracted, package: packageOf(checkout, ref.source) }
 if (data.hasEntry(built.fingerprint)) {
-  const existing = (await new Registry(new DirSource(root), cfg.directory).byLength(built.codeLength)).find(e => e.fingerprint === built.fingerprint)
+  const existing = (await new Registry(new DirSource(root)).byLength(built.codeLength)).find(e => e.fingerprint === built.fingerprint)
   refuse(`${built.fingerprint} already has an entry, ${data.entryPath(built.fingerprint)}${existing ? `, which reports ${versionOf(existing)}` : ''}. Entries are write-once.`)
 }
 if (a.ref) {
@@ -115,16 +122,16 @@ const conflicts = rangeConflicts([...others, entry], cfg.reviewedRangePairs)
 if (conflicts.length) refuse(['The entry would break the range invariant (see "Publishing" in the README):', ...rangeConflictReport(cfg.directory, conflicts).split('\n')])
 
 data.writeEntry(entry)
-data.writeViews()
+DataRepo.open(root).writeViews()
 
 // --- What the registry now says --------------------------------------------------------------
-const registry = new Registry(new DirSource(root), cfg.directory)
+const registry = new Registry(new DirSource(root))
 const found = await registry.lookup(deployed)
 if (found?.fingerprint !== entry.fingerprint) throw new Error(`the deployed code looks up as ${found?.fingerprint ?? 'nothing'}, not the new entry ${entry.fingerprint}`)
 const version = await registry.getVersion(rpc, a.address!, block)
 const out = [
   `Wrote ${data.entryPath(entry.fingerprint)}`,
-  `  and regenerated ${cfg.directory}/by-length/${entry.codeLength}.json and ${cfg.directory}/index.json.`,
+  `  and regenerated ${byLengthPath(entry.codeLength)} and ${INDEX_PATH}.`,
   `fingerprint: ${entry.fingerprint}`,
   `contract:    ${entry.contracts[0]} (${entry.role}${entry.packages ? `, ${Object.values(entry.packages)[0]}` : ''})`,
   `getVersion(${a.address}) at ${a.block}: ${version ?? 'null'}`,

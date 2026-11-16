@@ -1,6 +1,8 @@
-// Publish run (and reconcile job) for one or every configured source repo.
-//   node tools/src/cli/publish.ts [--source nitro-contracts] [--reconcile] [--push]
+// Publish run (and reconcile job) for some or every configured source repo, one at a time in
+// source id order, each landing as its own commit.
+//   node tools/src/cli/publish.ts [--source <id> ...] [--reconcile] [--push]
 //        [--work-dir .work] [--alerts local:<dir> | github:<owner/repo>] [--concurrency 3]
+// --source (repeatable) defaults to every source configured under config/.
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { git } from '../lib/exec.ts'
@@ -34,7 +36,8 @@ function sink(spec: string | undefined): AlertSink {
 }
 
 const alerts = sink(a.alerts)
-const sources = a.source ?? listSources(dataRepo)
+// In id order, as listSources gives them, so a run's order never depends on how it was invoked.
+const sources = a.source ? [...new Set(a.source)].sort() : listSources(dataRepo)
 let ok = true
 for (const source of sources) {
   // Serialized runs: if the push is rejected because another run landed first, start over on the new tip.

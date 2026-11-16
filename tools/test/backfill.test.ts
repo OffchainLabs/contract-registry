@@ -160,8 +160,8 @@ test('publish backfills old releases with their own profile, and reports skipped
   }
   const logs: string[] = []
   const run = () => publish({ dataRepo: data, workDir: path.join(tmp, 'work'), source: 'fake', alerts: new LocalAlertSink(path.join(tmp, 'alerts')), sourceUrl: srcDir, deployer, log: s => logs.push(s) })
-  const entries = (): Entry[] => fs.readdirSync(path.join(data, 'fake/entries')).map(f => JSON.parse(fs.readFileSync(path.join(data, 'fake/entries', f), 'utf8')))
-  const tagFile = (t: string) => JSON.parse(fs.readFileSync(path.join(data, `fake/tags/${t}.json`), 'utf8'))
+  const entries = (): Entry[] => fs.readdirSync(path.join(data, 'registry/fake/entries')).map(f => JSON.parse(fs.readFileSync(path.join(data, 'registry/fake/entries', f), 'utf8')))
+  const tagFile = (t: string) => JSON.parse(fs.readFileSync(path.join(data, `registry/fake/tags/${t}.json`), 'utf8'))
 
   const r1 = await run()
   assert.ok(r1.ok, JSON.stringify(r1.failures))

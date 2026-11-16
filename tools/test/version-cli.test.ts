@@ -39,7 +39,7 @@ function registryDir(): string {
     { schemaVersion: 1, repo: REPO, tag: 'v3.2.0', commit: '2'.repeat(40), prerelease: false, packageVersion: '3.2.0', contracts: { 'P.sol:P': keccak256(PROXY_CODE) } },
     { schemaVersion: 1, repo: REPO, tag: 'v3.3.0', commit: '3'.repeat(40), prerelease: false, packageVersion: '3.3.0', contracts: { 'B.sol:B': keccak256(LOGIC_CODE) } },
   ]
-  for (const [rel, content] of generateViews(REPO, 'nitro-contracts', entries, tags)) {
+  for (const [rel, content] of generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags }])) {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true })
     fs.writeFileSync(path.join(dir, rel), content)
   }

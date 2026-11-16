@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { listJsonFiles, readJson } from './json.ts'
+import { BY_LENGTH_DIR, CONFIG_DIR, DATA_DIR, INDEX_PATH, RESERVED_NAMES, parseDataPath, sourceDir } from './layout.ts'
 
 const KINDS = ['entry', 'tag', 'branch', 'by-length', 'index', 'sources', 'out-of-scope'] as const
 export type FileKind = (typeof KINDS)[number]
@@ -22,44 +23,84 @@ export class SchemaValidator {
   }
 }
 
-/** Which schema a data repo file follows, from its path; null for files outside the data layout. */
+/** Which schema a data repo file follows, from its path (relative to the root); null for files outside the layout. */
 export function kindOf(rel: string): FileKind | null {
-  const parts = rel.split(path.sep)
-  if (parts[0] === 'config') return parts.at(-1) === 'sources.json' ? 'sources' : parts.at(-1) === 'out-of-scope-getters.json' ? 'out-of-scope' : null
-  if (parts.length === 2 && parts[1] === 'index.json') return 'index'
-  if (parts[1] === 'entries') return 'entry'
-  if (parts[1] === 'tags') return 'tag'
-  if (parts[1] === 'branches') return 'branch'
-  if (parts[1] === 'by-length') return 'by-length'
-  return null
+  const parts = rel.split(/[\\/]/)
+  if (parts[0] === CONFIG_DIR) return parts.at(-1) === 'sources.json' ? 'sources' : parts.at(-1) === 'out-of-scope-getters.json' ? 'out-of-scope' : null
+  const p = parseDataPath(rel)
+  if (!p) return null
+  if ('view' in p) return p.view
+  return p.kind === 'entries' ? 'entry' : p.kind === 'tags' ? 'tag' : 'branch'
 }
 
 /**
  * Validates every config and data file, plus the invariants a schema can't express: file names
- * match their contents, an entry's packages name only its own contracts, and every source
- * directory belongs to a configured source.
+ * match their contents, an entry's packages name only its own contracts, and every file in a
+ * source's directory has that source's repo. The combined views are checked against what the
+ * inputs generate elsewhere (`DataRepo.viewProblems`).
  */
 export function validateDataRepo(dataRepo: string, sources: { directory: string; repo: string }[]): string[] {
   const v = new SchemaValidator(dataRepo)
   const errors: string[] = []
-  const dirs = [path.join(dataRepo, 'config'), ...sources.map(s => path.join(dataRepo, s.directory))]
-  for (const dir of dirs) {
-    for (const f of listJsonFiles(dir)) {
-      const rel = path.relative(dataRepo, f)
-      const kind = kindOf(rel)
-      if (!kind) { errors.push(`${rel}: unexpected file`); continue }
-      let data: any
-      try { data = readJson(f) } catch (e) { errors.push(`${rel}: invalid JSON: ${(e as Error).message}`); continue }
-      for (const e of v.validate(kind, data)) errors.push(`${rel}: ${e}`)
-      const src = sources.find(s => rel.startsWith(s.directory + path.sep))
-      if (src && data.repo !== src.repo) errors.push(`${rel}: repo ${data.repo} != ${src.repo}`)
-      const base = path.basename(f, '.json')
-      if (kind === 'entry' && data.fingerprint !== base) errors.push(`${rel}: file name doesn't match fingerprint`)
-      if (kind === 'entry') for (const c of Object.keys(data.packages ?? {})) if (!data.contracts?.includes(c)) errors.push(`${rel}: packages names ${c}, which isn't in contracts`)
-      if (kind === 'tag' && data.tag !== path.relative(path.join(dataRepo, src!.directory, 'tags'), f).replace(/\.json$/, '')) errors.push(`${rel}: file name doesn't match tag`)
-      if (kind === 'branch' && data.branch !== path.relative(path.join(dataRepo, src!.directory, 'branches'), f).replace(/\.json$/, '')) errors.push(`${rel}: file name doesn't match branch`)
-      if (kind === 'by-length' && String(data.codeLength) !== base) errors.push(`${rel}: file name doesn't match codeLength`)
+  const files = [CONFIG_DIR, BY_LENGTH_DIR, ...sources.map(s => sourceDir(s.directory))].flatMap(d => listJsonFiles(path.join(dataRepo, d)))
+  if (fs.existsSync(path.join(dataRepo, INDEX_PATH))) files.push(path.join(dataRepo, INDEX_PATH))
+  for (const f of files) {
+    const rel = path.relative(dataRepo, f).split(path.sep).join('/')
+    const kind = kindOf(rel)
+    if (!kind) { errors.push(`${rel}: unexpected file`); continue }
+    let data: any
+    try { data = readJson(f) } catch (e) { errors.push(`${rel}: invalid JSON: ${(e as Error).message}`); continue }
+    for (const e of v.validate(kind, data)) errors.push(`${rel}: ${e}`)
+    const p = parseDataPath(rel)
+    if (!p) continue // config
+    if ('view' in p) {
+      if (p.view === 'by-length' && data.codeLength !== p.codeLength) errors.push(`${rel}: file name doesn't match codeLength`)
+      continue
     }
+    const src = sources.find(s => s.directory === p.source)!
+    if (data.repo !== src.repo) errors.push(`${rel}: repo ${data.repo} != ${src.repo}`)
+    if (kind === 'entry' && data.fingerprint !== p.name) errors.push(`${rel}: file name doesn't match fingerprint`)
+    if (kind === 'entry') for (const c of Object.keys(data.packages ?? {})) if (!data.contracts?.includes(c)) errors.push(`${rel}: packages names ${c}, which isn't in contracts`)
+    if (kind === 'tag' && data.tag !== p.name) errors.push(`${rel}: file name doesn't match tag`)
+    if (kind === 'branch' && data.branch !== p.name) errors.push(`${rel}: file name doesn't match branch`)
   }
   return errors
+}
+
+/**
+ * Rules across the source configs: each lives in `config/<its directory>/`, no two share a
+ * `directory` or a `repo`, and none uses a name the generated views need.
+ */
+export function sourceConfigProblems(configs: { configDir: string; directory: string; repo: string }[]): string[] {
+  const problems: string[] = []
+  for (const c of configs) {
+    if (c.directory !== c.configDir) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: directory ${c.directory} must equal its config directory's name, ${c.configDir}`)
+    if (RESERVED_NAMES.includes(c.directory)) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: directory ${c.directory} is reserved for the generated views`)
+  }
+  for (const key of ['directory', 'repo'] as const) {
+    const seen = new Map<string, string[]>()
+    for (const c of configs) seen.set(c[key], [...(seen.get(c[key]) ?? []), c.configDir])
+    for (const [value, dirs] of seen) if (dirs.length > 1) problems.push(`${key} ${value} is configured by more than one source: ${dirs.map(d => `${CONFIG_DIR}/${d}/sources.json`).join(', ')}`)
+  }
+  return problems
+}
+
+/**
+ * Data outside the layout: a configured source's directory at the top of the repo (the layout
+ * before `registry/`), and anything under `registry/` other than a configured source's directory,
+ * `by-length/` and `index.json`. Catches data written by tools that predate the layout.
+ */
+export function strayLayout(dataRepo: string, sources: { directory: string }[]): string[] {
+  const problems: string[] = []
+  const ids = new Set(sources.map(s => s.directory))
+  for (const d of fs.readdirSync(dataRepo, { withFileTypes: true })) {
+    if (ids.has(d.name)) problems.push(`${d.name}${d.isDirectory() ? '/' : ''}: a source's data at the top of the repo; it belongs in ${sourceDir(d.name)}/`)
+  }
+  const data = path.join(dataRepo, DATA_DIR)
+  if (!fs.existsSync(data)) return problems
+  for (const d of fs.readdirSync(data, { withFileTypes: true })) {
+    const ok = d.isDirectory() ? ids.has(d.name) || `${DATA_DIR}/${d.name}` === BY_LENGTH_DIR : `${DATA_DIR}/${d.name}` === INDEX_PATH
+    if (!ok) problems.push(`${DATA_DIR}/${d.name}${d.isDirectory() ? '/' : ''}: not a configured source's directory, ${BY_LENGTH_DIR}/ or ${INDEX_PATH}`)
+  }
+  return problems
 }

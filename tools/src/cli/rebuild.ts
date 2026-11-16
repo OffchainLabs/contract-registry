@@ -1,6 +1,7 @@
 // Rebuilds a published tag from scratch and checks it reproduces its recorded fingerprints
 // (acceptance criterion 3). Writes nothing.
-//   node tools/src/cli/rebuild.ts --tag v3.2.0 [--source nitro-contracts]
+//   node tools/src/cli/rebuild.ts --source <id> --tag <tag>     e.g. --source nitro-contracts --tag v3.2.0
+// --source is required: tag names overlap across sources.
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { loadSourceConfig } from '../lib/config.ts'
@@ -14,11 +15,11 @@ const { values: a } = parseArgs({
   options: {
     'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
     'work-dir': { type: 'string' },
-    source: { type: 'string', default: 'nitro-contracts' },
+    source: { type: 'string' },
     tag: { type: 'string' },
   },
 })
-if (!a.tag) { console.error('usage: rebuild --tag <tag>'); process.exit(2) }
+if (!a.tag || !a.source) { console.error('usage: rebuild --source <id> --tag <tag>'); process.exit(2) }
 const dataRepo = path.resolve(a['data-repo']!)
 const workDir = path.resolve(a['work-dir'] ?? process.env.REGISTRY_WORK_DIR ?? path.join(dataRepo, '.work'))
 const cfg = loadSourceConfig(dataRepo, a.source!)

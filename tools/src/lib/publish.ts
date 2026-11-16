@@ -4,7 +4,8 @@ import { git, gitOk, mapLimit } from './exec.ts'
 import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, tagInRange, testChainsApply, type SourceConfig } from './config.ts'
 import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
-import { SourceData, byFingerprint, contractsMap, entryFromBuild } from './datarepo.ts'
+import { DataRepo, SourceData, byFingerprint, contractsMap, entryFromBuild } from './datarepo.ts'
+import { BY_LENGTH_DIR, INDEX_PATH, sourceDir } from './layout.ts'
 import { validateDataRepo } from './schema.ts'
 import { rangeConflictReport, rangeConflicts } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
@@ -15,7 +16,7 @@ import { SCHEMA_VERSION, type Hex } from './types.ts'
 export interface PublishOptions {
   dataRepo: string
   workDir: string
-  /** Source repo directory name, e.g. `nitro-contracts`. */
+  /** The source's id (its config directory and `directory`), e.g. `nitro-contracts`. */
   source: string
   alerts: AlertSink
   /** Also verify that every published ref has been processed, and alert on gaps (§5.7 reconcile job). */
@@ -53,8 +54,10 @@ export interface PublishOutcome {
 export interface SkippedCheck { commit: string; refs: string[]; reason: string }
 
 /**
- * One publish run for one source repo (§5.7). Everything lands in the data repo as one commit;
- * a run that crashes before committing publishes nothing, and a rerun with nothing new is a no-op.
+ * One publish run for one source repo (§5.7). Everything lands in the data repo as one commit:
+ * the source's files under `registry/<source>/` and the views every source shares
+ * (`registry/by-length/`, `registry/index.json`). A run that crashes before committing publishes
+ * nothing, and a rerun with nothing new is a no-op. One run at a time per work directory.
  *
  * Only tags and the heads of published branches (release and hotfix branches) are built. A
  * branch's earlier commits never are: a run builds a branch's head when it has changed.
@@ -68,13 +71,16 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const fail = (kind: AlertKind, item: AlertItem) => { (failures[kind] ??= []).push(item); log(`FAILURE ${kind}: ${item.key}: ${item.message}`) }
   const outcome: PublishOutcome = { ok: false, commit: null, newEntries: 0, branchesUpdated: [], branchesDeleted: [], tagsAdded: [], failures, checks: [], checksSkipped: [], alerts: [] }
 
-  const lock = acquireLock(opts.workDir, opts.source)
+  // What the run commits, or discards on failure: its source's files and the shared views.
+  const dataPaths = [sourceDir(cfg.directory), BY_LENGTH_DIR, INDEX_PATH]
+  const lock = acquireLock(opts.workDir)
   const checkouts: Checkout[] = []
   try {
     const src = new SourceRepo(opts.sourceUrl ? { ...cfg, url: opts.sourceUrl } : cfg, opts.workDir)
     log(`syncing ${cfg.url}`)
     src.sync(log)
-    const data = new SourceData(opts.dataRepo, cfg.directory, cfg.repo)
+    const repo = DataRepo.open(opts.dataRepo)
+    const data = repo.source(cfg.directory)
     const builder = new Builder(src, opts.workDir)
     const facts = gitRefFacts(cfg, src.gitDir)
     const start = src.resolve(cfg.start.tag)
@@ -228,9 +234,9 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     const conflicts = rangeConflicts(data.entries(), cfg.reviewedRangePairs)
     if (conflicts.length) throw new Error(`range invariant broken; nothing published. ${rangeConflictReport(cfg.directory, conflicts)}`)
 
-    // --- Generated views and validation -----------------------------------------------------
-    data.writeViews()
-    const errors = validateDataRepo(opts.dataRepo, [{ directory: cfg.directory, repo: cfg.repo }])
+    // --- Generated views (every source's) and validation --------------------------------------
+    repo.writeViews()
+    const errors = validateDataRepo(opts.dataRepo, repo.sources.map(s => ({ directory: s.id, repo: s.repo })))
     if (errors.length) throw new Error(`schema validation failed; nothing committed:\n${errors.slice(0, 50).join('\n')}`)
 
     // --- Test-chain checks (entries are published even if these fail) -----------------------
@@ -247,7 +253,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
           }
           res = await checkCommit({
             commit, key, checkoutDir: co.dir, commitFingerprints: new Set(r.contracts.map(c => c.fingerprint)),
-            dataRepo: opts.dataRepo, directory: cfg.directory, repo: cfg.repo, outOfScope, deployer, log,
+            dataRepo: opts.dataRepo, source: cfg.directory, outOfScope, deployer, log,
             walkOutDir: path.join(opts.workDir, 'walks', cfg.directory),
           })
           checkCache.put(res)
@@ -258,7 +264,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     }
 
     // --- One commit ----------------------------------------------------------------------------
-    outcome.commit = commitDataRepo(opts.dataRepo, cfg.directory, summarize(cfg, outcome), opts.committer)
+    outcome.commit = commitDataRepo(opts.dataRepo, dataPaths, summarize(cfg, outcome), opts.committer)
     if (outcome.commit) log(`committed ${outcome.commit.slice(0, 12)}`)
     else log('no changes')
 
@@ -266,9 +272,13 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     outcome.alerts = await reconcileAlerts(opts.alerts, cfg, data, src, failures, outcome.checks, !!opts.reconcile, key, new Set(skippedChecks.keys()))
   } catch (e) {
     fail('publish-error', { key: 'run', message: (e as Error).message.split('\n')[0], details: (e as Error).stack })
-    // Discard the run's uncommitted changes so a failure midway publishes nothing.
-    try { git(['checkout', '--', cfg.directory], opts.dataRepo) } catch { /* nothing committed there yet */ }
-    try { git(['clean', '-fdq', '--', cfg.directory], opts.dataRepo) } catch { /* nothing to discard */ }
+    // Discard the run's uncommitted changes so a failure midway publishes nothing. One path at a
+    // time: git refuses a whole pathspec list if one path is unknown to it (a new source's
+    // directory, or views not yet generated).
+    for (const p of dataPaths) {
+      try { git(['checkout', '--', p], opts.dataRepo) } catch { /* nothing committed there yet */ }
+      try { git(['clean', '-fdq', '--', p], opts.dataRepo) } catch { /* nothing to discard */ }
+    }
     outcome.alerts = await reconcileAlerts(opts.alerts, cfg, null, null, failures, [], false, '', new Set()).catch(() => [])
   } finally {
     for (const c of checkouts) c.remove()
@@ -303,11 +313,15 @@ function summarize(cfg: SourceConfig, o: PublishOutcome): string {
   return `${cfg.directory}: ${parts.join('; ')}`
 }
 
-function commitDataRepo(dataRepo: string, directory: string, message: string, who?: { name: string; email: string }): string | null {
-  git(['add', '-A', '--', directory], dataRepo)
-  if (gitOk(['diff', '--cached', '--quiet', '--', directory], dataRepo)) return null
+/** Commits the changes under `paths` (and nothing else); null if there are none. */
+function commitDataRepo(dataRepo: string, paths: string[], message: string, who?: { name: string; email: string }): string | null {
+  // git refuses a pathspec that matches nothing, on disk or in the index.
+  const present = paths.filter(p => fs.existsSync(path.join(dataRepo, p)) || git(['ls-files', '--', p], dataRepo).trim() !== '')
+  if (!present.length) return null
+  git(['add', '-A', '--', ...present], dataRepo)
+  if (gitOk(['diff', '--cached', '--quiet', '--', ...present], dataRepo)) return null
   const id = who ?? { name: 'contract-registry-bot', email: 'contract-registry-bot@users.noreply.github.com' }
-  git(['-c', `user.name=${id.name}`, '-c', `user.email=${id.email}`, 'commit', '--quiet', '-m', message, '--', directory], dataRepo)
+  git(['-c', `user.name=${id.name}`, '-c', `user.email=${id.email}`, 'commit', '--quiet', '-m', message, '--', ...present], dataRepo)
   return git(['rev-parse', 'HEAD'], dataRepo).trim()
 }
 
@@ -367,14 +381,18 @@ async function reconcileAlerts(
   return out
 }
 
-function acquireLock(workDir: string, source: string): { release(): void } {
-  const f = path.join(workDir, `publish-${source}.lock`)
+/**
+ * One run at a time per work directory, whatever its source: every run rewrites the shared views,
+ * so two runs at once in one data repo checkout would mix their changes.
+ */
+function acquireLock(workDir: string): { release(): void } {
+  const f = path.join(workDir, 'publish.lock')
   fs.mkdirSync(workDir, { recursive: true })
   if (fs.existsSync(f)) {
     const pid = Number(fs.readFileSync(f, 'utf8'))
     let alive = false
     try { process.kill(pid, 0); alive = true } catch { /* stale */ }
-    if (alive && pid !== process.pid) throw new Error(`another publish run for ${source} holds ${f} (pid ${pid})`)
+    if (alive && pid !== process.pid) throw new Error(`another publish run holds ${f} (pid ${pid})`)
   }
   fs.writeFileSync(f, String(process.pid))
   return { release: () => fs.rmSync(f, { force: true }) }

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { keccak256, toFunctionSelector } from 'viem'
-import { generateViews } from '../src/lib/datarepo.ts'
+import { generateViews, type SourceInputs } from '../src/lib/datarepo.ts'
 import { evaluate, unreadSlots } from '../src/lib/testcheck.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
 import { Registry } from '../src/walker/registry.ts'
@@ -30,7 +30,7 @@ function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   }
 }
 
-function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {}): Registry {
+function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {}, others: SourceInputs[] = []): Registry {
   const entries = [
     entry(C.rollupProxy, 'src/rollup/RollupProxy.sol:RollupProxy', { role: 'proxy', implementationSlots: [EIP1967, SECONDARY], ...overrides.rollupProxy }),
     entry(C.proxy, OZ_TUP, { role: 'proxy', implementationSlots: [EIP1967], packages: { [OZ_TUP]: '@openzeppelin/contracts@4.7.3' }, ...overrides.proxy }),
@@ -45,8 +45,8 @@ function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {
   // v2.0.0 changed the proxies' code; the chain still runs the v1.0.0 proxies with v2.0.0 logic.
   const v1 = [C.rollupProxy, C.proxy, C.admin].map(fp)
   const v2 = [C.adminLogic, C.userLogic, C.bridgeLogic, C.legacyLogic, C.plain].map(fp).concat([keccak256('0x01'), keccak256('0x02')])
-  const files = generateViews(REPO, 'nitro-contracts', entries, [tag('v1.0.0', v1), tag('v2.0.0', v2)])
-  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null }, 'nitro-contracts')
+  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags: [tag('v1.0.0', v1), tag('v2.0.0', v2)] }, ...others])
+  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
 }
 
 /** A chain served from maps, recording every storage read. */
@@ -90,7 +90,7 @@ const names = (id: WalkNode['code']) => (id?.status === 'matched' ? `${id.match.
 
 test('walker: proxies are followed through the slots their entries list; unknown code is probed', async () => {
   const c = chain()
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), repo: REPO, outOfScope: [] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: [] })
 
   const rollup = node(w, ROLLUP)
   assert.equal(names(rollup.code), 'RollupProxy proxy')
@@ -128,7 +128,7 @@ test('walker: proxies are followed through the slots their entries list; unknown
 
 test('test-chain check: proxies must still match the commit; a slot the walk skipped is reported', async () => {
   const c = chain()
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), repo: REPO, outOfScope: [] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: [] })
   // This commit's build has new proxy code, so the deployed v1.0.0 proxies and admin don't match it.
   const logicOnly = new Set([C.adminLogic, C.userLogic, C.bridgeLogic, C.legacyLogic, C.plain].map(fp))
   const problems = evaluate(w, logicOnly)
@@ -143,7 +143,7 @@ test('test-chain check: proxies must still match the commit; a slot the walk ski
 
   // A proxy whose entry lists too few slots: the walk misses the secondary, and the guard says so.
   const c2 = chain()
-  const w2 = await walk({ start: ROLLUP, rpc: c2.rpc as unknown as Rpc, registry: registry({ rollupProxy: { implementationSlots: [EIP1967] } }), repo: REPO, outOfScope: [] })
+  const w2 = await walk({ start: ROLLUP, rpc: c2.rpc as unknown as Rpc, registry: registry({ rollupProxy: { implementationSlots: [EIP1967] } }), source: 'nitro-contracts', outOfScope: [] })
   assert.equal(node(w2, ROLLUP).secondaryImplementation, undefined)
   assert.ok((await unreadSlots(w2, c2.rpc)).some(p => p.includes(`at ${node(w2, ROLLUP).address} holds ${word(USER_LOGIC)} in implementation slot ${SECONDARY}`)))
 })
@@ -151,5 +151,32 @@ test('test-chain check: proxies must still match the commit; a slot the walk ski
 test('walker: an entry listing more slots than it can report fails the walk', async () => {
   const c = chain()
   const reg = registry({ proxy: { implementationSlots: [EIP1967, SECONDARY, `0x${'ab'.repeat(32)}`] } })
-  await assert.rejects(walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: reg, repo: REPO, outOfScope: [] }), /lists 3 implementation slots; this walker reads at most two/)
+  await assert.rejects(walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: reg, source: 'nitro-contracts', outOfScope: [] }), /lists 3 implementation slots; this walker reads at most two/)
+})
+
+test("walker: unknown code is probed with the walk's own source's getters; a match reports its entry's repo", async () => {
+  // A second source whose only entry has a getter nitro-contracts' entries don't, which the unknown proxy at LEGACY answers.
+  const OTHER = 'Example/other'
+  const FOREIGN = addr(0x20)
+  const foreign = getter('foreign()')
+  const other: SourceInputs = { id: 'other', repo: OTHER, entries: [entry('0x6001600299', 'src/F.sol:F', { repo: OTHER, getters: [foreign] })], tags: [] }
+  const reg = registry({}, [other])
+  const run = (source: string) => {
+    const c = chain()
+    const call = c.rpc.call
+    c.rpc.call = async (to: string, data: string) => (to.toLowerCase() + data === LEGACY + foreign.selector ? word(FOREIGN) : call(to, data))
+    return walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: reg, source, outOfScope: [] })
+  }
+
+  const own = await run('nitro-contracts')
+  assert.ok(!own.nodes.some(n => n.address.toLowerCase() === FOREIGN), "another source's getter isn't called")
+  assert.deepEqual([own.source, own.repo], ['nitro-contracts', REPO])
+
+  const theirs = await run('other')
+  assert.deepEqual(node(theirs, FOREIGN).edges.map(e => e.getter), ['foreign()'])
+  assert.deepEqual([theirs.source, theirs.repo], ['other', OTHER])
+  const rollup = node(theirs, ROLLUP).code
+  assert.equal(rollup?.status === 'matched' && rollup.match.repo, REPO, "a match's repo is its entry's, not the walk's")
+
+  await assert.rejects(run('missing'), /the registry has no source missing \(it has nitro-contracts, other\)/)
 })

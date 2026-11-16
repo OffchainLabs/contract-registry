@@ -1,6 +1,9 @@
 export type Hex = `0x${string}`
 
+/** Input files (entries, tags, branches) and config. */
 export const SCHEMA_VERSION = 1
+/** Generated views (`registry/by-length/`, `registry/index.json`), combined across sources since layout v2. */
+export const VIEW_SCHEMA_VERSION = 2
 
 /**
  * Bytes of runtime code that are filled in at deploy time, so they are zeroed before hashing: a
@@ -109,18 +112,31 @@ export interface BranchFile {
 
 export type ByLengthEntry = Entry & { tags: string[] }
 
+/**
+ * Generated lookup shard (`registry/by-length/<codeLength>.json`): every entry of that length, of
+ * every source, sorted by fingerprint. Each entry has its own `repo`, and the tags of its source's
+ * tag files.
+ */
 export interface ByLengthFile {
   schemaVersion: number
-  repo: string
   codeLength: number
   entries: ByLengthEntry[]
 }
 
-/** Generated summary of a source repo's directory: which lengths exist and every getter known. */
+/** Generated summary (`registry/index.json`): the code lengths with a shard, and per source its repo and getters. */
 export interface IndexFile {
   schemaVersion: number
-  repo: string
   codeLengths: number[]
+  /** By source id (its `directory`). */
+  sources: Record<string, IndexSource>
+}
+
+export interface IndexSource {
+  repo: string
+  /**
+   * The getters of every entry the source's tag and branch files reference, and of its own entries
+   * (manual ones included). The walker calls them on unknown code in a walk of that source.
+   */
   getters: Getter[]
 }
 

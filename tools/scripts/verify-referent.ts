@@ -65,7 +65,7 @@ const referent = JSON.parse(a.referent!.startsWith('http') ? await (await fetch(
 const list: [string, string][] = []
 const flatten = (o: any, p: string) => { if (Array.isArray(o)) o.forEach(x => list.push([p, x])); else for (const k in o) flatten(o[k], p ? `${p}.${k}` : k) }
 flatten(referent, '')
-const registry = new Registry(await openSource(a.registry!), 'nitro-contracts')
+const registry = new Registry(await openSource(a.registry!))
 
 let problems = 0
 const seenAnywhere = new Set<string>()

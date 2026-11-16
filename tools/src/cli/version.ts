@@ -1,8 +1,9 @@
 // Prints the version of the contract at an address (`Registry.getVersion`): a proxy with one
 // implementation slot reports its implementation; everything else reports itself. Unknown code
-// reports the implementation at its EIP-1967 slot, unless its secondary slot is set.
+// reports the implementation at its EIP-1967 slot, unless its secondary slot is set. One lookup
+// across every source in the registry.
 //   node tools/src/cli/version.ts --rpc <url> --address <address> [--address ...]
-//        [--registry <dir | git:<path>@<rev> | github:<owner>/<repo>@<ref>>] [--source nitro-contracts] [--block latest]
+//        [--registry <dir | git:<path>@<rev> | github:<owner>/<repo>@<ref>>] [--block latest]
 // One address: prints the version (exit 0), or "unknown" on stderr (exit 1).
 // Several: prints "<address> <version|unknown>" per line; exit 1 if any is unknown.
 import * as path from 'node:path'
@@ -15,15 +16,14 @@ const { values: a } = parseArgs({
     rpc: { type: 'string' },
     address: { type: 'string', multiple: true },
     registry: { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
-    source: { type: 'string', default: 'nitro-contracts' },
     block: { type: 'string', default: 'latest' },
   },
 })
 if (!a.rpc || !a.address?.length) {
-  console.error('usage: version.ts --rpc <url> --address <address> [--address ...] [--registry ...] [--source ...] [--block ...]')
+  console.error('usage: version.ts --rpc <url> --address <address> [--address ...] [--registry ...] [--block ...]')
   process.exit(2)
 }
-const registry = new Registry(await openSource(a.registry!), a.source!)
+const registry = new Registry(await openSource(a.registry!))
 const rpc = new Rpc(a.rpc)
 let unknown = false
 for (const address of a.address) {

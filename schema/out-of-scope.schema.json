@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/out-of-scope.schema.json",
-  "title": "Out-of-scope getters for one source repo (config/<source-repo>/out-of-scope-getters.json). The walker treats their targets as labelled leaves; every other getter is in scope.",
+  "title": "Out-of-scope getters for one source repo (config/<source>/out-of-scope-getters.json). The walker treats their targets as labelled leaves; every other getter is in scope.",
   "type": "object",
   "required": ["schemaVersion", "repo", "getters"],
   "additionalProperties": false,

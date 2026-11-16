@@ -3,44 +3,85 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { entryFromBuild, generateViews, roleOf, SourceData } from '../src/lib/datarepo.ts'
+import { entryFromBuild, generateViews, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
 import { loadSourceConfig } from '../src/lib/config.ts'
-import { SchemaValidator, validateDataRepo } from '../src/lib/schema.ts'
+import { kindOf, SchemaValidator, validateDataRepo } from '../src/lib/schema.ts'
 import { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
 import type { BuiltContract, Entry, RoleConfig, TagFile } from '../src/lib/types.ts'
-import { keccak256, toHex } from 'viem'
+import { keccak256, toFunctionSelector, toHex } from 'viem'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
+const NITRO = 'OffchainLabs/nitro-contracts'
 const fp = (n: number) => `0x${n.toString(16).padStart(64, '0')}` as const
 const commit = (n: number) => n.toString(16).padStart(40, '0')
+const getter = (signature: string) => ({ signature, selector: toFunctionSelector(signature), kind: 'single' as const })
 
 function entry(n: number, len: number, extra: Partial<Entry> = {}): Entry {
   return {
-    schemaVersion: 1, fingerprint: fp(n), repo: 'OffchainLabs/nitro-contracts', contracts: [`src/X${n}.sol:X${n}`], role: 'logic', codeLength: len,
+    schemaVersion: 1, fingerprint: fp(n), repo: NITRO, contracts: [`src/X${n}.sol:X${n}`], role: 'logic', codeLength: len,
     maskedRanges: [], cborMetadataLength: 12,
     getters: [{ signature: 'bridge()', selector: '0xe78cea92', kind: 'single' }], selectors: ['0xe78cea92'],
     compiler: { language: 'Solidity', version: '0.8.17+commit.8df45f5f', evmVersion: 'london', optimizer: { enabled: true, runs: 2000 }, viaIR: false, metadata: { bytecodeHash: 'none', appendCBOR: true } },
     ref: 'release-1.0.0', commit: commit(n), ...extra,
   }
 }
-function tag(name: string, contracts: Record<string, `0x${string}`>): TagFile {
-  return { schemaVersion: 1, repo: 'OffchainLabs/nitro-contracts', tag: name, commit: commit(99), prerelease: name.includes('-'), packageVersion: name.slice(1), contracts }
+function tag(name: string, contracts: Record<string, `0x${string}`>, repo = NITRO): TagFile {
+  return { schemaVersion: 1, repo, tag: name, commit: commit(99), prerelease: name.includes('-'), packageVersion: name.slice(1), contracts }
 }
+const nitro = (entries: Entry[], tags: TagFile[]): SourceInputs[] => [{ id: 'nitro-contracts', repo: NITRO, entries, tags }]
 
 test('a fingerprint produced by several tags lists all of them, in release order', () => {
-  const views = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts',
+  const views = generateViews(nitro(
     [entry(1, 100), entry(2, 100), entry(3, 200)],
-    [tag('v3.10.0', { 'src/X1.sol:X1': fp(1) }), tag('v3.2.0', { 'src/X1.sol:X1': fp(1), 'src/X3.sol:X3': fp(3) }), tag('v3.2.0-beta.0', { 'src/X1.sol:X1': fp(1) })])
-  const shard = JSON.parse(views.get('nitro-contracts/by-length/100.json')!)
+    [tag('v3.10.0', { 'src/X1.sol:X1': fp(1) }), tag('v3.2.0', { 'src/X1.sol:X1': fp(1), 'src/X3.sol:X3': fp(3) }), tag('v3.2.0-beta.0', { 'src/X1.sol:X1': fp(1) })]))
+  assert.deepEqual([...views.keys()], ['registry/by-length/100.json', 'registry/by-length/200.json', 'registry/index.json'])
+  const shard = JSON.parse(views.get('registry/by-length/100.json')!)
   assert.deepEqual(shard.entries.map((e: any) => [e.fingerprint, e.tags]), [[fp(1), ['v3.2.0-beta.0', 'v3.2.0', 'v3.10.0']], [fp(2), []]])
-  assert.deepEqual(JSON.parse(views.get('nitro-contracts/index.json')!).codeLengths, [100, 200])
+  assert.deepEqual(Object.keys(shard), ['schemaVersion', 'codeLength', 'entries'], 'no top-level repo: each entry has its own')
+  assert.equal(shard.schemaVersion, 2)
+  assert.deepEqual(JSON.parse(views.get('registry/index.json')!), {
+    schemaVersion: 2, codeLengths: [100, 200], sources: { 'nitro-contracts': { repo: NITRO, getters: [getter('bridge()')] } },
+  })
+})
+
+test('combined views: one shard per length across sources, tags from the entry\'s own source, getters per source', () => {
+  const TB = 'OffchainLabs/token-bridge-contracts'
+  const tb: SourceInputs = {
+    id: 'token-bridge-contracts', repo: TB,
+    entries: [entry(3, 100, { repo: TB, getters: [getter('router()')] })],
+    // A tag named like one of nitro-contracts', and a build that reproduces nitro-contracts' code (fp 1).
+    tags: [tag('v1.0.0', { 'contracts/R.sol:R': fp(3), '@x/X1.sol:X1': fp(1) }, TB)],
+    branches: [{ schemaVersion: 1, repo: TB, branch: 'release-x', commit: commit(7), contracts: { 'lib/X4.sol:X4': fp(4) } }],
+  }
+  const nc: SourceInputs = {
+    id: 'nitro-contracts', repo: NITRO,
+    entries: [entry(1, 100), entry(2, 100, { getters: [getter('rollup()')] }), entry(4, 300, { getters: [getter('inbox()')] })],
+    tags: [tag('v3.2.0', { 'src/X1.sol:X1': fp(1), 'src/X2.sol:X2': fp(2) })],
+  }
+  const views = generateViews([tb, nc])
+  assert.deepEqual([...views], [...generateViews([nc, tb])], 'source order does not matter')
+  const shard = JSON.parse(views.get('registry/by-length/100.json')!)
+  assert.deepEqual(shard.entries.map((e: any) => [e.fingerprint, e.repo, e.tags]), [
+    [fp(1), NITRO, ['v3.2.0']], // not the token bridge's v1.0.0, though its build produced the code
+    [fp(2), NITRO, ['v3.2.0']],
+    [fp(3), TB, ['v1.0.0']],
+  ])
+  const index = JSON.parse(views.get('registry/index.json')!)
+  assert.deepEqual(index.codeLengths, [100, 300])
+  assert.deepEqual(Object.keys(index.sources), ['nitro-contracts', 'token-bridge-contracts'])
+  assert.deepEqual(index.sources['nitro-contracts'].getters.map((g: any) => g.signature), ['bridge()', 'inbox()', 'rollup()'])
+  // Its own entries' getters, and those of the entries its tag (fp 1) and branch (fp 4) files reference.
+  assert.deepEqual(index.sources['token-bridge-contracts'], { repo: TB, getters: [getter('bridge()'), getter('inbox()'), getter('router()')] })
+  const v = new SchemaValidator(ROOT)
+  assert.deepEqual(v.validate('by-length', shard), [])
+  assert.deepEqual(v.validate('index', index), [])
 })
 
 test('generation is deterministic regardless of input order', () => {
   const es = [entry(1, 100), entry(2, 100), entry(3, 200)]
   const ts = [tag('v1.0.0', { 'src/X1.sol:X1': fp(1) }), tag('v1.1.0', { 'src/X2.sol:X2': fp(2) })]
-  const a = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts', es, ts)
-  const b = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts', [...es].reverse(), [...ts].reverse())
+  const a = generateViews(nitro(es, ts))
+  const b = generateViews(nitro([...es].reverse(), [...ts].reverse()))
   assert.deepEqual([...a], [...b])
 })
 
@@ -59,22 +100,50 @@ test('schemas accept generated files and manual entries, and reject a manual ent
   assert.notDeepEqual(v.validate('entry', noRef), [], 'ref is required, even if null')
   assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), firstCommit: commit(1) }), [], 'the old field is rejected')
   assert.notDeepEqual(v.validate('entry', { ...entry(1, 100), surprise: 1 }), [], 'unknown fields are rejected')
-  const views = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts', [entry(1, 100), manual], [tag('v1.0.0', { 'src/X1.sol:X1': fp(1) })])
-  assert.deepEqual(v.validate('by-length', JSON.parse(views.get('nitro-contracts/by-length/100.json')!)), [])
-  assert.deepEqual(v.validate('index', JSON.parse(views.get('nitro-contracts/index.json')!)), [])
+  const views = generateViews(nitro([entry(1, 100), manual], [tag('v1.0.0', { 'src/X1.sol:X1': fp(1) })]))
+  const shard = JSON.parse(views.get('registry/by-length/100.json')!)
+  const index = JSON.parse(views.get('registry/index.json')!)
+  assert.deepEqual(v.validate('by-length', shard), [])
+  assert.deepEqual(v.validate('index', index), [])
+  // The views are version 2; the layout-v1 shapes are rejected.
+  assert.notDeepEqual(v.validate('by-length', { ...shard, schemaVersion: 1 }), [])
+  assert.notDeepEqual(v.validate('by-length', { ...shard, repo: NITRO }), [], 'no top-level repo')
+  assert.notDeepEqual(v.validate('index', { schemaVersion: 1, repo: NITRO, codeLengths: [100], getters: [] }), [])
+  assert.notDeepEqual(v.validate('index', { ...index, sources: { 'by-length': index.sources['nitro-contracts'] } }), [], 'a reserved source id')
+})
+
+test('a source id cannot be a name the generated views use', () => {
+  const v = new SchemaValidator(ROOT)
+  const cfg = loadSourceConfig(ROOT, 'nitro-contracts')
+  assert.deepEqual(v.validate('sources', cfg), [])
+  assert.notDeepEqual(v.validate('sources', { ...cfg, directory: 'by-length' }), [])
+  assert.notDeepEqual(v.validate('sources', { ...cfg, directory: 'index.json' }), [])
+  assert.deepEqual(v.validate('sources', { ...cfg, directory: 'by-length-2' }), [])
+})
+
+test('file kinds follow the layout', () => {
+  const kinds = Object.fromEntries([
+    'config/nitro-contracts/sources.json', 'config/nitro-contracts/out-of-scope-getters.json',
+    `registry/nitro-contracts/entries/${fp(1)}.json`, 'registry/nitro-contracts/tags/v3.2.0.json', 'registry/nitro-contracts/branches/hotfix/x.json',
+    'registry/by-length/100.json', 'registry/index.json',
+    // Not in the layout: per-source views (layout v1), data outside registry/, a misnamed shard.
+    'registry/nitro-contracts/by-length/100.json', 'registry/nitro-contracts/index.json', 'nitro-contracts/entries/x.json', 'registry/by-length/x.json',
+  ].map(p => [p, kindOf(p)]))
+  assert.deepEqual(Object.values(kinds), ['sources', 'out-of-scope', 'entry', 'tag', 'branch', 'by-length', 'index', null, null, null, null])
 })
 
 test('entries and tag files are write-once; nested branch paths are cleaned up on delete', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-'))
-  const d = new SourceData(dir, 'nitro-contracts', 'OffchainLabs/nitro-contracts')
+  const d = new SourceData(dir, 'nitro-contracts', NITRO)
   d.writeEntry(entry(1, 100))
+  assert.ok(fs.existsSync(path.join(dir, `registry/nitro-contracts/entries/${fp(1)}.json`)))
   assert.throws(() => d.writeEntry(entry(1, 100)), /write-once/)
   d.writeTag(tag('v1.0.0', {}))
   assert.throws(() => d.writeTag(tag('v1.0.0', {})), /write-once/)
-  d.writeBranch({ schemaVersion: 1, repo: 'OffchainLabs/nitro-contracts', branch: 'hotfix/x', commit: commit(1), contracts: {} })
-  assert.ok(fs.existsSync(path.join(dir, 'nitro-contracts/branches/hotfix/x.json')))
+  d.writeBranch({ schemaVersion: 1, repo: NITRO, branch: 'hotfix/x', commit: commit(1), contracts: {} })
+  assert.ok(fs.existsSync(path.join(dir, 'registry/nitro-contracts/branches/hotfix/x.json')))
   d.deleteBranch('hotfix/x')
-  assert.ok(!fs.existsSync(path.join(dir, 'nitro-contracts/branches/hotfix')))
+  assert.ok(!fs.existsSync(path.join(dir, 'registry/nitro-contracts/branches/hotfix')))
   fs.rmSync(dir, { recursive: true })
 })
 
@@ -98,15 +167,15 @@ test('schemas: a proxy entry needs its slots, other roles have none; packages na
   assert.notDeepEqual(v.validate('entry', { ...proxy, packages: {} }), [], 'packages is absent, not empty, when there are none')
   assert.notDeepEqual(v.validate('entry', { ...proxy, packages: { [TUP]: '4.7.3' } }), [], 'a package value names the package')
   // by-length shards carry the new fields through.
-  const views = generateViews('OffchainLabs/nitro-contracts', 'nitro-contracts', [proxy], [tag('v1.0.0', { [TUP]: fp(1) })])
-  const shard = JSON.parse(views.get('nitro-contracts/by-length/100.json')!)
+  const views = generateViews(nitro([proxy], [tag('v1.0.0', { [TUP]: fp(1) })]))
+  const shard = JSON.parse(views.get('registry/by-length/100.json')!)
   assert.deepEqual(v.validate('by-length', shard), [])
   assert.deepEqual([shard.entries[0].role, shard.entries[0].implementationSlots, shard.entries[0].packages], ['proxy', [EIP1967_IMPLEMENTATION_SLOT], { [TUP]: OZ }])
   // packages can only name the entry's own contracts (checked outside the schema).
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-'))
   for (const d of ['config', 'schema']) fs.cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true })
   new SourceData(dir, 'nitro-contracts', 'OffchainLabs/nitro-contracts').writeEntry({ ...proxy, packages: { [ADMIN]: OZ } })
-  assert.deepEqual(validateDataRepo(dir, [{ directory: 'nitro-contracts', repo: 'OffchainLabs/nitro-contracts' }]), [`nitro-contracts/entries/${fp(1)}.json: packages names ${ADMIN}, which isn't in contracts`])
+  assert.deepEqual(validateDataRepo(dir, [{ directory: 'nitro-contracts', repo: 'OffchainLabs/nitro-contracts' }]), [`registry/nitro-contracts/entries/${fp(1)}.json: packages names ${ADMIN}, which isn't in contracts`])
   fs.rmSync(dir, { recursive: true })
 })
 

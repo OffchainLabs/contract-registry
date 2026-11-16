@@ -9,7 +9,7 @@ import { abbreviate } from './abbrev.ts'
 import type { Hex } from './types.ts'
 
 /** Bump when the walker or the check's rules change, so cached check results are not reused. */
-export const CHECK_VERSION = 3
+export const CHECK_VERSION = 4
 
 export interface ChainCheck { chain: string; start: string; problems: string[]; summary?: WalkResult['summary']; warnings?: number }
 export interface CheckResult { commit: string; key: string; ok: boolean; problems: string[]; chains: ChainCheck[] }
@@ -60,8 +60,8 @@ export async function checkCommit(opts: {
   checkoutDir: string
   commitFingerprints: Set<string>
   dataRepo: string
-  directory: string
-  repo: string
+  /** The source being checked, by id: the walks belong to it. */
+  source: string
   outOfScope: string[]
   deployer: TestChainDeployer
   log?: (s: string) => void
@@ -78,9 +78,9 @@ export async function checkCommit(opts: {
       const start = chain.contracts.rollup
       const problems: string[] = []
       try {
-        const registry = new Registry(new DirSource(opts.dataRepo), opts.directory)
+        const registry = new Registry(new DirSource(opts.dataRepo))
         const rpc = new Rpc(dep.rpcUrl)
-        const w = await walk({ start, rpc, registry, repo: opts.repo, outOfScope: opts.outOfScope })
+        const w = await walk({ start, rpc, registry, source: opts.source, outOfScope: opts.outOfScope })
         if (opts.walkOutDir) {
           fs.mkdirSync(opts.walkOutDir, { recursive: true })
           fs.writeFileSync(path.join(opts.walkOutDir, `${opts.commit.slice(0, 12)}-${chain.name}.json`), stableJson(w))

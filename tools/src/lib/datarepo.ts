@@ -1,9 +1,11 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { listSources, loadSourceConfig } from './config.ts'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
+import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir } from './layout.ts'
 import { compareTags } from './semver.ts'
-import { SCHEMA_VERSION } from './types.ts'
-import type { BranchFile, BuiltContract, ByLengthFile, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
+import { SCHEMA_VERSION, VIEW_SCHEMA_VERSION } from './types.ts'
+import type { BranchFile, BuiltContract, ByLengthEntry, ByLengthFile, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
 
 /** Canonical key order for an entry file. */
 export function canonicalEntry(e: Entry): Entry {
@@ -83,22 +85,26 @@ export function contractsMap(contracts: BuiltContract[]): Record<string, Hex> {
   return sortedRecord(Object.fromEntries(contracts.map(c => [c.fqName, c.fingerprint])))
 }
 
-/** One source repo's directory in the data repo. */
+/** One source's input files, under `registry/<source>/` (see `layout.ts`). */
 export class SourceData {
   readonly root: string
+  /** The source's id: its `directory` in sources.json, e.g. `nitro-contracts`. */
+  readonly id: string
   readonly repo: string
+  /** `<data repo>/registry/<source>`. */
   readonly dir: string
 
-  constructor(dataRepoRoot: string, directory: string, repo: string) {
+  constructor(dataRepoRoot: string, id: string, repo: string) {
     this.root = dataRepoRoot
-    this.dir = path.join(dataRepoRoot, directory)
+    this.id = id
+    this.dir = path.join(dataRepoRoot, sourceDir(id))
     this.repo = repo
   }
 
-  entryPath(fp: string): string { return path.join(this.dir, 'entries', `${fp.toLowerCase()}.json`) }
-  tagPath(tag: string): string { return path.join(this.dir, 'tags', `${tag}.json`) }
+  entryPath(fp: string): string { return path.join(this.root, inputPath(this.id, 'entries', fp.toLowerCase())) }
+  tagPath(tag: string): string { return path.join(this.root, inputPath(this.id, 'tags', tag)) }
   /** Branch names containing `/` become nested paths. */
-  branchPath(branch: string): string { return path.join(this.dir, 'branches', `${branch}.json`) }
+  branchPath(branch: string): string { return path.join(this.root, inputPath(this.id, 'branches', branch)) }
 
   hasEntry(fp: string): boolean { return fs.existsSync(this.entryPath(fp)) }
   hasTag(tag: string): boolean { return fs.existsSync(this.tagPath(tag)) }
@@ -145,57 +151,126 @@ export class SourceData {
   tags(): TagFile[] { return listJsonFiles(path.join(this.dir, 'tags')).map(f => readJson<TagFile>(f)) }
   branches(): BranchFile[] { return listJsonFiles(path.join(this.dir, 'branches')).map(f => readJson<BranchFile>(f)) }
 
-  /** Every file that `generateViews` derives, keyed by path relative to the data repo root. */
-  generateViews(): Map<string, string> {
-    return generateViews(this.repo, path.relative(this.root, this.dir), this.entries(), this.tags())
-  }
-
-  /** Rewrites the generated views, deleting stale ones. Returns true if anything changed. */
-  writeViews(): boolean {
-    const views = this.generateViews()
-    let changed = false
-    for (const f of listJsonFiles(path.join(this.dir, 'by-length'))) {
-      if (!views.has(path.relative(this.root, f))) { fs.rmSync(f); changed = true }
-    }
-    for (const [rel, content] of views) changed = writeFileIfChanged(path.join(this.root, rel), content) || changed
-    return changed
+  inputs(): SourceInputs {
+    return { id: this.id, repo: this.repo, entries: this.entries(), tags: this.tags(), branches: this.branches() }
   }
 }
 
 /**
- * Derives `by-length/<len>.json` (every entry of that length with its tags) and `index.json`
- * (code lengths present and every getter known) from the input files. Pure and deterministic.
+ * The whole data repo: every configured source's inputs, and the views generated from all of
+ * them together (`registry/by-length/`, `registry/index.json`).
  */
-export function generateViews(repo: string, directory: string, entries: Entry[], tags: TagFile[]): Map<string, string> {
-  const tagsByFp = new Map<string, string[]>()
-  for (const t of tags) {
-    for (const fp of new Set(Object.values(t.contracts).map(f => f.toLowerCase()))) {
-      tagsByFp.set(fp, [...(tagsByFp.get(fp) ?? []), t.tag])
-    }
+export class DataRepo {
+  readonly root: string
+  /** In source id order. */
+  readonly sources: SourceData[]
+
+  constructor(root: string, sources: { directory: string; repo: string }[]) {
+    this.root = root
+    this.sources = [...sources].sort((a, b) => compareIds(a.directory, b.directory)).map(s => new SourceData(root, s.directory, s.repo))
   }
-  const byLen = new Map<number, Entry[]>()
-  for (const e of entries) byLen.set(e.codeLength, [...(byLen.get(e.codeLength) ?? []), e])
+
+  /** The data repo with the sources configured under `config/`. */
+  static open(root: string): DataRepo {
+    return new DataRepo(root, listSources(root).map(s => loadSourceConfig(root, s)))
+  }
+
+  source(id: string): SourceData {
+    const s = this.sources.find(x => x.id === id)
+    if (!s) throw new Error(`no configured source ${id} (configured: ${this.sources.map(x => x.id).join(', ') || 'none'})`)
+    return s
+  }
+
+  /** Every generated file, keyed by its path relative to the data repo root. */
+  generateViews(): Map<string, string> {
+    return generateViews(this.sources.map(s => s.inputs()))
+  }
+
+  /** Rewrites the generated views, deleting stale shards. Returns true if anything changed. */
+  writeViews(): boolean {
+    const views = this.generateViews()
+    let changed = false
+    for (const f of listJsonFiles(path.join(this.root, BY_LENGTH_DIR))) {
+      if (!views.has(relPath(this.root, f))) { fs.rmSync(f); changed = true }
+    }
+    for (const [rel, content] of views) changed = writeFileIfChanged(path.join(this.root, rel), content) || changed
+    return changed
+  }
+
+  /** How the views on disk differ from what the inputs generate; empty if they match. */
+  viewProblems(): string[] {
+    const problems: string[] = []
+    const have = new Set(listJsonFiles(path.join(this.root, BY_LENGTH_DIR)).map(f => relPath(this.root, f)))
+    if (fs.existsSync(path.join(this.root, INDEX_PATH))) have.add(INDEX_PATH)
+    for (const [rel, content] of this.generateViews()) {
+      if (!have.has(rel)) problems.push(`missing generated file ${rel}`)
+      else if (fs.readFileSync(path.join(this.root, rel), 'utf8') !== content) problems.push(`${rel} differs from what the input files generate`)
+      have.delete(rel)
+    }
+    for (const rel of have) problems.push(`stale generated file ${rel}`)
+    return problems
+  }
+}
+
+/** One source's input files, as `generateViews` reads them. */
+export interface SourceInputs {
+  /** The source's id (its `directory`). */
+  id: string
+  repo: string
+  entries: Entry[]
+  tags: TagFile[]
+  branches?: BranchFile[]
+}
+
+/**
+ * Derives the views from every source's input files. Pure and deterministic.
+ * - `registry/by-length/<len>.json`: every entry of that length, of every source, sorted by
+ *   fingerprint, each with the tags of its own source's tag files (tag names overlap across
+ *   sources, so one source's tags never label another's entry).
+ * - `registry/index.json`: the code lengths present, and per source its repo and getters: those
+ *   of its own entries and of every entry its tag and branch files reference.
+ */
+export function generateViews(sources: SourceInputs[]): Map<string, string> {
+  const ordered = [...sources].sort((a, b) => compareIds(a.id, b.id))
+  const byFp = new Map<string, Entry>()
+  for (const s of ordered) for (const e of s.entries) if (!byFp.has(e.fingerprint.toLowerCase())) byFp.set(e.fingerprint.toLowerCase(), e)
+
+  const byLen = new Map<number, ByLengthEntry[]>()
+  const index: IndexFile = { schemaVersion: VIEW_SCHEMA_VERSION, codeLengths: [], sources: {} }
+  for (const s of ordered) {
+    const tagsByFp = new Map<string, string[]>()
+    for (const t of s.tags) {
+      for (const fp of new Set(Object.values(t.contracts).map(f => f.toLowerCase()))) tagsByFp.set(fp, [...(tagsByFp.get(fp) ?? []), t.tag])
+    }
+    for (const e of s.entries) {
+      const row: ByLengthEntry = { ...canonicalEntry(e), tags: (tagsByFp.get(e.fingerprint.toLowerCase()) ?? []).sort(compareTags) }
+      byLen.set(e.codeLength, [...(byLen.get(e.codeLength) ?? []), row])
+    }
+    const referenced = new Set([...s.tags, ...(s.branches ?? [])].flatMap(f => Object.values(f.contracts).map(fp => fp.toLowerCase())))
+    const getters = new Map<string, Getter>()
+    for (const e of [...s.entries, ...[...referenced].flatMap(fp => byFp.get(fp) ?? [])]) {
+      for (const g of e.getters) getters.set(g.signature, { signature: g.signature, selector: g.selector, kind: g.kind })
+    }
+    index.sources[s.id] = { repo: s.repo, getters: [...getters.values()].sort((a, b) => a.signature.localeCompare(b.signature)) }
+  }
+
   const out = new Map<string, string>()
-  const lengths = [...byLen.keys()].sort((a, b) => a - b)
-  for (const len of lengths) {
-    const file: ByLengthFile = {
-      schemaVersion: SCHEMA_VERSION,
-      repo,
-      codeLength: len,
-      entries: byLen.get(len)!
-        .sort((a, b) => (a.fingerprint < b.fingerprint ? -1 : 1))
-        .map(e => ({ ...canonicalEntry(e), tags: (tagsByFp.get(e.fingerprint.toLowerCase()) ?? []).sort(compareTags) })),
-    }
-    out.set(path.join(directory, 'by-length', `${len}.json`), stableJson(file))
+  index.codeLengths = [...byLen.keys()].sort((a, b) => a - b)
+  for (const len of index.codeLengths) {
+    const entries = byLen.get(len)!.sort((a, b) => compareIds(a.fingerprint, b.fingerprint) || compareIds(a.repo, b.repo))
+    const file: ByLengthFile = { schemaVersion: VIEW_SCHEMA_VERSION, codeLength: len, entries }
+    out.set(byLengthPath(len), stableJson(file))
   }
-  const getters = new Map<string, Getter>()
-  for (const e of entries) for (const g of e.getters) getters.set(g.signature, { signature: g.signature, selector: g.selector, kind: g.kind })
-  const index: IndexFile = {
-    schemaVersion: SCHEMA_VERSION,
-    repo,
-    codeLengths: lengths,
-    getters: [...getters.values()].sort((a, b) => a.signature.localeCompare(b.signature)),
-  }
-  out.set(path.join(directory, 'index.json'), stableJson(index))
+  out.set(INDEX_PATH, stableJson(index))
   return out
+}
+
+/** Plain code-unit order, independent of locale. */
+function compareIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** `f`'s path relative to `root`, with `/` separators as in `layout.ts`. */
+function relPath(root: string, f: string): string {
+  return path.relative(root, f).split(path.sep).join('/')
 }

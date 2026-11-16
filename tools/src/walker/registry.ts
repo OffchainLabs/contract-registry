@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { remoteRefCommits } from '../lib/exec.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
+import { INDEX_PATH, byLengthPath, outOfScopePath } from '../lib/layout.ts'
 import { isPrerelease } from '../lib/semver.ts'
 import type { ByLengthEntry, ByLengthFile, IndexFile } from '../lib/types.ts'
 import type { Rpc } from './rpc.ts'
@@ -107,32 +108,31 @@ export function versionOf(entry: ByLengthEntry): string {
   return `${entry.ref}@${entry.commit.slice(0, 12)}`
 }
 
-/** One source repo's part of a registry snapshot. */
+/** A registry snapshot: every source's entries, looked up together. */
 export class Registry {
   readonly source: RegistrySource
-  readonly directory: string
   private shards = new Map<number, Promise<ByLengthEntry[]>>()
   private indexP?: Promise<IndexFile>
   private allP?: Promise<ByLengthEntry[]>
 
-  constructor(source: RegistrySource, directory: string) {
+  constructor(source: RegistrySource) {
     this.source = source
-    this.directory = directory
   }
 
-  /** Every entry of one code length (one small static fetch). */
+  /** Every entry of one code length, of every source (one small static fetch). */
   byLength(len: number): Promise<ByLengthEntry[]> {
     let p = this.shards.get(len)
     if (!p) {
-      p = this.source.read(`${this.directory}/by-length/${len}.json`).then(t => (t ? (JSON.parse(t) as ByLengthFile).entries : []))
+      p = this.source.read(byLengthPath(len)).then(t => (t ? (JSON.parse(t) as ByLengthFile).entries : []))
       this.shards.set(len, p)
     }
     return p
   }
 
+  /** The code lengths present, and per source its repo and getters. */
   index(): Promise<IndexFile> {
-    this.indexP ??= this.source.read(`${this.directory}/index.json`).then(t => {
-      if (!t) throw new Error(`${this.source.describe()}: no ${this.directory}/index.json`)
+    this.indexP ??= this.source.read(INDEX_PATH).then(t => {
+      if (!t) throw new Error(`${this.source.describe()}: no ${INDEX_PATH}`)
       return JSON.parse(t) as IndexFile
     })
     return this.indexP
@@ -144,8 +144,9 @@ export class Registry {
     return this.allP
   }
 
-  async outOfScope(): Promise<Record<string, string> | null> {
-    const t = await this.source.read(`config/${this.directory}/out-of-scope-getters.json`)
+  /** A source's out-of-scope getters (signature -> reason), or null if the snapshot has none for it. */
+  async outOfScope(source: string): Promise<Record<string, string> | null> {
+    const t = await this.source.read(outOfScopePath(source))
     return t ? JSON.parse(t).getters : null
   }
 

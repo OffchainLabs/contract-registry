@@ -8,7 +8,7 @@ import * as path from 'node:path'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { SourceData } from '../src/lib/datarepo.ts'
+import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import { fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import type { ByLengthFile, Entry, IndexFile } from '../src/lib/types.ts'
@@ -105,8 +105,8 @@ async function setup() {
   return {
     dir, checkout, data, hardhat,
     standardJson: ['--checkout', checkout, '--build-info', 'build/contracts/build-info', '--layout', 'standard-json'],
-    run: (args: string[]): Promise<Run> => new Promise(resolve => {
-      const p = spawn(process.execPath, [CLI, '--data-repo', dir, '--rpc', rpc.url, ...args])
+    run: (args: string[], { withSource = true } = {}): Promise<Run> => new Promise(resolve => {
+      const p = spawn(process.execPath, [CLI, '--data-repo', dir, '--rpc', rpc.url, ...(withSource ? ['--source', 'nitro-contracts'] : []), ...args])
       let stdout = '', stderr = ''
       p.stdout.on('data', d => { stdout += d })
       p.stderr.on('data', d => { stderr += d })
@@ -132,11 +132,12 @@ test('add-entry: a matching build writes the entry and the views, which pass ci-
     )
     assert.deepEqual({ codeLength: e.codeLength, maskedRanges: e.maskedRanges, cborMetadataLength: e.cborMetadataLength }, BRIDGE_SPEC)
     assert.deepEqual(e.getters.map(g => g.signature), ['rollup()'])
-    const shard: ByLengthFile = JSON.parse(fs.readFileSync(path.join(t.dir, 'nitro-contracts/by-length/66.json'), 'utf8'))
+    const shard: ByLengthFile = JSON.parse(fs.readFileSync(path.join(t.dir, 'registry/by-length/66.json'), 'utf8'))
     assert.deepEqual(shard.entries.map(x => [x.fingerprint, x.tags]), [[BRIDGE_FP, []]])
-    const index: IndexFile = JSON.parse(fs.readFileSync(path.join(t.dir, 'nitro-contracts/index.json'), 'utf8'))
+    const index: IndexFile = JSON.parse(fs.readFileSync(path.join(t.dir, 'registry/index.json'), 'utf8'))
     assert.deepEqual(index.codeLengths, [66])
-    for (const line of [`Wrote ${t.data.entryPath(BRIDGE_FP)}`, `fingerprint: ${BRIDGE_FP}`, `getVersion(${A.bridge}) at latest: v3.1.0-patched`, '  contract src/bridge/Bridge.sol:Bridge', '  getter rollup()', '  masked range __self', '  1. node tools/src/cli/ci-check.ts --base origin/main']) {
+    assert.ok(t.data.entryPath(BRIDGE_FP).endsWith(`/registry/nitro-contracts/entries/${BRIDGE_FP}.json`))
+    for (const line of [`Wrote ${t.data.entryPath(BRIDGE_FP)}`, '  and regenerated registry/by-length/66.json and registry/index.json.', `fingerprint: ${BRIDGE_FP}`, `getVersion(${A.bridge}) at latest: v3.1.0-patched`, '  contract src/bridge/Bridge.sol:Bridge', '  getter rollup()', '  masked range __self', '  1. node tools/src/cli/ci-check.ts --base origin/main']) {
       assert.ok(r.stdout.includes(line), `${line}\n---\n${r.stdout}`)
     }
 
@@ -193,15 +194,22 @@ test('add-entry: a build that does not match the deployed code writes nothing, a
     assert.match(none.stderr, /There is no code at that address/)
 
     assert.equal(t.changes(), '')
-    assert.ok(!fs.existsSync(path.join(t.dir, 'nitro-contracts')))
+    assert.ok(!fs.existsSync(path.join(t.dir, 'registry')))
   } finally {
     t.close()
   }
 })
 
-test('add-entry: refuses without a label, with a label that is a published tag, and on a range conflict until the pair is reviewed', async () => {
+test('add-entry: refuses without a source or a label, with a label that is a published tag, and on a range conflict until the pair is reviewed', async () => {
   const t = await setup()
   try {
+    // --source has no default: it picks where the write-once entry goes, its repo and its role.
+    const noSource = await t.run(t.bridge(A.bridge, '--label', 'x'), { withSource: false })
+    assert.equal(noSource.status, 2)
+    assert.match(noSource.stderr, /--source is required: the source whose directory, repo and contractRoles the entry gets \(configured: nitro-contracts\)/)
+    const unknown = await t.run([...t.bridge(A.bridge, '--label', 'x'), '--source', 'nitro'], { withSource: false })
+    assert.equal(unknown.status, 2)
+    assert.match(unknown.stderr, /--source nitro is not a configured source/)
     for (const label of [[], ['--label', '  ']]) {
       const r = await t.run(t.bridge(A.bridge, ...label))
       assert.equal(r.status, 2)
@@ -216,7 +224,7 @@ test('add-entry: refuses without a label, with a label that is a published tag, 
     }
     t.data.writeEntry(other)
     t.data.writeTag({ schemaVersion: 1, repo: 'OffchainLabs/nitro-contracts', tag: 'v3.1.0', commit: '1'.repeat(40), prerelease: false, packageVersion: '3.1.0', contracts: { 'src/bridge/Inbox.sol:Inbox': other.fingerprint } })
-    t.data.writeViews()
+    DataRepo.open(t.dir).writeViews()
     t.commit('an entry and a tag')
 
     const tag = await t.run(t.bridge(A.bridge, '--label', 'v3.1.0'))

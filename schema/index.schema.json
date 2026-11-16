@@ -1,14 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/index.schema.json",
-  "title": "Generated summary (<source-repo>/index.json): the code lengths that have a by-length file, and every getter any entry has. The walker uses the getters for unknown code. Never hand-edited.",
+  "title": "Generated summary (registry/index.json): the code lengths that have a by-length file, of every source, and per source its repo and getters. A source's getters are those of its own entries and of every entry its tag and branch files reference; the walker calls them on unknown code in a walk of that source. Never hand-edited.",
   "type": "object",
-  "required": ["schemaVersion", "repo", "codeLengths", "getters"],
+  "required": ["schemaVersion", "codeLengths", "sources"],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
-    "repo": { "$ref": "common.schema.json#/$defs/repo" },
+    "schemaVersion": { "$ref": "common.schema.json#/$defs/viewSchemaVersion" },
     "codeLengths": { "type": "array", "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
-    "getters": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/getter" } }
+    "sources": {
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/sourceId" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["repo", "getters"],
+        "additionalProperties": false,
+        "properties": {
+          "repo": { "$ref": "common.schema.json#/$defs/repo" },
+          "getters": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/getter" } }
+        }
+      }
+    }
   }
 }

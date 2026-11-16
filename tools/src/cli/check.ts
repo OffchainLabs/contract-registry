@@ -1,7 +1,7 @@
 // Ad-hoc test-chain check of one source commit: builds it, deploys the test chains, walks each
 // with the registry in this working tree and prints the result. Reads nothing from, and writes
 // nothing to, the data repo.
-//   node tools/src/cli/check.ts --rev <tag|branch|sha> [--source nitro-contracts] [--out-of-scope <file>]
+//   node tools/src/cli/check.ts --source <id> --rev <tag|branch|sha> [--out-of-scope <file>]
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -14,13 +14,13 @@ const { values: a } = parseArgs({
   options: {
     'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
     'work-dir': { type: 'string' },
-    source: { type: 'string', default: 'nitro-contracts' },
+    source: { type: 'string' },
     rev: { type: 'string' },
     'out-of-scope': { type: 'string' },
     'no-sync': { type: 'boolean', default: false },
   },
 })
-if (!a.rev) { console.error('usage: check --rev <rev>'); process.exit(2) }
+if (!a.rev || !a.source) { console.error('usage: check --source <id> --rev <rev>'); process.exit(2) }
 const dataRepo = path.resolve(a['data-repo']!)
 const workDir = path.resolve(a['work-dir'] ?? process.env.REGISTRY_WORK_DIR ?? path.join(dataRepo, '.work'))
 const cfg = loadSourceConfig(dataRepo, a.source!)
@@ -39,7 +39,7 @@ if (!result.ok || !checkout) { console.error(`build failed: ${result.failure?.me
 try {
   const res = await checkCommit({
     commit, key: checkKey(outOfScope, cfg.testChains.deployer), checkoutDir: checkout.dir,
-    commitFingerprints: new Set(result.contracts.map(c => c.fingerprint)), dataRepo, directory: cfg.directory, repo: cfg.repo,
+    commitFingerprints: new Set(result.contracts.map(c => c.fingerprint)), dataRepo, source: cfg.directory,
     outOfScope, deployer: await loadDeployer(cfg.testChains.deployer), log, walkOutDir: path.join(workDir, 'walks', cfg.directory),
   })
   console.log(JSON.stringify(res, null, 2))

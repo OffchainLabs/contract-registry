@@ -4,6 +4,8 @@
   "title": "Shared definitions",
   "$defs": {
     "schemaVersion": { "type": "integer", "const": 1 },
+    "viewSchemaVersion": { "type": "integer", "const": 2, "description": "The generated views (registry/by-length/, registry/index.json); 2 since they combine every source" },
+    "sourceId": { "type": "string", "pattern": "^(?!by-length$)[a-z0-9-]+$", "description": "A source's id: its directory in sources.json, and the name of its directories under config/ and registry/. by-length (and index.json) are taken by the generated views." },
     "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
     "fingerprint": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },

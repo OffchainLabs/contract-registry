@@ -19,8 +19,11 @@ export interface WalkOptions {
   start: string
   rpc: Rpc
   registry: Registry
-  /** `owner/repo` the registry directory belongs to, for output. */
-  repo: string
+  /**
+   * The source the walk belongs to, by id (e.g. `nitro-contracts`): unknown code is probed with
+   * that source's getters from the registry's index.
+   */
+  source: string
   /** Getter signatures whose targets are labelled leaves, never expanded. */
   outOfScope: Iterable<string>
   /** Max items read from a `list` getter. */
@@ -31,6 +34,7 @@ export interface WalkOptions {
 }
 
 export interface MatchedEntry {
+  /** The matched entry's repo (`owner/repo`). */
   repo: string
   contracts: string[]
   /** Contracts compiled from a dependency package: fully qualified name -> `<package>@<version>`. */
@@ -101,6 +105,8 @@ export type Warning =
 
 export interface WalkResult {
   schemaVersion: 1
+  /** The walk's source, by id, and its repo. */
+  source: string
   repo: string
   registry: string
   chainId: number
@@ -139,6 +145,8 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   const blockNumber = opts.blockNumber ?? (await rpc.blockNumber())
   const block = '0x' + blockNumber.toString(16)
   const index = await registry.index()
+  const sourceIndex = index.sources[opts.source]
+  if (!sourceIndex) throw new Error(`the registry has no source ${opts.source} (it has ${Object.keys(index.sources).join(', ') || 'none'})`)
 
   const nodes = new Map<string, WalkNode>()
   const warnings: Warning[] = []
@@ -165,7 +173,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
     if (code.length === 0) return { id: { status: 'no-code' }, entry: null }
     const e = await registry.lookup(code)
     if (!e) return { id: { status: 'unknown', codeLength: code.length, codeHash: keccak256(code), answeredGetters: [], closest: null }, entry: null }
-    return { id: { status: 'matched', codeLength: code.length, match: matchedEntry(opts.repo, e, code) }, entry: e }
+    return { id: { status: 'matched', codeLength: code.length, match: matchedEntry(e, code) }, entry: e }
   }
 
   const visited = new Set<string>()
@@ -221,11 +229,11 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       node.name = nodeName(node)
 
       // Getters to call: every getter of every matched piece, plus every getter the registry
-      // knows for this repo if any piece is unknown (reverts from those are expected).
+      // knows for the walk's source if any piece is unknown (reverts from those are expected).
       const toCall = new Map<string, GetterToCall>()
       for (const { entry } of pieces) if (entry) for (const g of entry.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: entry.fingerprint })
       const unknownPieces = pieces.filter(p => p.id.status === 'unknown')
-      if (unknownPieces.length) for (const g of index.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: null })
+      if (unknownPieces.length) for (const g of sourceIndex.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: null })
 
       const answered: string[] = []
       const results = await Promise.all([...toCall.values()].map(async g => ({ g, values: await callGetter(rpc, node.address, g, block, listCap) })))
@@ -297,7 +305,8 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   }
   return {
     schemaVersion: 1,
-    repo: opts.repo,
+    source: opts.source,
+    repo: sourceIndex.repo,
     registry: registry.source.describe(),
     chainId,
     blockNumber: blockNumber.toString(),
@@ -310,9 +319,9 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   }
 }
 
-function matchedEntry(repo: string, e: ByLengthEntry, code: Uint8Array): MatchedEntry {
+function matchedEntry(e: ByLengthEntry, code: Uint8Array): MatchedEntry {
   return {
-    repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
+    repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
     fingerprint: e.fingerprint, tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),

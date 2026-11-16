@@ -32,8 +32,8 @@ function registryOf(entries: Entry[], tags: Record<string, Hex[]>): Registry {
     schemaVersion: 1, repo: REPO, tag, commit: '2'.repeat(40), prerelease: tag.includes('-'), packageVersion: tag.slice(1),
     contracts: Object.fromEntries(fps.map((f, i) => [`src/C${i}.sol:C${i}`, f])),
   }))
-  const files = generateViews(REPO, 'nitro-contracts', entries, tagFiles)
-  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null }, 'nitro-contracts')
+  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags: tagFiles }])
+  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
 }
 
 test('lookup: the entry the code matches, or null; decodeImmutables reads its immutables', async () => {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/tag.schema.json",
-  "title": "Tag build (<source-repo>/tags/<tag>.json). Write-once.",
+  "title": "Tag build (registry/<source>/tags/<tag>.json). Write-once.",
   "type": "object",
   "required": ["schemaVersion", "repo", "tag", "commit", "prerelease", "packageVersion", "contracts"],
   "additionalProperties": false,

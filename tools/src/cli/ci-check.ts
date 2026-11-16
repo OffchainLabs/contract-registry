@@ -1,24 +1,38 @@
-// The data repo's own CI (every push and PR): schema validation, generated files equal what the
-// generator produces, entries of one code length mask the same bytes (so a lookup matches at most
-// one entry), and entries/ and tags/ are append-only relative to the base commit.
+// The data repo's own CI (every push and PR): source configs agree with each other, schema
+// validation, nothing outside the layout, generated files equal what the generator produces,
+// entries of one code length mask the same bytes (so a lookup matches at most one entry), and
+// entries/ and tags/ files are append-only relative to the base commit.
 //   node tools/src/cli/ci-check.ts [--base <rev>]
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { execFileSync } from 'node:child_process'
+import { appendOnlyViolations, configuredIds, treeBlobs } from '../lib/appendonly.ts'
 import { listSources, loadSourceConfig } from '../lib/config.ts'
 import { SourceData } from '../lib/datarepo.ts'
+import { git } from '../lib/exec.ts'
 import { rangeConflictReport, rangeConflicts } from '../lib/ranges.ts'
-import { validateDataRepo } from '../lib/schema.ts'
+import { sourceConfigProblems, strayLayout, validateDataRepo } from '../lib/schema.ts'
 
 const { values: a } = parseArgs({ options: { 'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') }, base: { type: 'string' } } })
 const root = path.resolve(a['data-repo']!)
-const sources = listSources(root).map(s => loadSourceConfig(root, s))
+const configs = listSources(root).map(s => ({ configDir: s, cfg: loadSourceConfig(root, s) }))
+const sources = configs.map(c => c.cfg)
 let failed = false
+
+const report = (what: string, problems: string[], ok: string) => {
+  for (const p of problems) console.error(`${what}: ${p}`)
+  console.error(problems.length ? `${what}: ${problems.length} problem(s)` : `${what}: ok${ok ? ` (${ok})` : ''}`)
+  failed ||= problems.length > 0
+}
+
+report('sources', sourceConfigProblems(configs.map(c => ({ configDir: c.configDir, directory: c.cfg.directory, repo: c.cfg.repo }))), 'unique directories and repos')
 
 const schemaErrors = validateDataRepo(root, sources)
 for (const e of schemaErrors) console.error(`schema: ${e}`)
 console.error(schemaErrors.length ? `schema validation: ${schemaErrors.length} error(s)` : 'schema validation: ok')
 failed ||= schemaErrors.length > 0
+
+report('layout', strayLayout(root, sources), 'every data file under registry/')
 
 try {
   execFileSync(process.execPath, [path.join(import.meta.dirname, 'generate.ts'), '--check', '--data-repo', root], { stdio: 'inherit' })
@@ -41,12 +55,12 @@ else console.error('ranges: ok (entries of one code length mask the same bytes)'
 failed ||= conflicts > 0 || unchecked > 0
 
 if (a.base) {
-  // Write-once: any modification, deletion or rename under entries/ or tags/ fails.
-  const diff = execFileSync('git', ['diff', '--name-status', '--no-renames', `${a.base}...HEAD`], { cwd: root, encoding: 'utf8' }).trim()
-  const violations = diff ? diff.split('\n').filter(l => {
-    const [status, file] = l.split('\t')
-    return status !== 'A' && sources.some(s => file.startsWith(`${s.directory}/entries/`) || file.startsWith(`${s.directory}/tags/`))
-  }) : []
+  // Write-once: every entries/ or tags/ file at the merge base is at HEAD with the same content,
+  // in the current layout (so a file moved into registry/ passes; a change or deletion fails).
+  const mergeBase = git(['merge-base', a.base, 'HEAD'], root).trim()
+  const base = treeBlobs(root, mergeBase)
+  const ids = new Set([...sources.map(s => s.directory), ...configuredIds(base)])
+  const violations = appendOnlyViolations(base, treeBlobs(root, 'HEAD'), ids)
   for (const v of violations) console.error(`append-only: ${v}`)
   console.error(violations.length ? `append-only: ${violations.length} violation(s)` : `append-only: ok (against ${a.base})`)
   failed ||= violations.length > 0

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/branch.schema.json",
-  "title": "Published branch head (<source-repo>/branches/<branch>.json). Overwritten on each update; removed when the branch is deleted.",
+  "title": "Published branch head (registry/<source>/branches/<branch>.json). Overwritten on each update; removed when the branch is deleted.",
   "type": "object",
   "required": ["schemaVersion", "repo", "branch", "commit", "contracts"],
   "additionalProperties": false,
