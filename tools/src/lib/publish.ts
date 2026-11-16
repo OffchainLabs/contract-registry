@@ -283,13 +283,8 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     outcome.alerts = await reconcileAlerts(opts.alerts, cfg, data, src, failures, outcome.checks, !!opts.reconcile, key, new Set(skippedChecks.keys()))
   } catch (e) {
     fail('publish-error', { key: 'run', message: (e as Error).message.split('\n')[0], details: (e as Error).stack })
-    // Discard the run's uncommitted changes so a failure midway publishes nothing. One path at a
-    // time: git refuses a whole pathspec list if one path is unknown to it (a new source's
-    // directory, or views not yet generated).
-    for (const p of dataPaths) {
-      try { git(['checkout', '--', p], opts.dataRepo) } catch { /* nothing committed there yet */ }
-      try { git(['clean', '-fdq', '--', p], opts.dataRepo) } catch { /* nothing to discard */ }
-    }
+    // Discard the run's uncommitted changes so a failure midway publishes nothing.
+    discardDataChanges(opts.dataRepo, dataPaths)
     outcome.alerts = await reconcileAlerts(opts.alerts, cfg, null, null, failures, [], false, '', new Set()).catch(() => [])
   } finally {
     for (const c of checkouts) c.remove()
@@ -345,7 +340,7 @@ function summarize(cfg: SourceConfig, o: PublishOutcome): string {
 }
 
 /** Commits the changes under `paths` (and nothing else); null if there are none. */
-function commitDataRepo(dataRepo: string, paths: string[], message: string, who?: { name: string; email: string }): string | null {
+export function commitDataRepo(dataRepo: string, paths: string[], message: string, who?: { name: string; email: string }): string | null {
   // git refuses a pathspec that matches nothing, on disk or in the index.
   const present = paths.filter(p => fs.existsSync(path.join(dataRepo, p)) || git(['ls-files', '--', p], dataRepo).trim() !== '')
   if (!present.length) return null
@@ -354,6 +349,22 @@ function commitDataRepo(dataRepo: string, paths: string[], message: string, who?
   const id = who ?? { name: 'contract-registry-bot', email: 'contract-registry-bot@users.noreply.github.com' }
   git(['-c', `user.name=${id.name}`, '-c', `user.email=${id.email}`, 'commit', '--quiet', '-m', message, '--', ...present], dataRepo)
   return git(['rev-parse', 'HEAD'], dataRepo).trim()
+}
+
+/**
+ * Discards every uncommitted change under `paths`, staged or not, so the data repo is as HEAD has
+ * it: the index is reset to HEAD, the working tree restored from it, and files HEAD doesn't have
+ * deleted. Restoring from the index alone would keep what a failed `git commit` had already
+ * staged, new files included (`git clean` skips them, since they are tracked), and the next
+ * source in the run would publish them with its own. One path at a time: git refuses a whole
+ * pathspec list if one path is unknown to it (a new source's directory, or views not yet generated).
+ */
+export function discardDataChanges(dataRepo: string, paths: string[]): void {
+  for (const p of paths) {
+    try { git(['reset', '-q', '--', p], dataRepo) } catch { /* nothing staged there */ }
+    try { git(['checkout', '--', p], dataRepo) } catch { /* nothing committed there yet */ }
+    try { git(['clean', '-fdq', '--', p], dataRepo) } catch { /* nothing to discard */ }
+  }
 }
 
 /**

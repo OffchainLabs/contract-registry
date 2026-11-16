@@ -12,7 +12,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { publish } from '../src/lib/publish.ts'
+import { commitDataRepo, discardDataChanges, publish } from '../src/lib/publish.ts'
 import { LocalAlertSink } from '../src/lib/alerts.ts'
 import { stableJson } from '../src/lib/json.ts'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
@@ -289,5 +289,30 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   assert.equal(branchFile('develop'), null)
   // Generated files still match their inputs, and CI's checks pass against the first data commit.
   execFileSync(process.execPath, [path.join(ROOT, 'tools/src/cli/ci-check.ts'), '--data-repo', data, '--base', git(data, 'rev-list', '--max-parents=0', 'HEAD')], { stdio: 'pipe' })
+  fs.rmSync(tmp, { recursive: true, force: true })
+})
+
+test('a failed commit leaves nothing behind: what the run staged is discarded, new files included', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-discard-'))
+  const data = path.join(tmp, 'data')
+  const put = (f: string, s: string) => { fs.mkdirSync(path.dirname(path.join(data, f)), { recursive: true }); fs.writeFileSync(path.join(data, f), s) }
+  git(tmp, 'init', '-q', data)
+  put('registry/fake/entries/0x01.json', 'old entry\n'); put('registry/index.json', 'old index\n'); put('config/fake/sources.json', '{}\n')
+  git(data, 'add', '-A'); git(data, 'commit', '-qm', 'data')
+  // A run's changes: a new entry, a changed and a new view, and a new source's directory.
+  put('registry/fake/entries/0x02.json', 'new entry\n'); put('registry/index.json', 'new index\n'); put('registry/by-length/5.json', 'new shard\n')
+  put('registry/other/tags/v1.0.0.json', 'new source\n')
+  const paths = ['registry/fake', 'registry/other', 'registry/by-length', 'registry/index.json']
+  // The commit fails after `git add` (here a pre-commit hook; also a full disk, a held index.lock).
+  const hooks = path.join(tmp, 'hooks')
+  fs.mkdirSync(hooks); fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
+  git(data, 'config', 'core.hooksPath', hooks)
+  assert.throws(() => commitDataRepo(data, paths, 'fake: 1 new entry'))
+  assert.notEqual(git(data, 'diff', '--cached', '--name-only'), '', 'the run staged its changes')
+
+  discardDataChanges(data, paths)
+  assert.equal(git(data, 'status', '--porcelain', '--untracked-files=all'), '', 'nothing staged, changed or new')
+  assert.equal(fs.readFileSync(path.join(data, 'registry/index.json'), 'utf8'), 'old index\n')
+  assert.ok(fs.existsSync(path.join(data, 'registry/fake/entries/0x01.json')))
   fs.rmSync(tmp, { recursive: true, force: true })
 })
