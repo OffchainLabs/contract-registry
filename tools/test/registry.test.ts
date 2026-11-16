@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
+import * as http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -10,7 +12,7 @@ import { decodeImmutables, fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
-import { Registry, resolveRemote, versionOf } from '../src/walker/registry.ts'
+import { HttpSource, Registry, resolveRemote, versionOf } from '../src/walker/registry.ts'
 import { ExecutionError, RpcError } from '../src/walker/rpc.ts'
 import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
 
@@ -58,6 +60,48 @@ test('lookup reads the index first: a length it does not list fetches no shard; 
   await assert.rejects(v1.lookup(hexToBytes(code(1))), /registry\/index\.json has schemaVersion 1; this client reads 2/)
   const torn = new Registry({ describe: () => 'torn', read: async rel => (rel === 'registry/index.json' ? '{"schemaVersion":2,"codeLengths":[5],"sources":{}}' : null) })
   await assert.rejects(torn.lookup(hexToBytes(code(1))), /lists code length 5, but registry\/by-length\/5\.json is missing/)
+})
+
+test('a failed read is not cached: the next call reads again (index, shard, all)', async () => {
+  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries: [entry(code(1), 'src/X.sol:X')], tags: [] }])
+  const failOnce = new Set(['registry/index.json', 'registry/by-length/5.json'])
+  const reads: string[] = []
+  const reg = new Registry({
+    describe: () => 'flaky',
+    read: async rel => {
+      reads.push(rel)
+      if (failOnce.delete(rel)) throw new TypeError('fetch failed')
+      return files.get(rel) ?? null
+    },
+  })
+  await assert.rejects(reg.lookup(hexToBytes(code(1))), /fetch failed/, 'the index read fails')
+  await assert.rejects(reg.lookup(hexToBytes(code(1))), /fetch failed/, 'the index is read again; now the shard read fails')
+  assert.ok(await reg.lookup(hexToBytes(code(1))), 'and the shard is read again')
+  assert.deepEqual(reads, ['registry/index.json', 'registry/index.json', 'registry/by-length/5.json', 'registry/by-length/5.json'])
+  assert.ok(await reg.lookup(hexToBytes(code(1))))
+  assert.equal(reads.length, 4, 'successful reads stay cached')
+
+  // all() fails with a shard, and then reads it again.
+  failOnce.add('registry/by-length/5.json')
+  const fresh = new Registry({ describe: () => 'flaky', read: async rel => { if (failOnce.delete(rel)) throw new TypeError('fetch failed'); return files.get(rel) ?? null } })
+  await assert.rejects(fresh.all(), /fetch failed/)
+  assert.equal((await fresh.all()).length, 1)
+})
+
+test('HttpSource retries a fetch that throws (a dropped connection), as it does HTTP 5xx', async () => {
+  let requests = 0
+  const server = http.createServer((req, res) => {
+    if (++requests === 1) { req.socket.destroy(); return }
+    res.end(req.url === '/snap/registry/index.json' ? '{"ok":true}' : '')
+  })
+  await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
+  try {
+    const { port } = server.address() as AddressInfo
+    assert.equal(await new HttpSource(`http://127.0.0.1:${port}/snap`).read('registry/index.json'), '{"ok":true}')
+    assert.equal(requests, 2)
+  } finally {
+    server.close()
+  }
 })
 
 test('lookup: the entry the code matches, or null; decodeImmutables reads its immutables', async () => {

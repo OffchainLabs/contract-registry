@@ -44,17 +44,29 @@ export class GitSource implements RegistrySource {
   }
 }
 
-/** Static files over HTTP at a fixed commit, e.g. raw.githubusercontent.com/<owner>/<repo>/<sha>. */
+/**
+ * Static files over HTTP at a fixed commit, e.g. raw.githubusercontent.com/<owner>/<repo>/<sha>.
+ * An error status other than 404, and a request that fails outright (DNS, a dropped connection),
+ * are retried with backoff, five attempts in all.
+ */
 export class HttpSource implements RegistrySource {
   readonly base: string
   constructor(base: string) { this.base = base.replace(/\/$/, '') }
   describe() { return this.base }
   async read(rel: string) {
+    const url = `${this.base}/${rel}`
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`${this.base}/${rel}`)
-      if (res.status === 404) return null
-      if (res.ok) return res.text()
-      if (attempt >= 4) throw new Error(`GET ${this.base}/${rel}: HTTP ${res.status}`)
+      let failure: string
+      try {
+        const res = await fetch(url)
+        if (res.status === 404) return null
+        if (res.ok) return await res.text()
+        failure = `HTTP ${res.status}`
+      } catch (e) {
+        const cause = (e as Error & { cause?: Error }).cause?.message
+        failure = `${(e as Error).message}${cause ? ` (${cause})` : ''}`
+      }
+      if (attempt >= 4) throw new Error(`GET ${url}: ${failure}`)
       await new Promise(r => setTimeout(r, 500 * 2 ** attempt))
     }
   }
@@ -122,12 +134,24 @@ function contractVersion(entry: ByLengthEntry): ContractVersion {
 /** A registry snapshot: every source's entries, looked up together. */
 export class Registry {
   readonly source: RegistrySource
-  private shards = new Map<number, Promise<ByLengthEntry[]>>()
-  private indexP?: Promise<IndexFile>
-  private allP?: Promise<ByLengthEntry[]>
+  /** Reads in progress or done: the index, each shard, and every shard together. */
+  private cache = new Map<string, Promise<unknown>>()
 
   constructor(source: RegistrySource) {
     this.source = source
+  }
+
+  /**
+   * `read()`'s promise, made once per key and shared. One that rejects is dropped, so a failed read
+   * (a network error, say) fails only the calls that were waiting on it: the next call reads again.
+   */
+  private once<T>(key: string, read: () => Promise<T>): Promise<T> {
+    const cached = this.cache.get(key) as Promise<T> | undefined
+    if (cached) return cached
+    const p = read()
+    this.cache.set(key, p)
+    p.catch(() => { if (this.cache.get(key) === p) this.cache.delete(key) })
+    return p
   }
 
   /** Opens a snapshot (see `openSource`); by default this repo's `main`, resolved to a commit once. */
@@ -136,39 +160,32 @@ export class Registry {
   }
 
   /**
-   * The code lengths present, and per source its repo and getters. Read once. A snapshot without
-   * it (the old layout, or not a registry at all) throws, so lookups can't quietly answer null
-   * for everything.
+   * The code lengths present, and per source its repo and getters. Read once (a failed read is
+   * retried by the next call). A snapshot without it (the old layout, or not a registry at all)
+   * throws, so lookups can't quietly answer null for everything.
    */
   index(): Promise<IndexFile> {
-    this.indexP ??= this.source.read(INDEX_PATH).then(t => {
+    return this.once('index', () => this.source.read(INDEX_PATH).then(t => {
       if (!t) throw new Error(`${this.source.describe()} is not a layout-v2 registry snapshot: it has no ${INDEX_PATH}`)
       const ix = JSON.parse(t) as IndexFile
       if (ix.schemaVersion !== VIEW_SCHEMA_VERSION) throw new Error(`${this.source.describe()}: ${INDEX_PATH} has schemaVersion ${ix.schemaVersion}; this client reads ${VIEW_SCHEMA_VERSION}`)
       return ix
-    })
-    return this.indexP
+    }))
   }
 
   /** Every entry of one code length, of every source: one small static fetch, and none for a length the index doesn't list. */
   byLength(len: number): Promise<ByLengthEntry[]> {
-    let p = this.shards.get(len)
-    if (!p) {
-      p = this.index().then(async ix => {
-        if (!ix.codeLengths.includes(len)) return []
-        const t = await this.source.read(byLengthPath(len))
-        if (!t) throw new Error(`${this.source.describe()}: ${INDEX_PATH} lists code length ${len}, but ${byLengthPath(len)} is missing`)
-        return (JSON.parse(t) as ByLengthFile).entries
-      })
-      this.shards.set(len, p)
-    }
-    return p
+    return this.once(`by-length/${len}`, () => this.index().then(async ix => {
+      if (!ix.codeLengths.includes(len)) return []
+      const t = await this.source.read(byLengthPath(len))
+      if (!t) throw new Error(`${this.source.describe()}: ${INDEX_PATH} lists code length ${len}, but ${byLengthPath(len)} is missing`)
+      return (JSON.parse(t) as ByLengthFile).entries
+    }))
   }
 
   /** Every entry (fetches every shard; only needed to find the closest entry for unknown code). */
   all(): Promise<ByLengthEntry[]> {
-    this.allP ??= this.index().then(async ix => (await Promise.all(ix.codeLengths.map(l => this.byLength(l)))).flat())
-    return this.allP
+    return this.once('all', () => this.index().then(async ix => (await Promise.all(ix.codeLengths.map(l => this.byLength(l)))).flat()))
   }
 
   /** A source's out-of-scope getters (signature -> reason), or null if the snapshot has none for it. */
