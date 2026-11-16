@@ -15,6 +15,7 @@
     "walk": "node tools/src/cli/walk.ts",
     "lookup": "node tools/src/cli/lookup.ts",
     "get-version": "node tools/src/cli/version.ts",
+    "add-entry": "node tools/src/cli/add-entry.ts",
     "test": "node --test tools/test/*.test.ts",
     "build:walker": "tsc -p tsconfig.build.json",
     "check": "node tools/src/cli/check.ts",

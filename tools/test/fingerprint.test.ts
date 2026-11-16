@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { getAddress, keccak256 } from 'viem'
-import { cborMetadataLength } from '../src/lib/cbor.ts'
+import { cborMetadataFields, cborMetadataLength } from '../src/lib/cbor.ts'
 import { decodeImmutables, fingerprintOf, mask, matches } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { codeSelectors } from '../src/walker/selectors.ts'
@@ -11,10 +11,16 @@ const CBOR_NONE = 'a164736f6c6343000811000a'
 // solc with an IPFS hash appends {"ipfs": <34 bytes>, "solc": ...} (length 0x0033).
 const CBOR_IPFS = 'a2646970667358221220' + '11'.repeat(32) + '64736f6c6343000811' + '0033'
 
-test('detects the CBOR metadata section and its length', () => {
+test('detects the CBOR metadata section and its length, and reads its fields', () => {
   assert.equal(cborMetadataLength(hexToBytes('6080604052' + CBOR_NONE)), 12)
   assert.equal(cborMetadataLength(hexToBytes('6080604052' + CBOR_IPFS)), 53)
   assert.equal(cborMetadataLength(hexToBytes('6080604052600080fd')), 0, 'Yul-style code has none')
+  assert.deepEqual(cborMetadataFields(hexToBytes('6080604052' + CBOR_NONE)), { solc: '0.8.17' })
+  assert.deepEqual(cborMetadataFields(hexToBytes('6080604052' + CBOR_IPFS)), { ipfs: '34 bytes', solc: '0.8.17' })
+  // {"bzzr1": <32 bytes>, "experimental": true, "solc": "0.6.0-nightly"}: other value types.
+  const old = 'a365627a7a7231' + '5820' + '22'.repeat(32) + '6c6578706572696d656e74616cf5' + '64736f6c63' + '6d302e362e302d6e696768746c79'
+  assert.deepEqual(cborMetadataFields(hexToBytes('6080604052' + old + (old.length / 2).toString(16).padStart(4, '0'))), { bzzr1: '32 bytes', experimental: 'true', solc: '0.6.0-nightly' })
+  assert.deepEqual(cborMetadataFields(hexToBytes('6080604052600080fd')), {})
 })
 
 test('masks ranges at every offset and the CBOR section, and matches by length + hash', () => {

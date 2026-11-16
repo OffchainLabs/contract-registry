@@ -187,8 +187,8 @@ export function selectorsOf(contract: any): Hex[] {
  */
 export function extractContract(ref: ArtifactRef): Omit<BuiltContract, 'package'> | null {
   const c = ref.buildInfo.output.contracts![ref.source][ref.name]
-  let hex: string = c.evm?.deployedBytecode?.object ?? ''
-  if (!hex || hex === '0x') return null
+  const code = runtimeCode(ref)
+  if (!code.length) return null
   const nodeId = findContractNodeId(ref)
   const isLibrary = nodeId !== undefined && astIndex(ref.buildInfo).get(nodeId)?.contractKind === 'library'
   const selectors = selectorsOf(c)
@@ -196,15 +196,12 @@ export function extractContract(ref: ArtifactRef): Omit<BuiltContract, 'package'
   const compiler = compilerInfo(ref.buildInfo)
   const maskedRanges = immutablesOf(ref.buildInfo, c.evm.deployedBytecode.immutableReferences ?? {}, ref.fqName)
 
-  // Linked-library placeholders (`__$...$__`) are not hex; zero them and mask them.
-  const links: Record<string, Record<string, { start: number; length: number }[]>> = c.evm.deployedBytecode.linkReferences ?? {}
-  for (const [file, libs] of Object.entries(links)) {
+  // Linked-library placeholders, zeroed in `code`, are masked.
+  for (const [file, libs] of Object.entries(linkReferencesOf(ref))) {
     for (const [lib, ranges] of Object.entries(libs)) {
-      for (const r of ranges) hex = hex.slice(0, 2 * r.start) + '0'.repeat(2 * r.length) + hex.slice(2 * (r.start + r.length))
       maskedRanges.push({ name: `<link ${file}:${lib}>`, type: 'address', offsets: ranges.map(r => r.start).sort((a, b) => a - b), length: 20 })
     }
   }
-  const code = hexToBytes(hex)
 
   // Libraries' runtime code starts with PUSH20 <own address>, zero in the build.
   if (isLibrary && code[0] === 0x73 && code.slice(1, 21).every(b => b === 0)) {
@@ -228,6 +225,25 @@ export function extractContract(ref: ArtifactRef): Omit<BuiltContract, 'package'
     selectors,
     compiler,
   }
+}
+
+/**
+ * A contract's runtime code as built, with linked-library placeholders (`__$...$__`, which aren't
+ * hex) zeroed. Empty for a contract with no runtime code (interfaces, abstract contracts).
+ */
+export function runtimeCode(ref: ArtifactRef): Uint8Array {
+  let hex: string = ref.buildInfo.output.contracts![ref.source][ref.name].evm?.deployedBytecode?.object ?? ''
+  for (const libs of Object.values(linkReferencesOf(ref))) {
+    for (const ranges of Object.values(libs)) {
+      for (const r of ranges) hex = hex.slice(0, 2 * r.start) + '0'.repeat(2 * r.length) + hex.slice(2 * (r.start + r.length))
+    }
+  }
+  return hexToBytes(hex)
+}
+
+/** Where each linked library's address goes in the runtime code: file -> library -> byte ranges. */
+function linkReferencesOf(ref: ArtifactRef): Record<string, Record<string, { start: number; length: number }[]>> {
+  return ref.buildInfo.output.contracts![ref.source][ref.name].evm?.deployedBytecode?.linkReferences ?? {}
 }
 
 /**

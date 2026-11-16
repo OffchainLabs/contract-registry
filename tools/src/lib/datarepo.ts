@@ -31,10 +31,11 @@ export function canonicalEntry(e: Entry): Entry {
 
 /**
  * The entry for one fingerprint's contracts from a build of `from.commit`, reached through
- * `from.ref` (a tag, or a branch whose head it is). `packages` lists the contracts compiled from a
+ * `from.ref` (a tag, or a branch whose head it is). A manual entry also has a `label` (and maybe
+ * `notes`), and its `ref` and `commit` may be null. `packages` lists the contracts compiled from a
  * dependency package; the role comes from sources.json `contractRoles` (see `roleOf`).
  */
-export function entryFromBuild(repo: string, contracts: BuiltContract[], from: { ref: string; commit: string }, roles: Record<string, RoleConfig>): Entry {
+export function entryFromBuild(repo: string, contracts: BuiltContract[], from: Pick<Entry, 'ref' | 'commit' | 'label' | 'notes'>, roles: Record<string, RoleConfig>): Entry {
   const c = contracts[0]
   const packages = Object.fromEntries(contracts.filter(x => x.package !== null).map(x => [x.fqName, x.package!]))
   return canonicalEntry({
@@ -52,6 +53,8 @@ export function entryFromBuild(repo: string, contracts: BuiltContract[], from: {
     compiler: c.compiler,
     ref: from.ref,
     commit: from.commit,
+    label: from.label,
+    notes: from.notes,
   })
 }
 
