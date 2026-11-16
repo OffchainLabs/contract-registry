@@ -38,12 +38,13 @@ source's range.
 ```
 EIP1967_IMPLEMENTATION_SLOT   = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
 SECONDARY_IMPLEMENTATION_SLOT = 0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d
+EIP1967_BEACON_SLOT           = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50
 
 getVersion(rpc, address) -> { version, repo } | null:
   entry = lookup(rpc.getCode(address))
-  if entry != null and not (entry.role == "proxy" and len(entry.implementationSlots) == 1):
+  if entry != null and not (entry.role == "proxy" and (entry.beaconSlot or len(entry.implementationSlots) == 1)):
     return versionAndRepo(entry)   # logic, proxy admins, and two-slot proxies report themselves
-  # a one-slot proxy, or unknown code (maybe a proxy the registry doesn't have)
+  # a one-slot proxy, a beacon proxy, or unknown code (maybe a proxy the registry doesn't have)
   impls = implementations(rpc, address, entry)
   if impls.secondary: return null  # unknown code with both slots set (an old RollupProxy): no version of its own
   if not impls.implementation: return null
@@ -52,11 +53,19 @@ getVersion(rpc, address) -> { version, repo } | null:
 
 implementations(rpc, address, entry) -> { implementation?, secondary? }:
   # an address is the last 20 bytes of a slot whose other 12 bytes are zero; zero slots are left out
-  if entry != null:                # a one-slot proxy: the slot its entry lists
+  if entry != null and entry.beaconSlot:     # a beacon proxy: what its beacon says
+    return { implementation: beaconImplementation(rpc, slot(entry.beaconSlot)) }
+  if entry != null:                          # a one-slot proxy: the slot its entry lists
     return { implementation: slot(entry.implementationSlots[0]) }
   impl = slot(EIP1967_IMPLEMENTATION_SLOT)   # unknown code: probe the known slots
-  if not impl: return {}
+  if not impl: return { implementation: beaconImplementation(rpc, slot(EIP1967_BEACON_SLOT)) }
   return { implementation: impl, secondary: slot(SECONDARY_IMPLEMENTATION_SLOT) }
+
+beaconImplementation(rpc, beacon) -> address | null:
+  if not beacon: return null
+  # eth_call implementation() (selector 0x5c60da1b) on the beacon; a revert, or a result
+  # that isn't a nonzero address in its first 32 bytes, gives null
+  return address in rpc.call(beacon, 0x5c60da1b)
 
 versionAndRepo(entry) -> { version, repo }:
   return { version: versionOf(entry), repo: entry.repo }
@@ -86,6 +95,12 @@ The choices it makes:
 - A proxy with one implementation slot (`TransparentUpgradeableProxy`, `ERC1967Proxy`) reports its
   implementation's version and repo. The implementation can come from another source than the
   proxy: a nitro-contracts proxy in front of another repo's logic reports that repo.
+- A beacon proxy (OpenZeppelin's `BeaconProxy`, and the token bridge's `ClonableBeaconProxy`, the
+  code of each standard token the bridge deploys on the child chain) reports its implementation
+  too: the one its beacon returns. Its entry has a `beaconSlot` instead of `implementationSlots`.
+  `getVersion` reads the beacon's address from that slot and calls the beacon's
+  `implementation()`, so its `rpc` needs `call` as well as `getCode` and `getStorageAt`. A
+  reverting call must throw `ExecutionError` (as `Rpc`'s does); other errors are passed on.
 - `RollupProxy` and `AdminFallbackProxy`, which have two slots, report themselves, as do logic and
   `ProxyAdmin`. A two-slot proxy's version is the release its proxy code came from, and it can lag
   the logic behind it: upgrades replace the logic, never the proxy.
@@ -96,14 +111,17 @@ The choices it makes:
 - Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
   One, for example, most proxies are early nitro-contracts builds, and the Inbox proxy an Arbitrum
   Classic build. So unknown code is probed at the EIP-1967 implementation slot and, like a one-slot
-  proxy, reports the version of the implementation there. That is safe for any unknown code:
-  every nitro-contracts proxy uses that standard slot, and the fallback can only return a version
-  if the slot holds code the registry recognises.
+  proxy, reports the version of the implementation there. If that slot is zero, the EIP-1967
+  beacon slot is probed, and a beacon there is asked for its implementation, as for a beacon proxy.
+  That is safe for any unknown code: these are the standard slots, and the fallback can only
+  return a version if it reaches code the registry recognises.
 - Unknown code whose secondary slot is also set is a two-slot proxy (an old `RollupProxy`) and
   gives null, since a two-slot proxy reports its own version, which here is unknown. It never
   reports the admin logic in its EIP-1967 slot.
-- Unknown code gives null if its EIP-1967 slot is zero, or the implementation is unknown or has no
-  code. So does a one-slot proxy whose slot is zero or whose implementation is unknown or has no
+- Unknown code gives null if its EIP-1967 and beacon slots are both zero, or the implementation is
+  unknown or has no code. So does a one-slot proxy whose slot is zero or whose implementation is
+  unknown or has no code, and a beacon proxy whose beacon slot is zero, whose beacon's
+  `implementation()` reverts or returns no address, or whose implementation is unknown or has no
   code.
 - A snapshot with no `registry/index.json` (an older commit of this repo, from before layout v2)
   makes every lookup throw, rather than answer null.
@@ -137,13 +155,20 @@ Besides the fingerprint and its masks (`codeLength`, `maskedRanges`, `cborMetada
 entry says what the code is:
 
 - `role`: `logic`, `proxy` or `proxy-admin`. A `proxy` entry also has `implementationSlots`, the
-  storage slots that hold its implementation addresses, in order. So a client that identifies
-  proxy code knows to read those slots and identify the code at each address. Roles come from
-  `contractRoles` in `config/<source>/sources.json` (unlisted contracts are logic). For
-  nitro-contracts, `TransparentUpgradeableProxy` and `ERC1967Proxy` list the EIP-1967 slot;
-  `RollupProxy` and `AdminFallbackProxy` list it and the secondary (user-logic) slot; `ProxyAdmin`
-  is a `proxy-admin`. The role is copied into the entry when it is written, and entries are
-  write-once, so list a contract before its first build is published.
+  storage slots that hold its implementation addresses, in order, or, for a beacon proxy,
+  `beaconSlot`, the slot that holds its beacon's address; never both. So a client that identifies
+  proxy code knows to read those slots and identify the code at each address, or to ask the beacon
+  for its `implementation()` and identify the code there. Roles come from `contractRoles` in
+  `config/<source>/sources.json` (unlisted contracts are logic), in the same form:
+  `{"role": "proxy", "implementationSlots": [...]}`, `{"role": "proxy", "beaconSlot": "0x..."}` or
+  `{"role": "proxy-admin"}`. For nitro-contracts, `TransparentUpgradeableProxy` and `ERC1967Proxy`
+  list the EIP-1967 slot; `RollupProxy` and `AdminFallbackProxy` list it and the secondary
+  (user-logic) slot; `ProxyAdmin` and `UpgradeableBeacon` are `proxy-admin`s. A beacon proxy
+  (OpenZeppelin's `BeaconProxy`) lists EIP-1967's beacon slot,
+  `0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50`. Contracts that compile to one
+  fingerprint must have the same role, slots and beacon slot included. The role is copied into the
+  entry when it is written, and entries are write-once, so list a contract before its first build
+  is published.
 - `ref` and `commit`: the ref the entry was first built from, and the commit it pointed at then.
   `ref` is a tag (`v3.2.0`) or a release or hotfix branch whose head was built (`release-3.3.0`).
   Only tags and branch heads are built, never a branch's earlier commits, so `commit` contains the
@@ -228,16 +253,30 @@ From TypeScript: `import { walk, Registry, Rpc } from '<this repo>/walker'` (run
 The walker identifies each contract's code: matched code is `{ status: "matched", codeLength,
 match }`, where `match` is the one matching entry with its `repo`, its own `version`, its `tags`
 and the code's `immutables`. For a `proxy` entry it reads the slots the entry lists: the first
-gives the node's `implementation`, the second its `secondaryImplementation`. Logic and proxy-admin
-code isn't probed. Code the registry doesn't know (for example a release older than the registry's
-range, or a proxy built outside it, like Arbitrum One's Arbitrum Classic-era Inbox proxy) is probed
-at the EIP-1967 slot and, if that is set, at the secondary slot.
+gives the node's `implementation`, the second its `secondaryImplementation`. For a beacon proxy it
+reads the entry's `beaconSlot` and calls the beacon's `implementation()`: the node's
+`implementation` is `{ slot, beacon, address, code }`, with the beacon slot and the beacon's
+address. A beacon whose `implementation()` reverts or returns no address gives no implementation.
+Either way, the getters of the proxy's code and of its implementation are called on the proxy.
+Logic and proxy-admin code isn't probed. Code the registry doesn't know (for example a release
+older than the registry's range, or a proxy built outside it, like Arbitrum One's Arbitrum
+Classic-era Inbox proxy) is probed at the EIP-1967 slot and, if that is set, at the secondary
+slot; if it is zero, at the beacon slot.
 
 A getter in the source's out-of-scope list (`config/<source>/out-of-scope-getters.json`) leads to a
 leaf. A leaf is labelled with the edges that reached it (`RollupProxy.owner()`) and identified like
 any other contract, implementations included, so a rollup's `owner()` shows which upgrade executor
 owns it. A leaf is never expanded: no getters are called on it and no closest entry is looked for,
 and its code raises no warning and doesn't count in the summary.
+
+A key in the out-of-scope list is either a getter signature, such as `owner()`, out of scope on
+every contract, or a contract name and a signature, such as `L1WethGateway.l2Weth()`, out of scope
+only on contracts whose code or implementation matches an entry with a contract of that name (the
+part after `:` in its fully qualified name). The second kind is for a getter that returns an
+address on another chain in some contracts and one on the same chain in others. In the token
+bridge, `L1WethGateway.l2Weth()`, on the parent chain, is an address on the child chain, while
+`L2WethGateway.l2Weth()`, on the child chain, is that chain's own WETH. Code the registry doesn't
+know only sees the first kind.
 
 `summary.tags` is the intersection of the tag sets of the matched in-scope logic code of the walk's
 repo: the releases the deployment is consistent with. Proxies and proxy admins are still identified
@@ -271,8 +310,9 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   published anyway and raises an alert until the tag is listed in `tagValidation.allowlist`.
   The test-chain check
   requires all in-scope code, proxies and proxy admins included, to match an entry from that
-  commit's build. It also reads both known implementation slots on every matched contract, and
-  fails if one holds an address the walk didn't read: a proxy missing from `contractRoles`.
+  commit's build. It also reads the known slots (EIP-1967's implementation and beacon slots, and the
+  secondary slot) on every matched contract, and fails if one that its entry doesn't list holds an
+  address: a proxy missing from `contractRoles`, or listed with the wrong slots.
 - `reconcile.yml` (daily): the same run, plus an alert for any published ref that should already
   have been processed.
 - `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; nothing outside the
@@ -503,3 +543,9 @@ rests on the person who added it; the on-chain match when `add-entry` writes it 
 - CLIs: `version` prints `<version> <repo>`; `version` and `lookup` search every source and take no
   `--source`; `walk`'s `--source` is optional; `add-entry`, `check` and `rebuild` require
   `--source`, with no default.
+- Beacon proxies: a proxy entry (and its `contractRoles` value) can have a `beaconSlot` instead of
+  `implementationSlots`, and `getVersion`, the walker and the test-chain check follow it to the
+  beacon's implementation. `getVersion`'s `rpc` needs `call` as well as `getCode` and
+  `getStorageAt`. Unknown code is also probed at the beacon slot when its EIP-1967 slot is zero.
+- Out-of-scope keys can name a contract (`L1WethGateway.l2Weth()`) as well as be a bare getter
+  signature.
