@@ -27,6 +27,7 @@ import { INDEX_PATH, byLengthPath } from '../lib/layout.ts'
 import { rangeConflictReport } from '../lib/ranges.ts'
 import { SchemaValidator } from '../lib/schema.ts'
 import type { BuiltContract, CompilerInfo, Entry } from '../lib/types.ts'
+import { reportsImplementation } from '../walker/proxy.ts'
 import { DirSource, Registry, versionOf } from '../walker/registry.ts'
 import { Rpc } from '../walker/rpc.ts'
 
@@ -141,7 +142,7 @@ const out = [
   `contract:    ${entry.contracts[0]} (${entry.role}${entry.packages ? `, ${Object.values(entry.packages)[0]}` : ''})`,
   `getVersion(${a.address}) at ${a.block}: ${version ? `${version.version} ${version.repo}` : 'null'}`,
 ]
-if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) out.push(`  (a one-slot proxy reports its implementation's version; the entry itself gives ${versionOf(found)})`)
+if (entry.role === 'proxy' && reportsImplementation(entry)) out.push(`  (a ${entry.beaconSlot ? 'beacon' : 'one-slot'} proxy reports its implementation's version; the entry itself gives ${versionOf(found)})`)
 const novel = namesNoOtherEntryHas(entry, others)
 if (novel.length) {
   out.push('', 'These names come from the source, and no other entry has them. If the build is from a private repo, check that each is public:')

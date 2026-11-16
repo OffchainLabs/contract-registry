@@ -8,7 +8,7 @@ import { versionOf, type Registry } from './registry.ts'
 import { ExecutionError, Rpc } from './rpc.ts'
 import { codeSelectors } from './selectors.ts'
 
-export { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './proxy.ts'
+export { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, EIP1967_BEACON_SLOT } from './proxy.ts'
 
 export interface WalkOptions {
   start: string
@@ -22,7 +22,13 @@ export interface WalkOptions {
    * does, and the registry has one source, that one; otherwise the walk throws, asking for it.
    */
   source?: string
-  /** Getter signatures whose targets are labelled leaves, never expanded. Default: the source's list in the registry. */
+  /**
+   * Getters whose targets are labelled leaves, never expanded. Default: the source's list in the
+   * registry. A key is a signature (`owner()`), out of scope on every contract, or
+   * `<ContractName>.<signature>` (`L1WethGateway.l2Weth()`), out of scope only on nodes where a
+   * matched piece (the code, or an implementation) has a contract of that name. Unknown code only
+   * sees the first kind.
+   */
   outOfScope?: Iterable<string>
   /** Max items read from a `list` getter. */
   listCap?: number
@@ -40,6 +46,8 @@ export interface MatchedEntry {
   role: ContractRole
   /** Proxies: the slots read for the node's `implementation` and `secondaryImplementation`. */
   implementationSlots?: Hex[]
+  /** Beacon proxies: the slot holding the beacon, whose `implementation()` is the node's `implementation`. */
+  beaconSlot?: Hex
   fingerprint: Hex
   /** This code's own version (`versionOf` the entry), of `repo`. */
   version: string
@@ -93,7 +101,9 @@ export interface WalkNode {
   code?: CodeId
   /**
    * For a proxy: the address in its first implementation slot and that code's identity. Read from
-   * the slots its entry lists, or, for unknown code, probed at the EIP-1967 slot.
+   * the slots its entry lists, or, for unknown code, probed at the EIP-1967 slot. For a beacon
+   * proxy: what its beacon's `implementation()` returns, the beacon read from the slot its entry
+   * lists or, for unknown code whose EIP-1967 slot is zero, from the beacon slot.
    */
   implementation?: Implementation
   /** The address in the second slot (AdminFallbackProxy's user-logic implementation). */
@@ -102,7 +112,11 @@ export interface WalkNode {
   unset: { getter: string; index: number | null; inScope: boolean }[]
 }
 
-export interface Implementation { slot: Hex; address: string; code: CodeId }
+/**
+ * The code behind a proxy. `slot` is the slot read: an implementation slot, or for a beacon proxy
+ * the beacon slot, whose `beacon` gave `address` from its `implementation()`.
+ */
+export interface Implementation { slot: Hex; beacon?: string; address: string; code: CodeId }
 
 export type Warning =
   | { kind: 'unknown-code'; address: string; role: 'code' | ImplementationRole; via: Edge[] }
@@ -206,7 +220,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
         for (const impl of await readImplementations(rpc, node.address, own.entry, block)) {
           const implCode = await getCode(impl.address)
           const r = await identify(implCode)
-          node[impl.role] = { slot: impl.slot, address: checksum(impl.address), code: r.id }
+          node[impl.role] = { slot: impl.slot, ...(impl.beacon ? { beacon: checksum(impl.beacon) } : {}), address: checksum(impl.address), code: r.id }
           pieces.push({ role: impl.role, ...r, code: implCode })
         }
         return pieces
@@ -280,10 +294,11 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
       const unknownPieces = pieces.filter(p => p.id.status === 'unknown')
       if (unknownPieces.length) for (const g of sourceIndex.getters) if (!toCall.has(g.signature)) toCall.set(g.signature, { ...g, fromEntry: null })
 
+      const isOutOfScope = scopeOf(outOfScope, pieces)
       const answered: string[] = []
       const results = await Promise.all([...toCall.values()].map(async g => ({ g, values: await callGetter(rpc, node.address, g, block, listCap) })))
       for (const { g, values } of results.sort((a, b) => a.g.signature.localeCompare(b.g.signature))) {
-        const inScope = !outOfScope.has(g.signature)
+        const inScope = !isOutOfScope(g.signature)
         if (values.reverted && g.fromEntry) reverted.push({ kind: 'getter-reverted', address: node.address, getter: g.signature, index: values.revertedAt, entry: g.fromEntry })
         if (!values.reverted || values.items.length) answered.push(g.signature)
         for (const { index: i, value } of values.items) {
@@ -306,7 +321,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
 
       for (const p of unknownPieces) {
         if (p.id.status !== 'unknown') continue
-        p.id.answeredGetters = answered.filter(s => !outOfScope.has(s))
+        p.id.answeredGetters = answered.filter(s => !isOutOfScope(s))
       }
     }))
     frontier = [...new Map(next.map(n => [n.address, n])).values()]
@@ -375,10 +390,20 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   }
 }
 
+/**
+ * Whether a getter is out of scope on a node: its signature is in the list (every contract), or
+ * `<Name>.<signature>` is, where `Name` is a contract (its short name) of an entry one of the
+ * node's pieces matches. Unknown pieces add no names, so unknown code only sees signatures.
+ */
+function scopeOf(outOfScope: Set<string>, pieces: Piece[]): (signature: string) => boolean {
+  const names = new Set(pieces.flatMap(p => p.entry?.contracts.map(c => c.split(':').pop()!) ?? []))
+  return signature => outOfScope.has(signature) || [...names].some(n => outOfScope.has(`${n}.${signature}`))
+}
+
 function matchedEntry(e: ByLengthEntry, code: Uint8Array): MatchedEntry {
   return {
     repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
-    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
+    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}), ...(e.beaconSlot ? { beaconSlot: e.beaconSlot } : {}),
     fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }

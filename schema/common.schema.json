@@ -19,9 +19,10 @@
       "items": { "$ref": "#/$defs/slot" },
       "description": "Storage slots holding a proxy's implementation addresses, in order: first the implementation (EIP-1967), then any secondary one (AdminFallbackProxy's user-logic implementation)"
     },
+    "beaconSlot": { "$ref": "#/$defs/slot", "description": "Beacon proxies: the storage slot holding the beacon's address (EIP-1967's beacon slot, 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50, for OpenZeppelin's BeaconProxy). The implementation is what the beacon's implementation() returns." },
     "role": {
       "enum": ["logic", "proxy", "proxy-admin"],
-      "description": "logic: implements the system, on its own or behind a proxy. proxy: delegates to the implementation(s) in its implementationSlots. proxy-admin: administers proxies. Upgrades replace logic, never proxies or their admins."
+      "description": "logic: implements the system, on its own or behind a proxy. proxy: delegates to the implementation(s) in its implementationSlots, or to the implementation of the beacon in its beaconSlot. proxy-admin: administers proxies (a ProxyAdmin, or a beacon). Upgrades replace logic, never proxies or their admins."
     },
     "packageAtVersion": { "type": "string", "pattern": "^(@[^/@\\s]+/)?[^/@\\s]+@[^@\\s]+$", "description": "<package name>@<version>, e.g. @openzeppelin/contracts@4.7.3" },
     "contractsMap": {
@@ -99,6 +100,7 @@
         },
         "role": { "$ref": "#/$defs/role" },
         "implementationSlots": { "$ref": "#/$defs/implementationSlots" },
+        "beaconSlot": { "$ref": "#/$defs/beaconSlot" },
         "codeLength": { "type": "integer", "minimum": 1 },
         "maskedRanges": { "type": "array", "items": { "$ref": "#/$defs/maskedRange" }, "description": "The ranges zeroed before hashing, besides the trailing CBOR metadata (cborMetadataLength)" },
         "cborMetadataLength": { "type": "integer", "minimum": 0 },
@@ -117,8 +119,8 @@
         },
         {
           "if": { "properties": { "role": { "const": "proxy" } }, "required": ["role"] },
-          "then": { "required": ["implementationSlots"] },
-          "else": { "not": { "required": ["implementationSlots"] } }
+          "then": { "oneOf": [{ "required": ["implementationSlots"] }, { "required": ["beaconSlot"] }] },
+          "else": { "not": { "anyOf": [{ "required": ["implementationSlots"] }, { "required": ["beaconSlot"] }] } }
         }
       ]
     }

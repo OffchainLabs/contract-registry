@@ -11,7 +11,8 @@ import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
 import { Registry, resolveRemote, versionOf } from '../src/walker/registry.ts'
-import { EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
+import { ExecutionError, RpcError } from '../src/walker/rpc.ts'
+import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
 
 const REPO = 'OffchainLabs/nitro-contracts'
 const addr = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
@@ -51,7 +52,7 @@ test('lookup reads the index first: a length it does not list fetches no shard; 
   // An old snapshot (layout v1: no registry/index.json) fails loudly instead of answering null.
   const old = new Registry({ describe: () => 'old', read: async rel => (rel === 'nitro-contracts/by-length/5.json' ? '{}' : null) })
   await assert.rejects(old.lookup(hexToBytes(code(1))), /^Error: old is not a layout-v2 registry snapshot: it has no registry\/index\.json$/)
-  await assert.rejects(old.getVersion({ getCode: async () => code(1), getStorageAt: async () => word('0x') }, addr(1)), /not a layout-v2 registry snapshot/)
+  await assert.rejects(old.getVersion({ getCode: async () => code(1), getStorageAt: async () => word('0x'), call: async () => '0x' }, addr(1)), /not a layout-v2 registry snapshot/)
   // So does an index in another format, or one that lists a length whose shard is missing.
   const v1 = new Registry({ describe: () => 'v1', read: async rel => (rel === 'registry/index.json' ? '{"schemaVersion":1,"codeLengths":[5]}' : null) })
   await assert.rejects(v1.lookup(hexToBytes(code(1))), /registry\/index\.json has schemaVersion 1; this client reads 2/)
@@ -136,6 +137,7 @@ function versionChain() {
   const rpc = {
     getCode: async (a: string, _block: string) => codes[a.toLowerCase()] ?? '0x',
     getStorageAt: async (a: string, slot: string, _block: string) => { storageReads.push(`${a.toLowerCase()} ${slot}`); return storage[a.toLowerCase()]?.[slot] ?? word('0x') },
+    call: async (to: string): Promise<string> => { throw new Error(`unexpected eth_call to ${to}`) },
   }
   return { rpc, storageReads }
 }
@@ -163,7 +165,7 @@ test('getVersion: unknown code reports the implementation at its EIP-1967 slot, 
   assert.deepEqual(storageReads.splice(0), [`${A.unknownTup} ${EIP1967}`, `${A.unknownTup} ${SECONDARY}`], 'probed as the walker probes it')
   assert.equal(await reg.getVersion(rpc, A.unknownRollup), null, 'an unknown two-slot proxy has no version of its own, not its admin logic\'s')
   assert.equal(await reg.getVersion(rpc, A.unknown), null, 'unknown code with neither slot set')
-  assert.deepEqual(storageReads.splice(0).filter(r => r.startsWith(A.unknown + ' ')), [`${A.unknown} ${EIP1967}`], 'a zero EIP-1967 slot ends the probe')
+  assert.deepEqual(storageReads.splice(0).filter(r => r.startsWith(A.unknown + ' ')), [`${A.unknown} ${EIP1967}`, `${A.unknown} ${BEACON}`], 'a zero EIP-1967 slot is followed by the beacon slot, not the secondary')
   assert.equal(await reg.getVersion(rpc, A.unknownTupUnknownImpl), null, 'an unknown proxy whose implementation is unknown')
   assert.equal(await reg.getVersion(rpc, A.unknownTupNoCodeImpl), null, 'an unknown proxy whose implementation has no code')
 })
@@ -196,11 +198,101 @@ test("getVersion: a proxy reports its implementation's repo, which can be anothe
   const rpc = {
     getCode: async (a: string) => codes[a] ?? '0x',
     getStorageAt: async (a: string, slot: string) => (a !== logic && slot === EIP1967 ? word(logic) : word('0x')),
+    call: async (): Promise<string> => '0x',
   }
   assert.deepEqual(await reg.getVersion(rpc, proxy), v('v1.1.0', UE), "the implementation's version and repo, not the proxy's v3.2.0")
   assert.deepEqual(await reg.getVersion(rpc, unknownProxy), v('v1.1.0', UE), 'likewise behind an unknown proxy')
   assert.deepEqual(await reg.getVersion(rpc, logic), v('v1.1.0', UE))
   assert.equal((await reg.lookup(hexToBytes(C.tup)))?.repo, REPO, "the proxy's own entry is still nitro-contracts'")
+})
+
+// --- Beacon proxies ------------------------------------------------------------------------------
+
+const BEACON_PROXY = '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy'
+
+/**
+ * A registry with a beacon proxy entry (v1.0.0), logic (v1.2.0, and an unreleased v1.1.0-beta.0
+ * before it) and a beacon (proxy admin), and a chain of beacon proxies. `calls` records every
+ * eth_call as `<to> <data>`.
+ */
+function beaconFixture() {
+  const BC = { proxy: code(1), logic: code(2), beacon: code(3), unknown: code(4), tup: code(5) }
+  const reg = registryOf([
+    entry(BC.proxy, BEACON_PROXY, { role: 'proxy', beaconSlot: BEACON }),
+    entry(BC.logic, 'contracts/tokenbridge/arbitrum/StandardArbERC20.sol:StandardArbERC20'),
+    entry(BC.beacon, '@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon', { role: 'proxy-admin' }),
+    entry(BC.tup, OZ_TUP, { role: 'proxy', implementationSlots: [EIP1967] }),
+  ], { 'v1.0.0': [keccak256(BC.proxy), keccak256(BC.beacon), keccak256(BC.tup)], 'v1.1.0-beta.0': [keccak256(BC.logic)], 'v1.2.0': [keccak256(BC.logic)] })
+  const B = {
+    proxy: addr(1), logic: addr(2), beacon: addr(3), unknownLogic: addr(4), account: addr(5),
+    // Beacon proxies whose beacon slot is zero, or holds a beacon that reverts, has no code, returns
+    // zero, returns an unknown implementation, returns one with no code, or returns too few bytes.
+    zeroSlot: addr(0x10), reverting: addr(0x11), noCodeBeacon: addr(0x12), zeroBeacon: addr(0x13), unknownImpl: addr(0x14), noCodeImpl: addr(0x15), short: addr(0x16),
+    // Unknown code with only the beacon slot set; with both slots set; behind an RPC that fails.
+    unknownBeaconProxy: addr(0x20), unknownBoth: addr(0x21), flaky: addr(0x22),
+    beaconReverting: addr(0x30), beaconZero: addr(0x31), beaconUnknown: addr(0x32), beaconNoCodeImpl: addr(0x33), beaconShort: addr(0x34), beaconFlaky: addr(0x35),
+  }
+  const codes: Record<string, Hex> = {
+    [B.logic]: BC.logic, [B.beacon]: BC.beacon, [B.unknownLogic]: BC.unknown,
+    [B.beaconReverting]: BC.beacon, [B.beaconZero]: BC.beacon, [B.beaconUnknown]: BC.beacon, [B.beaconNoCodeImpl]: BC.beacon, [B.beaconShort]: BC.beacon, [B.beaconFlaky]: BC.beacon,
+    [B.unknownBeaconProxy]: BC.unknown, [B.unknownBoth]: BC.unknown, [B.flaky]: BC.proxy,
+  }
+  for (const a of [B.proxy, B.zeroSlot, B.reverting, B.noCodeBeacon, B.zeroBeacon, B.unknownImpl, B.noCodeImpl, B.short]) codes[a] = BC.proxy
+  const beaconOf: Record<string, string> = {
+    [B.proxy]: B.beacon, [B.reverting]: B.beaconReverting, [B.noCodeBeacon]: B.account, [B.zeroBeacon]: B.beaconZero, [B.unknownImpl]: B.beaconUnknown,
+    [B.noCodeImpl]: B.beaconNoCodeImpl, [B.short]: B.beaconShort, [B.unknownBeaconProxy]: B.beacon, [B.unknownBoth]: B.beacon, [B.flaky]: B.beaconFlaky,
+  }
+  const implementationOf: Record<string, string> = { [B.beacon]: word(B.logic), [B.beaconZero]: word('0x'), [B.beaconUnknown]: word(B.unknownLogic), [B.beaconNoCodeImpl]: word(B.account), [B.beaconShort]: '0x' + B.logic.slice(2) }
+  const storageReads: string[] = [], calls: string[] = []
+  const rpc = {
+    getCode: async (a: string) => codes[a.toLowerCase()] ?? '0x',
+    getStorageAt: async (a: string, slot: string) => {
+      storageReads.push(`${a.toLowerCase()} ${slot}`)
+      if (slot === BEACON && beaconOf[a.toLowerCase()]) return word(beaconOf[a.toLowerCase()])
+      if (slot === EIP1967 && a.toLowerCase() === B.unknownBoth) return word(B.logic)
+      return word('0x')
+    },
+    call: async (to: string, data: string) => {
+      calls.push(`${to.toLowerCase()} ${data}`)
+      if (to.toLowerCase() === B.beaconReverting) throw new ExecutionError('execution reverted')
+      if (to.toLowerCase() === B.beaconFlaky) throw new RpcError('eth_call failed after 7 attempts: HTTP 503')
+      return implementationOf[to.toLowerCase()] ?? '0x' // an account answers with no data
+    },
+  }
+  return { reg, B, rpc, storageReads, calls }
+}
+
+test("getVersion: a beacon proxy reports its beacon's implementation, not its own version", async () => {
+  const { reg, B, rpc, storageReads, calls } = beaconFixture()
+  assert.equal(versionOf((await reg.lookup(hexToBytes(code(1))))!), 'v1.0.0', "the proxy's own entry")
+  assert.deepEqual(await reg.getVersion(rpc, B.proxy), v('v1.2.0'), "the implementation's first release")
+  assert.deepEqual(storageReads, [`${B.proxy} ${BEACON}`], 'only the beacon slot its entry lists')
+  assert.deepEqual(calls, [`${B.beacon} 0x5c60da1b`], "then the beacon's implementation()")
+  assert.deepEqual(await reg.getVersion(rpc, B.beacon), v('v1.0.0'), 'the beacon itself is a proxy admin, and reports itself')
+})
+
+test('getVersion: a beacon proxy gives null for a zero slot, a reverting or codeless beacon, and a zero, unknown or codeless implementation', async () => {
+  const { reg, B, rpc, calls } = beaconFixture()
+  assert.equal(await reg.getVersion(rpc, B.zeroSlot), null, 'zero beacon slot')
+  assert.equal(await reg.getVersion(rpc, B.reverting), null, 'implementation() reverts')
+  assert.equal(await reg.getVersion(rpc, B.noCodeBeacon), null, 'the beacon has no code (the call returns no data)')
+  assert.equal(await reg.getVersion(rpc, B.zeroBeacon), null, 'implementation() returns zero')
+  assert.equal(await reg.getVersion(rpc, B.short), null, 'implementation() returns fewer than 32 bytes')
+  assert.equal(await reg.getVersion(rpc, B.unknownImpl), null, 'an implementation the registry does not know')
+  assert.equal(await reg.getVersion(rpc, B.noCodeImpl), null, 'an implementation with no code')
+  assert.ok(!calls.some(c => c.startsWith(B.beacon + ' ')), 'a zero slot calls nothing')
+  await assert.rejects(reg.getVersion(rpc, B.flaky), /HTTP 503/, 'an RPC failure is not a revert: it throws')
+})
+
+test("getVersion: unknown code with a zero EIP-1967 slot reports the implementation of the beacon in its beacon slot", async () => {
+  const { reg, B, rpc, storageReads, calls } = beaconFixture()
+  assert.deepEqual(await reg.getVersion(rpc, B.unknownBeaconProxy), v('v1.2.0'))
+  assert.deepEqual(storageReads.splice(0), [`${B.unknownBeaconProxy} ${EIP1967}`, `${B.unknownBeaconProxy} ${BEACON}`])
+  assert.deepEqual(calls.splice(0), [`${B.beacon} 0x5c60da1b`])
+  // A set EIP-1967 slot wins: the beacon slot isn't read.
+  assert.deepEqual(await reg.getVersion(rpc, B.unknownBoth), v('v1.2.0'))
+  assert.deepEqual(storageReads.splice(0), [`${B.unknownBoth} ${EIP1967}`, `${B.unknownBoth} ${SECONDARY}`])
+  assert.deepEqual(calls, [])
 })
 
 test('versionOf: release, then prerelease, then a manual entry\'s label, then ref@commit', () => {

@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { entryFromBuild, generateViews, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
+import { describeRole, entryFromBuild, generateViews, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
 import { loadSourceConfig } from '../src/lib/config.ts'
 import { kindOf, SchemaValidator, validateDataRepo } from '../src/lib/schema.ts'
-import { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
 import type { BuiltContract, Entry, RoleConfig, TagFile } from '../src/lib/types.ts'
 import { keccak256, toFunctionSelector, toHex } from 'viem'
 
@@ -179,6 +179,38 @@ test('schemas: a proxy entry needs its slots, other roles have none; packages na
   fs.rmSync(dir, { recursive: true })
 })
 
+const BEACON_PROXY = '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy'
+
+test('schemas: a beacon proxy has a beaconSlot instead of implementationSlots, never both', () => {
+  const v = new SchemaValidator(ROOT)
+  const beacon = entry(1, 100, { contracts: [BEACON_PROXY], packages: { [BEACON_PROXY]: OZ }, role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT })
+  assert.deepEqual(v.validate('entry', beacon), [])
+  assert.notDeepEqual(v.validate('entry', { ...beacon, implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] }), [], 'both')
+  assert.notDeepEqual(v.validate('entry', { ...beacon, role: 'logic' }), [], 'a beacon slot on logic')
+  assert.notDeepEqual(v.validate('entry', { ...beacon, role: 'proxy-admin' }), [], 'a beacon slot on a proxy admin')
+  assert.notDeepEqual(v.validate('entry', { ...beacon, beaconSlot: EIP1967_BEACON_SLOT.toUpperCase().replace('0X', '0x') }), [], 'lowercase hex')
+  assert.notDeepEqual(v.validate('entry', { ...beacon, beaconSlot: [EIP1967_BEACON_SLOT] }), [], 'one slot, not a list')
+  const shard = JSON.parse(generateViews(nitro([beacon], [tag('v1.0.0', { [BEACON_PROXY]: fp(1) })])).get('registry/by-length/100.json')!)
+  assert.deepEqual(v.validate('by-length', shard), [])
+  assert.deepEqual([shard.entries[0].role, shard.entries[0].beaconSlot, 'implementationSlots' in shard.entries[0]], ['proxy', EIP1967_BEACON_SLOT, false])
+  // contractRoles: either kind of proxy, never both.
+  const cfg = { ...loadSourceConfig(ROOT, 'nitro-contracts') }
+  const withRole = (r: unknown) => ({ ...cfg, contractRoles: { [BEACON_PROXY]: r } })
+  assert.deepEqual(v.validate('sources', withRole({ role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT })), [])
+  assert.notDeepEqual(v.validate('sources', withRole({ role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT, implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] })), [], 'both')
+  assert.notDeepEqual(v.validate('sources', withRole({ role: 'proxy-admin', beaconSlot: EIP1967_BEACON_SLOT })), [], 'a beacon slot on a proxy admin')
+  assert.notDeepEqual(v.validate('sources', withRole({ role: 'proxy' })), [], 'a proxy with neither')
+})
+
+test('schemas: out-of-scope keys are a getter signature, or a contract name and a getter signature', () => {
+  const v = new SchemaValidator(ROOT)
+  const list = (...keys: string[]) => ({ schemaVersion: 1, repo: NITRO, getters: Object.fromEntries(keys.map(k => [k, 'reason'])) })
+  assert.deepEqual(v.validate('out-of-scope', list('owner()', 'allowedDelayedInboxList(uint256)', 'L1WethGateway.l2Weth()', 'C.list(uint256)', '$x._y()')), [])
+  for (const bad of ['l2Weth', 'A.B.l2Weth()', '.l2Weth()', 'L1WethGateway.', 'src/G.sol:G.l2Weth()', 'G.l2Weth(address)', '1G.l2Weth()']) {
+    assert.notDeepEqual(v.validate('out-of-scope', list(bad)), [], bad)
+  }
+})
+
 test('entryFromBuild: packages per contract, role from contractRoles', () => {
   const built = (fqName: string, pkg: string | null): BuiltContract => ({
     fqName, package: pkg, fingerprint: fp(7), codeLength: 100, maskedRanges: [], cborMetadataLength: 12, getters: [], selectors: [], compiler: entry(7, 100).compiler!,
@@ -207,10 +239,34 @@ test('entryFromBuild: packages per contract, role from contractRoles', () => {
   assert.throws(() => roleOf({ ...roles, 'src/P2.sol:P2': { role: 'proxy', implementationSlots: [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT] } }, [TUP, 'src/P2.sol:P2']), /different roles/)
 })
 
+test('roleOf: a beacon proxy role carries its beacon slot, and differs from every slot role', () => {
+  const CLONABLE = 'contracts/tokenbridge/libraries/ClonableBeaconProxy.sol:ClonableBeaconProxy'
+  const beacon = { role: 'proxy' as const, beaconSlot: EIP1967_BEACON_SLOT as `0x${string}` }
+  const roles: Record<string, RoleConfig> = { [BEACON_PROXY]: beacon, [CLONABLE]: beacon, [TUP]: { role: 'proxy', implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] } }
+  // OZ's BeaconProxy and the token bridge's ClonableBeaconProxy can compile to one fingerprint.
+  assert.deepEqual(roleOf(roles, [BEACON_PROXY, CLONABLE]), { role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT })
+  assert.deepEqual(roleOf({ [BEACON_PROXY]: { role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT.toUpperCase().replace('0X', '0x') as `0x${string}` } }, [BEACON_PROXY]), { role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT })
+  // A beacon role mixed with a slot role for one fingerprint is a config error, even for the same slot value.
+  assert.throws(() => roleOf(roles, [BEACON_PROXY, TUP]), /different roles in contractRoles.*BeaconProxy: proxy \[beacon 0xa3f0ad74.*TransparentUpgradeableProxy: proxy \[0x360894a1/)
+  assert.throws(() => roleOf({ ...roles, [TUP]: { role: 'proxy', implementationSlots: [EIP1967_BEACON_SLOT] } }, [BEACON_PROXY, TUP]), /different roles/)
+  assert.throws(() => roleOf({ ...roles, [CLONABLE]: { role: 'proxy-admin' } }, [BEACON_PROXY, CLONABLE]), /different roles/)
+  assert.throws(() => roleOf(roles, [BEACON_PROXY, 'src/A.sol:A']), /different roles/, 'beacon vs logic')
+  // How roles read, and compare (publish's check of code another source owns compares these).
+  assert.equal(describeRole(beacon), `proxy [beacon ${EIP1967_BEACON_SLOT}]`)
+  assert.equal(describeRole({ role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT.toUpperCase().replace('0X', '0x') as `0x${string}` }), describeRole(beacon), 'case does not matter')
+  assert.notEqual(describeRole({ role: 'proxy', implementationSlots: [EIP1967_BEACON_SLOT] }), describeRole(beacon))
+  // The entry: beaconSlot right after role, no implementationSlots.
+  const built: BuiltContract = { fqName: CLONABLE, package: null, fingerprint: fp(7), codeLength: 100, maskedRanges: [], cborMetadataLength: 12, getters: [], selectors: [], compiler: entry(7, 100).compiler! }
+  const e = entryFromBuild('OffchainLabs/token-bridge-contracts', [built], { ref: 'v1.0.1-beta.0', commit: commit(1) }, roles)
+  assert.deepEqual(Object.keys(e).slice(0, 7), ['schemaVersion', 'fingerprint', 'repo', 'contracts', 'role', 'beaconSlot', 'codeLength'])
+  assert.ok(!('implementationSlots' in e))
+  assert.deepEqual(new SchemaValidator(ROOT).validate('entry', e), [])
+})
+
 test('nitro-contracts config: proxies use the walker\'s slots, ProxyAdmin is an admin, and the file is valid', () => {
   const cfg = loadSourceConfig(ROOT, 'nitro-contracts')
   assert.deepEqual(new SchemaValidator(ROOT).validate('sources', cfg), [])
-  const slots = (name: string) => { const r = cfg.contractRoles[name]; return r.role === 'proxy' ? r.implementationSlots : r.role }
+  const slots = (name: string) => { const r = cfg.contractRoles[name]; return r.role !== 'proxy' ? r.role : 'beaconSlot' in r ? `beacon ${r.beaconSlot}` : r.implementationSlots }
   assert.deepEqual(slots(TUP), [EIP1967_IMPLEMENTATION_SLOT])
   assert.deepEqual(slots('@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy'), [EIP1967_IMPLEMENTATION_SLOT])
   assert.deepEqual(slots('src/rollup/RollupProxy.sol:RollupProxy'), [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT])
@@ -223,6 +279,7 @@ test('nitro-contracts config: proxies use the walker\'s slots, ProxyAdmin is an 
   // The slots are what EIP-1967 and AdminFallbackProxy define.
   assert.equal(EIP1967_IMPLEMENTATION_SLOT, slotOf('eip1967.proxy.implementation'))
   assert.equal(SECONDARY_IMPLEMENTATION_SLOT, slotOf('eip1967.proxy.implementation.secondary'))
+  assert.equal(EIP1967_BEACON_SLOT, slotOf('eip1967.proxy.beacon'))
 })
 
 function slotOf(label: string): string {

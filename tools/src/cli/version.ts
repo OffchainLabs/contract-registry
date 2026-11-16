@@ -1,7 +1,8 @@
 // Prints the version of the contract at an address, and the repo it is a version of
-// (`Registry.getVersion`): a proxy with one implementation slot reports its implementation;
-// everything else reports itself. Unknown code reports the implementation at its EIP-1967 slot,
-// unless its secondary slot is set. One lookup across every source in the registry.
+// (`Registry.getVersion`): a proxy with one implementation slot, or a beacon proxy, reports its
+// implementation; everything else reports itself. Unknown code reports the implementation at its
+// EIP-1967 slot, unless its secondary slot is set, or, if that slot is zero, the implementation of
+// the beacon in its beacon slot. One lookup across every source in the registry.
 //   node tools/src/cli/version.ts --rpc <url> --address <address> [--address ...]
 //        [--registry <dir | git:<path>@<rev> | github:<owner>/<repo>@<ref>>] [--block latest]
 // One address: prints "<version> <repo>" (exit 0), or "unknown" on stderr (exit 1).

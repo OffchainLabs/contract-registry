@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { keccak256, toFunctionSelector } from 'viem'
+import { getAddress, keccak256, toFunctionSelector } from 'viem'
 import { generateViews, type SourceInputs } from '../src/lib/datarepo.ts'
 import { evaluate, unreadSlots } from '../src/lib/testcheck.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
 import { Registry } from '../src/walker/registry.ts'
 import { ExecutionError, type Rpc } from '../src/walker/rpc.ts'
-import { EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY, walk, type WalkNode, type WalkResult } from '../src/walker/walk.ts'
+import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY, walk, type WalkNode, type WalkResult } from '../src/walker/walk.ts'
 
 const REPO = 'OffchainLabs/nitro-contracts'
 const addr = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
@@ -291,4 +291,156 @@ test('walker: warnings and their via lists come out in one order, whatever the R
   ], 'by kind, then in node order (depth, then address)')
   const via = w.warnings[1].kind === 'unknown-code' ? w.warnings[1].via : []
   assert.deepEqual(via.map(e => [e.from, e.getter]), [[at(LEGACY), 'shared()'], [at(PLAIN), 'shared()']])
+})
+
+// --- Beacon proxies, and per-contract out-of-scope keys ----------------------------------------
+
+const TB = 'OffchainLabs/token-bridge-contracts', OZ = 'Example/oz'
+const tbCode = (n: number): Hex => `0x60016003${n.toString(16).padStart(2, '0')}` // distinct from code(n), same length
+const T = { beaconProxy: tbCode(1), beacon: tbCode(2), token: tbCode(3), l2Gateway: tbCode(4), l1Gateway: tbCode(5), weth: tbCode(6), unknown: tbCode(7) }
+const GW = addr(0x40), TOKEN = addr(0x41), BCN = addr(0x42), TOKEN_LOGIC = addr(0x43), CLONE = addr(0x44), WETH = addr(0x45)
+const L1GW = addr(0x46), L1GW_LOGIC = addr(0x47), U = addr(0x48), FAR = addr(0x49), FAR2 = addr(0x4a), BROKEN = addr(0x4b), BAD_BCN = addr(0x4c)
+
+/**
+ * A token bridge: an L2WethGateway (GW) whose getters reach a beacon proxy (TOKEN, OZ's
+ * BeaconProxy, owned by a second source), unknown code whose beacon slot is set (CLONE), the beacon
+ * (BCN), aeWETH, an unknown proxy in front of an L1WethGateway (L1GW, whose l2Weth() is an address
+ * on another chain), unknown code (U) that answers l2Weth(), and a beacon proxy whose beacon's
+ * implementation() reverts (BROKEN).
+ */
+function tokenBridge() {
+  const tbEntry = (c: Hex, contract: string, extra: Partial<Entry> = {}) => entry(c, contract, { repo: TB, ...extra })
+  const entries = [
+    tbEntry(T.l2Gateway, 'contracts/tokenbridge/arbitrum/gateway/L2WethGateway.sol:L2WethGateway', { getters: ['token()', 'clone()', 'beacon()', 'l2Weth()', 'l1Gateway()', 'unknown()', 'broken()'].map(getter) }),
+    tbEntry(T.token, 'contracts/tokenbridge/arbitrum/StandardArbERC20.sol:StandardArbERC20', { getters: [getter('gateway()')] }),
+    tbEntry(T.l1Gateway, 'contracts/tokenbridge/ethereum/gateway/L1WethGateway.sol:L1WethGateway', { getters: [getter('l2Weth()')] }),
+    tbEntry(T.weth, 'contracts/tokenbridge/libraries/aeWETH.sol:aeWETH'),
+    tbEntry(T.beacon, '@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon', { role: 'proxy-admin' }),
+  ]
+  const beaconProxy = entry(T.beaconProxy, '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy', { repo: OZ, role: 'proxy', beaconSlot: BEACON })
+  const tagOf = (repo: string, name: string, es: Entry[]): TagFile => ({ schemaVersion: 1, repo, tag: name, commit: '4'.repeat(40), prerelease: false, packageVersion: name.slice(1), contracts: Object.fromEntries(es.map(e => [e.contracts[0], e.fingerprint])) })
+  const files = generateViews([
+    { id: 'token-bridge-contracts', repo: TB, entries, tags: [tagOf(TB, 'v1.0.0', entries)] },
+    { id: 'oz', repo: OZ, entries: [beaconProxy], tags: [tagOf(OZ, 'v4.0.0', [beaconProxy])] },
+  ])
+  const reg = new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
+
+  const codes: Record<string, Hex> = {
+    [GW]: T.l2Gateway, [TOKEN]: T.beaconProxy, [BCN]: T.beacon, [TOKEN_LOGIC]: T.token, [CLONE]: T.unknown, [WETH]: T.weth,
+    [L1GW]: T.unknown, [L1GW_LOGIC]: T.l1Gateway, [U]: T.unknown, [BROKEN]: T.beaconProxy, [BAD_BCN]: T.beacon,
+  }
+  const storage: Record<string, Record<string, string>> = {
+    [TOKEN]: { [BEACON]: word(BCN) },
+    [CLONE]: { [BEACON]: word(BCN) },
+    [L1GW]: { [EIP1967]: word(L1GW_LOGIC) },
+    [BROKEN]: { [BEACON]: word(BAD_BCN) },
+    // Logic with something in its beacon slot: the walker must not follow it.
+    [WETH]: { [BEACON]: word(BCN) },
+  }
+  const sel = (s: string) => getter(s).selector
+  const calls: Record<string, string> = {
+    [GW + sel('token()')]: word(TOKEN), [GW + sel('clone()')]: word(CLONE), [GW + sel('beacon()')]: word(BCN), [GW + sel('l2Weth()')]: word(WETH),
+    [GW + sel('l1Gateway()')]: word(L1GW), [GW + sel('unknown()')]: word(U), [GW + sel('broken()')]: word(BROKEN),
+    [TOKEN + sel('gateway()')]: word(GW), [CLONE + sel('gateway()')]: word(GW),
+    [BCN + sel('implementation()')]: word(TOKEN_LOGIC),
+    [L1GW + sel('l2Weth()')]: word(FAR), [U + sel('l2Weth()')]: word(FAR2),
+  }
+  const storageReads: string[] = []
+  const rpc = {
+    requests: 0,
+    chainId: async () => 42161,
+    blockNumber: async () => 100n,
+    getCode: async (a: string) => codes[a.toLowerCase()] ?? '0x',
+    getStorageAt: async (a: string, slot: string) => { storageReads.push(`${a.toLowerCase()} ${slot}`); return storage[a.toLowerCase()]?.[slot] ?? ZERO_WORD },
+    call: async (to: string, data: string) => {
+      const r = calls[to.toLowerCase() + data]
+      if (r) return r
+      throw new ExecutionError('execution reverted')
+    },
+  }
+  const run = (opts: { start?: string; source?: string | null; outOfScope?: string[] } = {}) =>
+    walk({ start: opts.start ?? GW, rpc: rpc as unknown as Rpc, registry: reg, source: opts.source === null ? undefined : (opts.source ?? 'token-bridge-contracts'), outOfScope: opts.outOfScope ?? [] })
+  return { reg, rpc, run, readsAt: (a: string) => storageReads.filter(r => r.startsWith(a)).map(r => r.split(' ')[1]) }
+}
+
+test("walker: a beacon proxy's implementation is its beacon's implementation(); unknown code is probed at the beacon slot", async () => {
+  const tb = tokenBridge()
+  const w = await tb.run()
+
+  const token = node(w, TOKEN)
+  assert.equal(names(token.code), 'BeaconProxy proxy')
+  assert.equal(token.code?.status === 'matched' && token.code.match.beaconSlot, BEACON)
+  assert.deepEqual(token.implementation && { ...token.implementation, code: names(token.implementation.code) }, {
+    slot: BEACON, beacon: node(w, BCN).address, address: getAddress(TOKEN_LOGIC), code: 'StandardArbERC20 logic',
+  })
+  assert.deepEqual(Object.keys(token.implementation!), ['slot', 'beacon', 'address', 'code'])
+  assert.equal(token.secondaryImplementation, undefined)
+  assert.equal(token.name, 'StandardArbERC20')
+  assert.deepEqual(tb.readsAt(TOKEN), [BEACON], 'only the slot its entry lists')
+  // Getters come from both pieces: StandardArbERC20's gateway() was called on the proxy.
+  assert.ok(node(w, GW).edges.some(e => e.from === token.address && e.getter === 'gateway()' && e.inScope))
+
+  // Unknown code with a zero EIP-1967 slot: the beacon slot is probed and followed.
+  const clone = node(w, CLONE)
+  assert.equal(clone.code?.status, 'unknown')
+  assert.deepEqual([clone.implementation?.slot, clone.implementation?.beacon, names(clone.implementation?.code)], [BEACON, node(w, BCN).address, 'StandardArbERC20 logic'])
+  assert.deepEqual(tb.readsAt(CLONE), [EIP1967, BEACON])
+  // Unknown code with a set EIP-1967 slot: as before, no beacon read.
+  assert.deepEqual(tb.readsAt(L1GW), [EIP1967, SECONDARY])
+  assert.equal(node(w, L1GW).implementation?.beacon, undefined)
+
+  // The beacon is a proxy admin, and logic isn't probed: no slots read on either.
+  assert.equal(names(node(w, BCN).code), 'UpgradeableBeacon proxy-admin')
+  assert.deepEqual([tb.readsAt(BCN), tb.readsAt(WETH)], [[], []])
+  assert.equal(node(w, WETH).implementation, undefined)
+
+  // A beacon whose implementation() reverts: no implementation.
+  const broken = node(w, BROKEN)
+  assert.deepEqual([names(broken.code), broken.implementation, broken.name], ['BeaconProxy proxy', undefined, 'BeaconProxy'])
+
+  // The proxy's own code is another source's; its logic is the walk's.
+  assert.deepEqual(w.summary.tags, ['v1.0.0'])
+  assert.deepEqual(w.summary.otherRepoInScope.map(o => [o.address, o.repo, o.version]), [[token.address, OZ, 'v4.0.0'], [broken.address, OZ, 'v4.0.0']])
+
+  // The test-chain guard: the beacon slot is probed too; a slot the entry lists is not reported.
+  const unread = await unreadSlots(w, tb.rpc)
+  assert.equal(unread.length, 1, unread.join('\n'))
+  assert.match(unread[0], new RegExp(`^aeWETH at ${node(w, WETH).address} holds ${word(BCN)} in beacon slot ${BEACON}, which its entry contracts/tokenbridge/libraries/aeWETH.sol:aeWETH \\(logic\\) doesn't list`))
+})
+
+test("walker: a beacon proxy belongs to the source of its beacon's implementation", async () => {
+  const w = await tokenBridge().run({ start: TOKEN, source: null })
+  assert.deepEqual([w.source, w.repo], ['token-bridge-contracts', TB], "the proxy's own code is the oz source's")
+})
+
+test('walker: Contract.getter() keys apply only on nodes with a matched piece of that contract; getter() keys everywhere', async () => {
+  const tb = tokenBridge()
+  const inScope = (w: WalkResult, a: string) => node(w, a).inScope
+  const answered = (w: WalkResult, a: string) => { const c = node(w, a).code; return c?.status === 'unknown' ? c.answeredGetters : null }
+
+  // L1WethGateway.l2Weth(): out of scope on L1GW, an unknown proxy whose implementation is an
+  // L1WethGateway; still in scope on the L2WethGateway, and on unknown code (U), which only sees
+  // signature keys.
+  const w = await tb.run({ outOfScope: ['L1WethGateway.l2Weth()'] })
+  assert.deepEqual([inScope(w, FAR), node(w, FAR).labels], [false, ['L1WethGateway.l2Weth()']])
+  assert.deepEqual(node(w, FAR).edges.map(e => [e.from, e.getter, e.inScope]), [[node(w, L1GW).address, 'l2Weth()', false]])
+  assert.deepEqual([inScope(w, WETH), inScope(w, FAR2)], [true, true])
+  assert.deepEqual([answered(w, L1GW), answered(w, U)], [[], ['l2Weth()']], 'answered in-scope getters, on that node')
+  assert.deepEqual(w.outOfScope, ['L1WethGateway.l2Weth()'])
+
+  // l2Weth(): out of scope everywhere.
+  const all = await tb.run({ outOfScope: ['l2Weth()'] })
+  assert.deepEqual([inScope(all, WETH), inScope(all, FAR), inScope(all, FAR2)], [false, false, false])
+  assert.deepEqual(node(all, FAR2).labels, [`unknown@${node(all, U).address}.l2Weth()`])
+
+  // A key on the proxy's own code (BeaconProxy) applies to that proxy only; a key on its
+  // implementation (StandardArbERC20) to every node in front of one, unknown code included.
+  const byCode = await tb.run({ outOfScope: ['BeaconProxy.gateway()'] })
+  assert.deepEqual(node(byCode, GW).edges.filter(e => e.getter === 'gateway()').map(e => [e.from, e.inScope]), [[node(byCode, TOKEN).address, false], [node(byCode, CLONE).address, true]])
+  const byImpl = await tb.run({ outOfScope: ['StandardArbERC20.gateway()'] })
+  assert.deepEqual(node(byImpl, GW).edges.filter(e => e.getter === 'gateway()').map(e => [e.from, e.inScope]), [[node(byImpl, TOKEN).address, false], [node(byImpl, CLONE).address, false]])
+  assert.ok(node(byImpl, GW).inScope, 'still the start')
+  // A name no piece has changes nothing.
+  const none = await tb.run({ outOfScope: ['L2WethGateway.gateway()', 'aeWETH.l2Weth()'] })
+  assert.ok([WETH, FAR, FAR2].every(a => inScope(none, a)))
 })

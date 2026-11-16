@@ -41,7 +41,7 @@
     "outOfScopeGetters": { "type": "string" },
     "contractRoles": {
       "type": "object",
-      "description": "Proxies and proxy admins, by fully qualified name; every other contract is logic. Copied into each entry (role, implementationSlots) when it is written, so list a contract before its first build is published. Contracts sharing a fingerprint must have the same role.",
+      "description": "Proxies and proxy admins, by fully qualified name; every other contract is logic. A proxy lists its implementationSlots, or a beacon proxy its beaconSlot. Copied into each entry (role, implementationSlots, beaconSlot) when it is written, so list a contract before its first build is published. Contracts sharing a fingerprint must have the same role.",
       "propertyNames": { "$ref": "common.schema.json#/$defs/fqName" },
       "additionalProperties": {
         "oneOf": [
@@ -50,6 +50,12 @@
             "required": ["role", "implementationSlots"],
             "additionalProperties": false,
             "properties": { "role": { "const": "proxy" }, "implementationSlots": { "$ref": "common.schema.json#/$defs/implementationSlots" } }
+          },
+          {
+            "type": "object",
+            "required": ["role", "beaconSlot"],
+            "additionalProperties": false,
+            "properties": { "role": { "const": "proxy" }, "beaconSlot": { "$ref": "common.schema.json#/$defs/beaconSlot" } }
           },
           {
             "type": "object",

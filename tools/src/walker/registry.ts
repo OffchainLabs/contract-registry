@@ -191,17 +191,23 @@ export class Registry {
   /**
    * The version of the contract at `address` (see `versionOf`) and the repo it is a version of,
    * or null. A proxy with one implementation slot reports its implementation, whichever repo that
-   * comes from (null if the slot is zero or its code missing or unknown). Everything else the
-   * registry knows reports its own code: logic, proxy admins, and proxies with two slots
+   * comes from (null if the slot is zero or its code missing or unknown). So does a beacon proxy:
+   * it reads its beacon slot, then calls the beacon's `implementation()` (null if the slot is
+   * zero, the call reverts, or the implementation's code is missing or unknown). Everything else
+   * the registry knows reports its own code: logic, proxy admins, and proxies with two slots
    * (RollupProxy, AdminFallbackProxy), whose own version can lag the logic behind them.
    *
    * Unknown code may be a proxy the registry doesn't have (e.g. Arbitrum One's, older than the
    * registry's first tag), so it is probed as `readImplementations` says. If its secondary slot is
    * set, it's a two-slot proxy, with no version of its own: null. Otherwise it reports the
-   * implementation at the EIP-1967 slot, as a one-slot proxy does, and so gives null unless that
-   * slot holds code the registry knows.
+   * implementation at the EIP-1967 slot, as a one-slot proxy does, or, if that slot is zero, the
+   * implementation of the beacon in the beacon slot; so it gives null unless that is code the
+   * registry knows.
+   *
+   * `rpc.call` is only used to ask a beacon for its implementation; it must throw an
+   * `ExecutionError` when the call reverts (any other error is passed on).
    */
-  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, address: string, block = 'latest'): Promise<ContractVersion | null> {
+  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt' | 'call'>, address: string, block = 'latest'): Promise<ContractVersion | null> {
     const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
     if (entry && !reportsImplementation(entry)) return contractVersion(entry)
     const impls = await readImplementations(rpc, address, entry, block)

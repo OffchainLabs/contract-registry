@@ -3,14 +3,14 @@ import * as path from 'node:path'
 import { createHash } from 'node:crypto'
 import { Rpc } from '../walker/rpc.ts'
 import { Registry, DirSource } from '../walker/registry.ts'
-import { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../walker/proxy.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../walker/proxy.ts'
 import { walk, type CodeId, type WalkResult } from '../walker/walk.ts'
 import { stableJson } from './json.ts'
 import { abbreviate } from './abbrev.ts'
 import type { Hex } from './types.ts'
 
 /** Bump when the walker or the check's rules change, so cached check results are not reused. */
-export const CHECK_VERSION = 5
+export const CHECK_VERSION = 6
 
 export interface ChainCheck { chain: string; start: string; problems: string[]; summary?: WalkResult['summary']; warnings?: number }
 export interface CheckResult { commit: string; key: string; ok: boolean; problems: string[]; chains: ChainCheck[] }
@@ -130,23 +130,25 @@ export function evaluate(w: WalkResult, commitFingerprints: Set<string>): string
 }
 
 /**
- * The walker reads implementation slots only where a proxy entry lists them, so a proxy missing
- * from sources.json `contractRoles` (or listed with too few slots) would quietly cut the walk
- * short. Probes both known slots on every in-scope node with matched code, and reports any that
- * hold a value the walk didn't read.
+ * The walker reads implementation and beacon slots only where a proxy entry lists them, so a
+ * proxy missing from sources.json `contractRoles` (or listed with too few slots, or the wrong
+ * kind) would quietly cut the walk short. Probes the three known slots (EIP-1967 implementation,
+ * secondary, EIP-1967 beacon) on every in-scope node with matched code, and reports any that its
+ * entry doesn't list and that hold a value the walk didn't read.
  */
 export async function unreadSlots(w: WalkResult, rpc: Pick<Rpc, 'getStorageAt'>): Promise<string[]> {
   const block = '0x' + BigInt(w.blockNumber).toString(16)
   const problems: string[] = []
   for (const n of w.nodes) {
     if (!n.inScope || n.code?.status !== 'matched') continue
-    const read = new Set<string | undefined>([n.implementation?.slot, n.secondaryImplementation?.slot])
-    for (const slot of [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT]) {
+    const { contracts, role, implementationSlots, beaconSlot } = n.code.match
+    const read = new Set<string | undefined>([n.implementation?.slot, n.secondaryImplementation?.slot, ...(implementationSlots ?? []), beaconSlot])
+    for (const slot of [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, EIP1967_BEACON_SLOT]) {
       if (read.has(slot)) continue
       const word = await rpc.getStorageAt(n.address, slot, block)
       if (BigInt(word) === 0n) continue
-      const { contracts, role } = n.code.match
-      problems.push(`${n.name} at ${n.address} holds ${word} in implementation slot ${slot}, which its entry ${contracts[0]} (${role}) doesn't list; is it missing from contractRoles in sources.json?`)
+      const kind = slot === EIP1967_BEACON_SLOT ? 'beacon slot' : 'implementation slot'
+      problems.push(`${n.name} at ${n.address} holds ${word} in ${kind} ${slot}, which its entry ${contracts[0]} (${role}) doesn't list; is it missing from contractRoles in sources.json?`)
     }
   }
   return problems

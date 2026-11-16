@@ -40,7 +40,7 @@ console.log(JSON.stringify(out, null, 2))
 function describe(e: ByLengthEntry, code: Uint8Array) {
   return {
     repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
-    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
+    role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}), ...(e.beaconSlot ? { beaconSlot: e.beaconSlot } : {}),
     fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }

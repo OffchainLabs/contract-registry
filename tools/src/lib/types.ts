@@ -40,14 +40,19 @@ export interface CompilerInfo {
 
 /**
  * What a contract is to someone walking a chain. `logic`: code that implements the system (on its
- * own or behind a proxy). `proxy`: delegates to the implementation(s) in its slots. `proxy-admin`:
- * administers proxies (e.g. OpenZeppelin's ProxyAdmin). Upgrades replace logic, never proxies or
- * their admins, so only logic says which release a deployment runs.
+ * own or behind a proxy). `proxy`: delegates to the implementation(s) in its slots, or to its
+ * beacon's implementation. `proxy-admin`: administers proxies (e.g. OpenZeppelin's ProxyAdmin, or
+ * an UpgradeableBeacon). Upgrades replace logic, never proxies or their admins, so only logic says
+ * which release a deployment runs.
  */
 export type ContractRole = 'logic' | 'proxy' | 'proxy-admin'
 
-/** A contract's role as configured in sources.json `contractRoles` (unlisted contracts are logic). */
-export type RoleConfig = { role: 'proxy'; implementationSlots: Hex[] } | { role: 'proxy-admin' }
+/**
+ * A contract's role as configured in sources.json `contractRoles` (unlisted contracts are logic).
+ * A proxy lists either the slots holding its implementations or, for a beacon proxy, the slot
+ * holding its beacon.
+ */
+export type RoleConfig = { role: 'proxy'; implementationSlots: Hex[] } | { role: 'proxy'; beaconSlot: Hex } | { role: 'proxy-admin' }
 
 /** The registry record for one distinct fingerprint (entries/<fingerprint>.json). Write-once. */
 export interface Entry {
@@ -67,8 +72,15 @@ export interface Entry {
   /**
    * Proxies only: the storage slots holding implementation addresses, in order. The first is the
    * implementation; AdminFallbackProxy (RollupProxy) has a second, the user-logic implementation.
+   * A proxy has either this or `beaconSlot`.
    */
   implementationSlots?: Hex[]
+  /**
+   * Beacon proxies only: the storage slot holding the beacon's address (EIP-1967's beacon slot for
+   * OpenZeppelin's `BeaconProxy`). The implementation is what the beacon's `implementation()`
+   * returns. A proxy has either this or `implementationSlots`.
+   */
+  beaconSlot?: Hex
   codeLength: number
   /** The ranges zeroed before hashing, besides the trailing CBOR metadata. */
   maskedRanges: MaskedRange[]

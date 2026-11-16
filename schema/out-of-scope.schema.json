@@ -10,8 +10,8 @@
     "repo": { "$ref": "common.schema.json#/$defs/repo" },
     "getters": {
       "type": "object",
-      "description": "Getter signature to the reason it is out of scope",
-      "propertyNames": { "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*\\((uint256)?\\)$" },
+      "description": "Getter to the reason it is out of scope. A key is a getter signature, e.g. owner(), out of scope on every contract; or <ContractName>.<signature>, e.g. L1WethGateway.l2Weth(), out of scope only on contracts whose code or implementation matches an entry with a contract of that name (the part after ':' in its fully qualified name). Code the registry doesn't know only sees the first kind.",
+      "propertyNames": { "pattern": "^([A-Za-z_$][A-Za-z0-9_$]*\\.)?[A-Za-z_$][A-Za-z0-9_$]*\\((uint256)?\\)$" },
       "additionalProperties": { "type": "string" }
     }
   }

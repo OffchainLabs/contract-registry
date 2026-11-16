@@ -18,6 +18,7 @@ export function canonicalEntry(e: Entry): Entry {
     ...(e.packages !== undefined ? { packages: sortedRecord(e.packages) } : {}),
     role: e.role,
     ...(e.implementationSlots !== undefined ? { implementationSlots: e.implementationSlots } : {}),
+    ...(e.beaconSlot !== undefined ? { beaconSlot: e.beaconSlot } : {}),
     codeLength: e.codeLength,
     maskedRanges: e.maskedRanges.map(r => ({ name: r.name, type: r.type, offsets: r.offsets, length: r.length })),
     cborMetadataLength: e.cborMetadataLength,
@@ -63,24 +64,31 @@ export function entryFromBuild(repo: string, contracts: BuiltContract[], from: P
 
 /**
  * The role of contracts that share one fingerprint. They are the same code, so they must have the
- * same role in `contractRoles` (an unlisted contract is logic); a disagreement is a config error.
+ * same role in `contractRoles` (an unlisted contract is logic), slots and beacon slot included; a
+ * disagreement is a config error.
  */
-export function roleOf(roles: Record<string, RoleConfig>, fqNames: string[]): Pick<Entry, 'role' | 'implementationSlots'> {
+export function roleOf(roles: Record<string, RoleConfig>, fqNames: string[]): Pick<Entry, 'role' | 'implementationSlots' | 'beaconSlot'> {
   const each = fqNames.map(n => roles[n] ?? { role: 'logic' as const })
   if (new Set(each.map(describeRole)).size > 1) {
     throw new Error(`contracts with one fingerprint have different roles in contractRoles; list each with the same role: ${fqNames.map((n, i) => `${n}: ${describeRole(each[i])}`).join('; ')}`)
   }
   const r = each[0]
-  return r.role === 'proxy' ? { role: 'proxy', implementationSlots: r.implementationSlots.map(x => x.toLowerCase() as Hex) } : { role: r.role }
+  if (r.role !== 'proxy') return { role: r.role }
+  return 'beaconSlot' in r
+    ? { role: 'proxy', beaconSlot: r.beaconSlot.toLowerCase() as Hex }
+    : { role: 'proxy', implementationSlots: r.implementationSlots.map(x => x.toLowerCase() as Hex) }
 }
 
 /**
  * A role as people read it, and as roles are compared (`roleOf`, and publish's check of code
- * another source owns): `logic`, `proxy-admin`, or `proxy [<slots>]`. Takes a `contractRoles`
- * value, or an entry's `role` and `implementationSlots`.
+ * another source owns): `logic`, `proxy-admin`, `proxy [<slots>]`, or `proxy [beacon <slot>]` for
+ * a beacon proxy. Takes a `contractRoles` value, or an entry's `role`, `implementationSlots` and
+ * `beaconSlot`.
  */
-export function describeRole(r: { role: ContractRole; implementationSlots?: Hex[] }): string {
-  return r.role === 'proxy' ? `proxy [${(r.implementationSlots ?? []).join(', ').toLowerCase()}]` : r.role
+export function describeRole(r: { role: ContractRole; implementationSlots?: Hex[]; beaconSlot?: Hex }): string {
+  if (r.role !== 'proxy') return r.role
+  const slots = [...(r.implementationSlots ?? []), ...(r.beaconSlot !== undefined ? [`beacon ${r.beaconSlot}`] : [])]
+  return `proxy [${slots.join(', ').toLowerCase()}]`
 }
 
 /** Groups a build's contracts by fingerprint (several names can compile to the same code). */
