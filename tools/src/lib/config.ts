@@ -82,7 +82,8 @@ export interface SourceConfig {
   /**
    * Pairs of entries of one code length whose masked bytes differ, each reviewed by rebuilding both
    * and confirming that no code can match both. Every other such pair fails publish and CI (see
-   * `rangeConflicts`).
+   * `rangeConflicts`). The check spans sources, and so does the list: a pair counts whichever
+   * source's config lists it, so a pair from two sources goes in either one's.
    */
   reviewedRangePairs: ReviewedRangePair[]
   /**

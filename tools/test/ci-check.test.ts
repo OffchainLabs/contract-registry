@@ -44,7 +44,7 @@ test('ci-check: appends pass; modified or deleted entries fail; hand-edited view
   t.data.writeEntry(entry(1)); t.views(); t.commit('one')
   const first = t.check('HEAD')
   assert.ok(first.ok, first.out)
-  for (const ok of ['sources: ok', 'schema validation: ok', 'layout: ok', 'generated files match their inputs', 'ranges: ok', 'append-only: ok']) assert.ok(first.out.includes(ok), `${ok}\n---\n${first.out}`)
+  for (const ok of ['sources: ok', 'schema validation: ok', 'layout: ok', 'generated files match their inputs', 'entries: ok', 'ranges: ok', 'append-only: ok']) assert.ok(first.out.includes(ok), `${ok}\n---\n${first.out}`)
 
   t.data.writeEntry(entry(2)); t.views(); t.commit('append')
   const append = t.check('HEAD~1')
@@ -176,8 +176,8 @@ test('ci-check: same-length entries that mask different bytes fail, manual entri
   t.data.writeEntry(manual); t.views(); t.commit('a manual entry that masks less')
   const bad = t.check('HEAD~1')
   assert.ok(!bad.ok)
-  assert.match(bad.out, /ranges: nitro-contracts: 2 pair\(s\) of entries with the same code length mask different bytes/)
-  assert.ok(bad.out.includes(`ranges: - 300-byte entries ${fp(1)} (src/X1.sol:X1) and ${fp(2)} (src/X2.sol:X2)`), bad.out)
+  assert.match(bad.out, /ranges: 2 pair\(s\) of entries with the same code length mask different bytes/)
+  assert.ok(bad.out.includes(`ranges: - 300-byte entries ${fp(1)} in nitro-contracts (src/X1.sol:X1) and ${fp(2)} in nitro-contracts (src/X2.sol:X2)`), bad.out)
   assert.ok(bad.out.includes(`ranges:     masked only by ${fp(1)}: bytes 10-41 (maxDataSize)`), bad.out)
   assert.ok(bad.out.includes(`ranges:     masked only by ${fp(3)}: bytes 10-41 (otherName)`), bad.out)
   assert.match(bad.out, /ranges: 2 conflicting pair\(s\)/)
@@ -195,5 +195,78 @@ test('ci-check: same-length entries that mask different bytes fail, manual entri
   fs.writeFileSync(cfgFile, JSON.stringify(cfg))
   const ok2 = t.check()
   assert.ok(ok2.ok, ok2.out)
+  t.close()
+})
+
+/** A second configured source, `other` (repo Example/other), alongside nitro-contracts. */
+function addOther(dir: string): SourceData {
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'config/nitro-contracts/sources.json'), 'utf8'))
+  fs.mkdirSync(path.join(dir, 'config/other'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'config/other/sources.json'), JSON.stringify({ ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [] }))
+  return new SourceData(dir, 'other', 'Example/other')
+}
+
+test('ci-check: across sources, a fingerprint has one entry, and every tag and branch fingerprint has an entry in some source', () => {
+  const t = setup()
+  const other = addOther(t.dir)
+  // nitro-contracts owns fp 1; other's tag lists it too (shared code), and other owns fp 2.
+  t.data.writeEntry(entry(1)); t.data.writeTag(tag('v1.0.0', 1))
+  other.writeEntry({ ...entry(2), repo: 'Example/other' })
+  other.writeTag({ ...tag('v9.0.0', 1), repo: 'Example/other', contracts: { 'lib/X1.sol:X1': fp(1), 'src/X2.sol:X2': fp(2) } })
+  other.writeBranch({ schemaVersion: 1, repo: 'Example/other', branch: 'release/x', commit: '8'.repeat(40), contracts: { 'src/X2.sol:X2': fp(2) } })
+  t.views(); t.commit('two sources, shared code')
+  const ok = t.check('HEAD')
+  assert.ok(ok.ok, ok.out)
+  assert.match(ok.out, /entries: ok \(one entry per fingerprint across sources; every tag and branch fingerprint has one\)/)
+
+  // The same fingerprint's entry in both sources' directories (each valid on its own).
+  other.writeEntry({ ...entry(1), repo: 'Example/other' }); t.views()
+  const dup = t.check()
+  assert.ok(!dup.ok)
+  assert.ok(dup.out.includes(`entries: ${fp(1)} has an entry in more than one source: registry/nitro-contracts/entries/${fp(1)}.json, registry/other/entries/${fp(1)}.json\n`), dup.out)
+  assert.match(dup.out, /schema validation: ok/)
+  assert.match(dup.out, /generated files match their inputs/)
+  fs.rmSync(other.entryPath(fp(1))); t.views()
+  assert.ok(t.check().ok)
+
+  // A tag and a branch file listing fingerprints that have no entry in any source.
+  other.writeTag({ ...tag('v9.1.0', 2), repo: 'Example/other', contracts: { 'src/X2.sol:X2': fp(2), 'src/X7.sol:X7': fp(7) } })
+  other.writeBranch({ schemaVersion: 1, repo: 'Example/other', branch: 'release/x', commit: '8'.repeat(40), contracts: { 'src/X8.sol:X8': fp(8) } })
+  t.views()
+  const dangling = t.check()
+  assert.ok(!dangling.ok)
+  for (const line of [
+    `entries: registry/other/branches/release/x.json: src/X8.sol:X8 has fingerprint ${fp(8)}, which has no entry in any source\n`,
+    `entries: registry/other/tags/v9.1.0.json: src/X7.sol:X7 has fingerprint ${fp(7)}, which has no entry in any source\n`,
+    'entries: 2 problem(s)',
+  ]) assert.ok(dangling.out.includes(line), `${line}\n---\n${dangling.out}`)
+  t.close()
+})
+
+test('ci-check: same-length entries of two sources that mask different bytes fail, until the pair is listed in either source\'s config', () => {
+  const t = setup()
+  const other = addOther(t.dir)
+  t.data.writeEntry({ ...entry(1), codeLength: 300, maskedRanges: [{ name: 'maxDataSize', type: 'uint256', offsets: [10], length: 32 }] })
+  other.writeEntry({ ...entry(2), repo: 'Example/other', codeLength: 300 })
+  t.views(); t.commit('a conflict across sources')
+  const bad = t.check('HEAD')
+  assert.ok(!bad.ok)
+  for (const line of [
+    'ranges: 1 pair(s) of entries with the same code length mask different bytes',
+    `ranges: - 300-byte entries ${fp(1)} in nitro-contracts (src/X1.sol:X1) and ${fp(2)} in other (src/X2.sol:X2)\n`,
+    'ranges:     once reviewed, add to reviewedRangePairs in config/nitro-contracts/sources.json or config/other/sources.json: ',
+    'ranges: 1 conflicting pair(s)',
+  ]) assert.ok(bad.out.includes(line), `${line}\n---\n${bad.out}`)
+
+  const pair = { fingerprints: [fp(1), fp(2)], note: 'rebuilt both; they differ at byte 0, which neither masks' }
+  for (const listedIn of ['other', 'nitro-contracts']) {
+    for (const s of ['other', 'nitro-contracts']) {
+      const f = path.join(t.dir, `config/${s}/sources.json`)
+      fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, 'utf8')), reviewedRangePairs: s === listedIn ? [pair] : [] }))
+    }
+    const ok = t.check()
+    assert.ok(ok.ok, `listed in ${listedIn}\n${ok.out}`)
+    assert.match(ok.out, /ranges: ok/)
+  }
   t.close()
 })

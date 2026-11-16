@@ -1,11 +1,12 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { listSources, loadSourceConfig } from './config.ts'
+import { listSources, loadSourceConfig, type ReviewedRangePair } from './config.ts'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
 import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir } from './layout.ts'
+import { rangeConflicts, type RangeConflict } from './ranges.ts'
 import { compareTags } from './semver.ts'
 import { SCHEMA_VERSION, VIEW_SCHEMA_VERSION } from './types.ts'
-import type { BranchFile, BuiltContract, ByLengthEntry, ByLengthFile, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
+import type { BranchFile, BuiltContract, ByLengthEntry, ByLengthFile, ContractRole, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
 
 /** Canonical key order for an entry file. */
 export function canonicalEntry(e: Entry): Entry {
@@ -66,12 +67,20 @@ export function entryFromBuild(repo: string, contracts: BuiltContract[], from: P
  */
 export function roleOf(roles: Record<string, RoleConfig>, fqNames: string[]): Pick<Entry, 'role' | 'implementationSlots'> {
   const each = fqNames.map(n => roles[n] ?? { role: 'logic' as const })
-  const describe = (r: RoleConfig | { role: 'logic' }) => r.role === 'proxy' ? `proxy [${r.implementationSlots.join(', ').toLowerCase()}]` : r.role
-  if (new Set(each.map(describe)).size > 1) {
-    throw new Error(`contracts with one fingerprint have different roles in contractRoles; list each with the same role: ${fqNames.map((n, i) => `${n}: ${describe(each[i])}`).join('; ')}`)
+  if (new Set(each.map(describeRole)).size > 1) {
+    throw new Error(`contracts with one fingerprint have different roles in contractRoles; list each with the same role: ${fqNames.map((n, i) => `${n}: ${describeRole(each[i])}`).join('; ')}`)
   }
   const r = each[0]
   return r.role === 'proxy' ? { role: 'proxy', implementationSlots: r.implementationSlots.map(x => x.toLowerCase() as Hex) } : { role: r.role }
+}
+
+/**
+ * A role as people read it, and as roles are compared (`roleOf`, and publish's check of code
+ * another source owns): `logic`, `proxy-admin`, or `proxy [<slots>]`. Takes a `contractRoles`
+ * value, or an entry's `role` and `implementationSlots`.
+ */
+export function describeRole(r: { role: ContractRole; implementationSlots?: Hex[] }): string {
+  return r.role === 'proxy' ? `proxy [${(r.implementationSlots ?? []).join(', ').toLowerCase()}]` : r.role
 }
 
 /** Groups a build's contracts by fingerprint (several names can compile to the same code). */
@@ -165,9 +174,14 @@ export class DataRepo {
   /** In source id order. */
   readonly sources: SourceData[]
 
-  constructor(root: string, sources: { directory: string; repo: string }[]) {
+  /** Every source's reviewed range pairs, in source id order. */
+  private readonly pairs: ReviewedRangePair[]
+
+  constructor(root: string, sources: { directory: string; repo: string; reviewedRangePairs?: ReviewedRangePair[] }[]) {
     this.root = root
-    this.sources = [...sources].sort((a, b) => compareIds(a.directory, b.directory)).map(s => new SourceData(root, s.directory, s.repo))
+    const ordered = [...sources].sort((a, b) => compareIds(a.directory, b.directory))
+    this.sources = ordered.map(s => new SourceData(root, s.directory, s.repo))
+    this.pairs = ordered.flatMap(s => s.reviewedRangePairs ?? [])
   }
 
   /** The data repo with the sources configured under `config/`. */
@@ -179,6 +193,65 @@ export class DataRepo {
     const s = this.sources.find(x => x.id === id)
     if (!s) throw new Error(`no configured source ${id} (configured: ${this.sources.map(x => x.id).join(', ') || 'none'})`)
     return s
+  }
+
+  /**
+   * The source whose `entries/` holds the fingerprint's entry (its owner), or null if none does.
+   * A fingerprint has at most one entry in the whole registry (see `entryProblems`), so publish
+   * and `add-entry` look it up here, across every source, before writing one.
+   */
+  ownerOf(fp: string): SourceData | null {
+    return this.sources.find(s => s.hasEntry(fp)) ?? null
+  }
+
+  /** Every source's entries, each with its source's id, in source id order. */
+  allEntries(): SourcedEntry[] {
+    return this.sources.flatMap(s => s.entries().map(e => ({ ...e, source: s.id })))
+  }
+
+  /** The union of every source's `reviewedRangePairs`: a pair counts whichever config lists it. */
+  reviewedRangePairs(): ReviewedRangePair[] {
+    return [...this.pairs]
+  }
+
+  /**
+   * The range invariant across every source (see `rangeConflicts`): every entry on disk, plus
+   * `extra` (entries about to be written), against the union of reviewed pairs. Throws if an
+   * entry's ranges lie outside its code.
+   */
+  rangeConflicts(extra: SourcedEntry[] = []): RangeConflict<SourcedEntry>[] {
+    return rangeConflicts([...this.allEntries(), ...extra], this.pairs)
+  }
+
+  /**
+   * The rules that tie the sources' files together: no fingerprint has an entry in two sources'
+   * directories, and every fingerprint a tag or branch file lists has an entry in some source
+   * (code that several sources build has one entry, in the source that published it first).
+   */
+  entryProblems(): string[] {
+    const problems: string[] = []
+    const owners = new Map<string, string[]>()
+    for (const s of this.sources) {
+      for (const e of s.entries()) {
+        const fp = String(e.fingerprint).toLowerCase()
+        owners.set(fp, [...(owners.get(fp) ?? []), s.id])
+      }
+    }
+    for (const [fp, ids] of owners) {
+      if (ids.length > 1) problems.push(`${fp} has an entry in more than one source: ${ids.map(id => inputPath(id, 'entries', fp)).join(', ')}`)
+    }
+    for (const s of this.sources) {
+      const files = [
+        ...s.tags().map(t => ({ path: inputPath(s.id, 'tags', t.tag), contracts: t.contracts })),
+        ...s.branches().map(b => ({ path: inputPath(s.id, 'branches', b.branch), contracts: b.contracts })),
+      ]
+      for (const f of files) {
+        for (const [contract, fp] of Object.entries(f.contracts ?? {})) {
+          if (!owners.has(String(fp).toLowerCase())) problems.push(`${f.path}: ${contract} has fingerprint ${fp}, which has no entry in any source`)
+        }
+      }
+    }
+    return problems.sort()
   }
 
   /** Every generated file, keyed by its path relative to the data repo root. */
@@ -211,6 +284,12 @@ export class DataRepo {
     return problems
   }
 }
+
+/**
+ * An entry and the id of the source whose directory holds it (its owner). `source` is not part of
+ * the entry file: `writeEntry` leaves it out.
+ */
+export type SourcedEntry = Entry & { source: string }
 
 /** One source's input files, as `generateViews` reads them. */
 export interface SourceInputs {

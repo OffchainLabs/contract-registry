@@ -1,5 +1,5 @@
-// The range invariant that makes a lookup match at most one entry: within one source directory,
-// entries of the same code length mask the same bytes, apart from reviewed pairs.
+// The range invariant that makes a lookup match at most one entry: across every source, entries
+// of the same code length mask the same bytes, apart from reviewed pairs.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import * as path from 'node:path'
@@ -58,15 +58,18 @@ test('range invariant: same-length entries that mask different bytes conflict, w
   // A differing CBOR length is a difference too.
   assert.deepEqual(rangeConflicts([e(5, 300, [], 12), e(6, 300, [], 0)], [])[0].onlyA, [{ start: 288, end: 300, names: [CBOR_METADATA] }])
 
-  // The report names both fingerprints and their contracts, shows the bytes, and says how to clear it.
-  const report = rangeConflictReport('nitro-contracts', [cs[0]])
-  assert.match(report.split('\n')[0], /^nitro-contracts: 1 pair\(s\) of entries with the same code length mask different bytes/)
-  assert.ok(report.includes(`300-byte entries ${fp(1)} (src/X1.sol:X1) and ${fp(2)} (src/X2.sol:X2)`))
+  // The report names both fingerprints, their sources and contracts, shows the bytes, and says
+  // which config the reviewed pair goes in: either source's, for a pair from two sources.
+  const sourced = cs.map(c => ({ ...c, a: { ...c.a, source: 'nitro-contracts' }, b: { ...c.b, source: c.b === b ? 'token-bridge-contracts' : 'nitro-contracts' } }))
+  const report = rangeConflictReport(sourced.slice(0, 2))
+  assert.match(report.split('\n')[0], /^2 pair\(s\) of entries with the same code length mask different bytes/)
+  assert.ok(report.includes(`- 300-byte entries ${fp(1)} in nitro-contracts (src/X1.sol:X1) and ${fp(2)} in token-bridge-contracts (src/X2.sol:X2)\n`), report)
   assert.ok(report.includes(`masked only by ${fp(1)}: none`))
   assert.ok(report.includes(`masked only by ${fp(2)}: bytes 100-131 (deployTimeChainId)`))
-  assert.match(report, /add the pair, with a note on the review, to reviewedRangePairs in config\/nitro-contracts\/sources\.json/)
-  const snippet = JSON.parse(/once reviewed: (\{.*\})/.exec(report)![1])
-  assert.deepEqual(snippet.fingerprints, [fp(1), fp(2)])
+  const where = [...report.matchAll(/once reviewed, add to reviewedRangePairs in (.*): (\{.*\})$/gm)]
+  assert.deepEqual(where.map(m => m[1]), ['config/nitro-contracts/sources.json or config/token-bridge-contracts/sources.json', 'config/nitro-contracts/sources.json'])
+  assert.deepEqual(where.map(m => JSON.parse(m[2]).fingerprints), [[fp(1), fp(2)], [fp(1), fp(3)]])
+  assert.match(report, /add the pair, with a note on the review, to reviewedRangePairs in the config named under it\. A pair from two sources goes in either source's config/)
 })
 
 test('range invariant: a reviewed pair passes, in either order; unreviewed pairs of the same length still fail', () => {

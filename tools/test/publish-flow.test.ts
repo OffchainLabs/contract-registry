@@ -265,12 +265,13 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   assert.equal(git(data, 'status', '--porcelain'), '', "the run's entries and views are discarded")
   assert.equal(branchFile('release-1.2.0').commit, fixed)
   const err = r9.failures['publish-error']![0]
-  assert.match(err.message, /^range invariant broken; nothing published\. fake: 1 pair\(s\) of entries with the same code length mask different bytes/)
+  assert.match(err.message, /^range invariant broken; nothing published\. 1 pair\(s\) of entries with the same code length mask different bytes/)
   assert.ok(err.details!.includes(manual.fingerprint) && err.details!.includes('src/B.sol:B') && err.details!.includes('bytes 0-31 (patched)'), err.details)
+  assert.ok(err.details!.includes('once reviewed, add to reviewedRangePairs in config/fake/sources.json: '), err.details)
   assert.ok(open().some(a => a.title.endsWith('(publish-error)')))
 
   // --- Run 10: the pair reviewed, by pasting the report's snippet into the config: B@8 is published. ---
-  const snippet = JSON.parse(/once reviewed: (\{.*\})/.exec(err.details!)![1])
+  const snippet = JSON.parse(/once reviewed, add to reviewedRangePairs in \S+: (\{.*\})$/m.exec(err.details!)![1])
   cfg.reviewedRangePairs.push({ ...snippet, note: 'test: rebuilt both; they differ at a byte neither masks' })
   fs.writeFileSync(cfgFile, stableJson(cfg))
   git(data, 'commit', '-qam', 'review the pair')

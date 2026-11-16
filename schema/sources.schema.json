@@ -62,7 +62,7 @@
     },
     "reviewedRangePairs": {
       "type": "array",
-      "description": "Pairs of entries with the same code length that mask different bytes, each reviewed by rebuilding both and confirming that their code differs at some byte neither masks, so no code can match both. Every other such pair fails publish and CI, which keeps lookups to at most one match.",
+      "description": "Pairs of entries with the same code length that mask different bytes, each reviewed by rebuilding both and confirming that their code differs at some byte neither masks, so no code can match both. Every other such pair fails publish and CI, which keeps lookups to at most one match. The check spans every source, and a pair counts whichever source's config lists it: a pair from two sources goes in either one's.",
       "items": {
         "type": "object",
         "required": ["fingerprints", "note"],

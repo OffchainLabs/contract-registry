@@ -13,6 +13,7 @@ import { fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import type { ByLengthFile, Entry, IndexFile } from '../src/lib/types.ts'
 import { EIP1967_IMPLEMENTATION_SLOT as EIP1967 } from '../src/walker/walk.ts'
+import { toFunctionSelector } from 'viem'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const CLI = path.join(ROOT, 'tools/src/cli/add-entry.ts')
@@ -156,7 +157,7 @@ test('add-entry: a matching build writes the entry and the views, which pass ci-
     // Entries are write-once.
     const again = await t.run(t.bridge(A.bridge, '--label', 'another label'))
     assert.equal(again.status, 1)
-    assert.ok(again.stderr.includes(`${BRIDGE_FP} already has an entry, ${t.data.entryPath(BRIDGE_FP)}, which reports v3.1.0-patched. Entries are write-once.`), again.stderr)
+    assert.ok(again.stderr.includes(`${BRIDGE_FP} already has an entry in nitro-contracts, ${t.data.entryPath(BRIDGE_FP)}, which reports v3.1.0-patched of OffchainLabs/nitro-contracts. Entries are write-once.`), again.stderr)
     assert.equal(t.changes(), '')
   } finally {
     t.close()
@@ -237,7 +238,7 @@ test('add-entry: refuses without a source or a label, with a label that is a pub
     const [x, y] = Object.keys(named).sort()
     for (const line of [
       'The entry would break the range invariant (see "Publishing" in the README):',
-      `- 66-byte entries ${x} (${named[x]}) and ${y} (${named[y]})`,
+      `- 66-byte entries ${x} in nitro-contracts (${named[x]}) and ${y} in nitro-contracts (${named[y]})`,
       `    masked only by ${BRIDGE_FP}: bytes 1-32 (__self)`,
       'Nothing written.',
     ]) assert.ok(conflict.stderr.includes(line), `${line}\n---\n${conflict.stderr}`)
@@ -297,6 +298,63 @@ test('add-entry: --ref and --commit are recorded only if the ref points at that 
     const e = t.data.readEntry(BRIDGE_FP)
     assert.deepEqual([e.ref, e.commit, e.label], ['v9.0.0', head, 'x'])
     assert.match(ok.stdout, /getVersion\(0xb{40}\) at latest: x\n/, 'the label still gives the version')
+  } finally {
+    t.close()
+  }
+})
+
+test('add-entry: looks across every source: code another source owns is refused, and the range check and the names list cover every source', async () => {
+  const t = await setup()
+  try {
+    // A second source, `other`, whose tag v1.0.0 built the Bridge's code.
+    const cfg = JSON.parse(fs.readFileSync(path.join(t.dir, 'config/nitro-contracts/sources.json'), 'utf8'))
+    fs.mkdirSync(path.join(t.dir, 'config/other'))
+    const otherCfg = path.join(t.dir, 'config/other/sources.json')
+    fs.writeFileSync(otherCfg, JSON.stringify({ ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [] }))
+    const other = new SourceData(t.dir, 'other', 'Example/other')
+    const owned: Entry = {
+      schemaVersion: 1, fingerprint: BRIDGE_FP, repo: 'Example/other', contracts: ['contracts/Copy.sol:Bridge'], role: 'logic',
+      ...BRIDGE_SPEC, getters: [], selectors: [], compiler: null, ref: 'v1.0.0', commit: '2'.repeat(40),
+    }
+    other.writeEntry(owned)
+    other.writeTag({ schemaVersion: 1, repo: 'Example/other', tag: 'v1.0.0', commit: '2'.repeat(40), prerelease: false, packageVersion: '1.0.0', contracts: { 'contracts/Copy.sol:Bridge': BRIDGE_FP } })
+    DataRepo.open(t.dir).writeViews()
+    t.commit('another source owns the Bridge code')
+
+    const owner = await t.run(t.bridge(A.bridge, '--label', 'x'))
+    assert.equal(owner.status, 1)
+    assert.ok(owner.stderr.includes(`${BRIDGE_FP} already has an entry in other, ${other.entryPath(BRIDGE_FP)}, which reports v1.0.0 of Example/other. Entries are write-once.`), owner.stderr)
+    assert.equal(t.changes(), '')
+
+    // Instead, `other` has an entry of the same length that masks different bytes, with a getter
+    // named like the Bridge's.
+    fs.rmSync(other.entryPath(BRIDGE_FP)); fs.rmSync(other.tagPath('v1.0.0'))
+    const conflicting: Entry = {
+      ...owned, fingerprint: `0x${'1'.repeat(64)}`, contracts: ['contracts/Inbox.sol:Inbox'], maskedRanges: [],
+      getters: [{ signature: 'rollup()', selector: toFunctionSelector('rollup()'), kind: 'single' }],
+    }
+    other.writeEntry(conflicting)
+    DataRepo.open(t.dir).writeViews()
+    t.commit('another source has a 66-byte entry')
+    const conflict = await t.run(t.bridge(A.bridge, '--label', 'x'))
+    assert.equal(conflict.status, 1)
+    const named = { [conflicting.fingerprint]: 'other (contracts/Inbox.sol:Inbox)', [BRIDGE_FP]: `nitro-contracts (${BRIDGE})` }
+    const [x, y] = Object.keys(named).sort()
+    for (const line of [
+      'The entry would break the range invariant (see "Publishing" in the README):',
+      `- 66-byte entries ${x} in ${named[x]} and ${y} in ${named[y]}`,
+      '    once reviewed, add to reviewedRangePairs in config/nitro-contracts/sources.json or config/other/sources.json: ',
+      'Nothing written.',
+    ]) assert.ok(conflict.stderr.includes(line), `${line}\n---\n${conflict.stderr}`)
+    assert.equal(t.changes(), '')
+
+    // Reviewed in the other source's config: the entry is written. Of its names, only the getter
+    // is on another entry, and that entry is in the other source.
+    fs.writeFileSync(otherCfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(otherCfg, 'utf8')), reviewedRangePairs: [{ fingerprints: [conflicting.fingerprint, BRIDGE_FP], note: 'they differ at byte 34' }] }))
+    const ok = await t.run(t.bridge(A.bridge, '--label', 'x'))
+    assert.equal(ok.status, 0, ok.stderr)
+    assert.ok(t.data.hasEntry(BRIDGE_FP))
+    assert.ok(ok.stdout.includes(`no other entry has them. If the build is from a private repo, check that each is public:\n  contract ${BRIDGE}\n  masked range __self\n\nNext:`), ok.stdout)
   } finally {
     t.close()
   }

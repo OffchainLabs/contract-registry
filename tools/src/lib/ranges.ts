@@ -48,10 +48,13 @@ function merge(parts: MaskedInterval[]): MaskedInterval[] {
 /** What the range check reads from an entry. */
 export type RangeEntry = MaskSpec & Pick<Entry, 'fingerprint' | 'contracts'>
 
-export interface RangeConflict {
+/** A range-checked entry and the id of the source whose directory holds it, as the report names them. */
+export type SourcedRangeEntry = RangeEntry & { source: string }
+
+export interface RangeConflict<E extends RangeEntry = RangeEntry> {
   codeLength: number
-  a: RangeEntry
-  b: RangeEntry
+  a: E
+  b: E
   /** The bytes `a` masks and `b` doesn't, named by `a`'s ranges that cover them. */
   onlyA: MaskedInterval[]
   /** The bytes `b` masks and `a` doesn't. */
@@ -59,21 +62,21 @@ export interface RangeConflict {
 }
 
 /**
- * Finds the pairs of entries that break the invariant behind single-match lookup: within one
- * source directory, entries of the same code length mask the same bytes. Code can match two such
- * entries only if their fingerprints are equal, and fingerprints are unique per entry (each entry's
- * file is named by its fingerprint), so at most one entry matches any code. Two entries of one
- * length that mask different bytes both match some code exactly when their builds agree on every
- * byte neither masks. Entries of one length that mask different bytes could both match
- * some code, and without both builds' bytecode that can't be ruled out, so each such pair is a
- * conflict unless it is in `reviewed`. Pass one source directory's entries; conflicts are ordered
- * by code length, then fingerprint.
+ * Finds the pairs of entries that break the invariant behind single-match lookup: across every
+ * source, entries of the same code length mask the same bytes. Code can match two such entries
+ * only if their fingerprints are equal, and a fingerprint has one entry in the whole registry
+ * (each entry's file is named by its fingerprint, and no two sources hold the same one), so at
+ * most one entry matches any code. Two entries of one length that mask different bytes both match
+ * some code exactly when their builds agree on every byte neither masks, and without both builds'
+ * bytecode that can't be ruled out, so each such pair is a conflict unless it is in `reviewed`.
+ * Pass every source's entries and every source's reviewed pairs (see `DataRepo.rangeConflicts`);
+ * conflicts are ordered by code length, then fingerprint.
  */
-export function rangeConflicts(entries: RangeEntry[], reviewed: ReviewedRangePair[]): RangeConflict[] {
+export function rangeConflicts<E extends RangeEntry>(entries: E[], reviewed: ReviewedRangePair[]): RangeConflict<E>[] {
   const allowed = new Set(reviewed.map(p => pairKey(p.fingerprints[0], p.fingerprints[1])))
-  const byLength = new Map<number, RangeEntry[]>()
+  const byLength = new Map<number, E[]>()
   for (const e of entries) byLength.set(e.codeLength, [...(byLength.get(e.codeLength) ?? []), e])
-  const out: RangeConflict[] = []
+  const out: RangeConflict<E>[] = []
   for (const len of [...byLength.keys()].sort((x, y) => x - y)) {
     const group = byLength.get(len)!
       .map(e => {
@@ -95,22 +98,25 @@ export function rangeConflicts(entries: RangeEntry[], reviewed: ReviewedRangePai
 }
 
 /**
- * A report of range conflicts for people: each pair's fingerprints, contracts and differing
- * bytes, and how to clear it. The first line is a one-line summary.
+ * A report of range conflicts for people: each pair's fingerprints, sources, contracts and
+ * differing bytes, and how to clear it. The first line is a one-line summary. A pair can be listed
+ * in the config of either entry's source.
  */
-export function rangeConflictReport(directory: string, conflicts: RangeConflict[]): string {
-  const lines = [`${directory}: ${conflicts.length} pair(s) of entries with the same code length mask different bytes, so some code could match both entries of a pair`]
+export function rangeConflictReport(conflicts: RangeConflict<SourcedRangeEntry>[]): string {
+  const lines = [`${conflicts.length} pair(s) of entries with the same code length mask different bytes, so some code could match both entries of a pair`]
   for (const c of conflicts) {
+    const configs = [...new Set([c.a.source, c.b.source])].sort().map(s => `config/${s}/sources.json`)
     lines.push(
-      `- ${c.codeLength}-byte entries ${c.a.fingerprint} (${c.a.contracts.join(', ')}) and ${c.b.fingerprint} (${c.b.contracts.join(', ')})`,
+      `- ${c.codeLength}-byte entries ${c.a.fingerprint} in ${c.a.source} (${c.a.contracts.join(', ')}) and ${c.b.fingerprint} in ${c.b.source} (${c.b.contracts.join(', ')})`,
       `    masked only by ${c.a.fingerprint}: ${describe(c.onlyA)}`,
       `    masked only by ${c.b.fingerprint}: ${describe(c.onlyB)}`,
-      `    once reviewed: ${JSON.stringify({ fingerprints: [c.a.fingerprint, c.b.fingerprint], note: '<what the review found>' })}`,
+      `    once reviewed, add to reviewedRangePairs in ${configs.join(' or ')}: ${JSON.stringify({ fingerprints: [c.a.fingerprint, c.b.fingerprint], note: '<what the review found>' })}`,
     )
   }
   lines.push(
     'To clear a pair: rebuild both entries and confirm that their runtime code differs at some byte that neither masks (code matching both would ' +
-    `have to agree with both builds there), then add the pair, with a note on the review, to reviewedRangePairs in config/${directory}/sources.json.`,
+    'have to agree with both builds there), then add the pair, with a note on the review, to reviewedRangePairs in the config named under it. ' +
+    'A pair from two sources goes in either source\'s config; every source\'s pairs count for every check.',
   )
   return lines.join('\n')
 }

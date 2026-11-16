@@ -4,14 +4,14 @@ import { git, gitOk, mapLimit } from './exec.ts'
 import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, tagInRange, testChainsApply, type SourceConfig } from './config.ts'
 import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
-import { DataRepo, SourceData, byFingerprint, contractsMap, entryFromBuild } from './datarepo.ts'
-import { BY_LENGTH_DIR, INDEX_PATH, sourceDir } from './layout.ts'
+import { DataRepo, SourceData, byFingerprint, contractsMap, describeRole, entryFromBuild, roleOf } from './datarepo.ts'
+import { BY_LENGTH_DIR, INDEX_PATH, inputPath, sourceDir, sourcesConfigPath } from './layout.ts'
 import { validateDataRepo } from './schema.ts'
-import { rangeConflictReport, rangeConflicts } from './ranges.ts'
+import { rangeConflictReport } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { ALERT_KINDS, type AlertItem, type AlertKind, type AlertSink } from './alerts.ts'
 import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult, type TestChainDeployer } from './testcheck.ts'
-import { SCHEMA_VERSION, type Hex } from './types.ts'
+import { SCHEMA_VERSION, type Entry, type Hex } from './types.ts'
 
 export interface PublishOptions {
   dataRepo: string
@@ -61,6 +61,11 @@ export interface SkippedCheck { commit: string; refs: string[]; reason: string }
  *
  * Only tags and the heads of published branches (release and hotfix branches) are built. A
  * branch's earlier commits never are: a run builds a branch's head when it has changed.
+ *
+ * The registry's rules hold across sources: a fingerprint has one entry, in the directory of the
+ * source that published it first (a build that reproduces another source's code writes no entry,
+ * only lists the fingerprint, and its `contractRoles` must give that code the entry's role), and
+ * entries of one code length mask the same bytes, apart from pairs reviewed in any source's config.
  */
 export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const log = opts.log ?? ((s: string) => console.error(s))
@@ -169,9 +174,14 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
       if (++done % 10 === 0 || done === toBuild.length) log(`built ${done}/${toBuild.length}`)
     })
 
+    // An entry for each fingerprint no source has an entry for yet. Code that another source
+    // already published (shared code) gets no entry here: the tag or branch file lists its
+    // fingerprint, and the owner's entry is the one lookups find. Its role must agree.
     const writeEntries = (r: BuildResult, from: { ref: string; commit: string }) => {
       for (const [fp, cs] of byFingerprint(r.contracts)) {
-        if (!data.hasEntry(fp)) { data.writeEntry(entryFromBuild(cfg.repo, cs, from, cfg.contractRoles)); outcome.newEntries++ }
+        const owner = repo.ownerOf(fp)
+        if (!owner) { data.writeEntry(entryFromBuild(cfg.repo, cs, from, cfg.contractRoles)); outcome.newEntries++ }
+        else if (owner.id !== data.id) checkSharedRole(cfg, cs.map(c => c.fqName), owner.id, owner.readEntry(fp))
       }
     }
 
@@ -229,10 +239,11 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     for (const b of deleted) { data.deleteBranch(b); outcome.branchesDeleted.push(b) }
 
     // --- Range invariant: no code may match two entries ------------------------------------
-    // Over every entry of the source, so new entries are checked against existing ones and
-    // against each other. A conflict fails the whole run: the catch below discards everything.
-    const conflicts = rangeConflicts(data.entries(), cfg.reviewedRangePairs)
-    if (conflicts.length) throw new Error(`range invariant broken; nothing published. ${rangeConflictReport(cfg.directory, conflicts)}`)
+    // Over every entry of every source, against every source's reviewed pairs, so new entries
+    // are checked against existing ones, other sources' included, and against each other. A
+    // conflict fails the whole run: the catch below discards everything.
+    const conflicts = repo.rangeConflicts()
+    if (conflicts.length) throw new Error(`range invariant broken; nothing published. ${rangeConflictReport(conflicts)}`)
 
     // --- Generated views (every source's) and validation --------------------------------------
     repo.writeViews()
@@ -286,6 +297,26 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   }
   outcome.ok = Object.keys(failures).length === 0
   return outcome
+}
+
+/**
+ * Code that another source has already published (shared code) keeps that source's entry, whose
+ * role was copied from that source's config when it was written. This source's `contractRoles`
+ * must give the build's contracts of that fingerprint the same role; otherwise one config is
+ * wrong, and the run fails naming both. Drift within one source isn't checked: a proxy missed
+ * from `contractRoles` until after its first build was published would otherwise block every
+ * later build that contains it.
+ */
+function checkSharedRole(cfg: SourceConfig, contracts: string[], ownerId: string, owner: Entry): void {
+  const mine = describeRole(roleOf(cfg.contractRoles, contracts))
+  const theirs = describeRole(owner)
+  if (mine === theirs) return
+  throw new Error(
+    `shared code's role disagrees with its owner's entry; nothing published. ${owner.fingerprint}: ${sourcesConfigPath(cfg.directory)} ` +
+    `gives ${contracts.join(', ')} the role ${mine}, but the entry ${inputPath(ownerId, 'entries', owner.fingerprint)} ` +
+    `(${owner.contracts.join(', ')}, its role from ${sourcesConfigPath(ownerId)}) has the role ${theirs}. Code that two sources build ` +
+    `has one entry, from the source that published it first, and entries are write-once: make contractRoles in ${sourcesConfigPath(cfg.directory)} agree with it.`,
+  )
 }
 
 function diffMaps(a: Record<string, string>, b: Record<string, string>): string[] {

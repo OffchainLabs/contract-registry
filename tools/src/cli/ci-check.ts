@@ -1,17 +1,18 @@
 // The data repo's own CI (every push and PR): source configs agree with each other, schema
-// validation, nothing outside the layout, generated files equal what the generator produces,
-// entries of one code length mask the same bytes (so a lookup matches at most one entry), and
-// entries/ and tags/ files are append-only relative to the base commit.
+// validation, nothing outside the layout, generated files equal what the generator produces, one
+// entry per fingerprint across sources and an entry for every fingerprint a tag or branch file
+// lists, entries of one code length mask the same bytes across sources (so a lookup matches at
+// most one entry), and entries/ and tags/ files are append-only relative to the base commit.
 //   node tools/src/cli/ci-check.ts [--base <rev>]
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { execFileSync } from 'node:child_process'
 import { appendOnlyViolations, configuredIds, treeBlobs } from '../lib/appendonly.ts'
 import { listSources, loadSourceConfig } from '../lib/config.ts'
-import { SourceData } from '../lib/datarepo.ts'
+import { DataRepo } from '../lib/datarepo.ts'
 import { git } from '../lib/exec.ts'
 import { DATA_DIR } from '../lib/layout.ts'
-import { rangeConflictReport, rangeConflicts } from '../lib/ranges.ts'
+import { rangeConflictReport } from '../lib/ranges.ts'
 import { sourceConfigProblems, strayLayout, validateDataRepo } from '../lib/schema.ts'
 
 const { values: a } = parseArgs({ options: { 'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') }, base: { type: 'string' } } })
@@ -39,21 +40,29 @@ try {
   execFileSync(process.execPath, [path.join(import.meta.dirname, 'generate.ts'), '--check', '--data-repo', root], { stdio: 'inherit' })
 } catch { failed = true }
 
-// Every entry of each source, manual ones included, against the reviewed pairs in its config.
-let conflicts = 0, unchecked = 0
-for (const s of sources) {
-  try {
-    const found = rangeConflicts(new SourceData(root, s.directory, s.repo).entries(), s.reviewedRangePairs ?? [])
-    if (found.length) for (const l of rangeConflictReport(s.directory, found).split('\n')) console.error(`ranges: ${l}`)
-    conflicts += found.length
-  } catch (e) {
-    console.error(`ranges: ${s.directory}: can't check: ${(e as Error).message}`)
-    unchecked++
-  }
+const repo = new DataRepo(root, sources)
+try {
+  report('entries', repo.entryProblems(), 'one entry per fingerprint across sources; every tag and branch fingerprint has one')
+} catch (e) {
+  console.error(`entries: can't check: ${(e as Error).message}`)
+  failed = true
 }
-if (conflicts || unchecked) console.error(`ranges: ${conflicts} conflicting pair(s)${unchecked ? `, ${unchecked} source(s) not checked` : ''}`)
-else console.error('ranges: ok (entries of one code length mask the same bytes)')
-failed ||= conflicts > 0 || unchecked > 0
+
+// Every entry of every source, manual ones included, against the reviewed pairs of every config:
+// a lookup searches all sources at once.
+try {
+  const found = repo.rangeConflicts()
+  if (found.length) {
+    for (const l of rangeConflictReport(found).split('\n')) console.error(`ranges: ${l}`)
+    console.error(`ranges: ${found.length} conflicting pair(s)`)
+  } else {
+    console.error('ranges: ok (entries of one code length mask the same bytes, across sources)')
+  }
+  failed ||= found.length > 0
+} catch (e) {
+  console.error(`ranges: can't check: ${(e as Error).message}`)
+  failed = true
+}
 
 if (a.base) {
   // Write-once: every entries/ or tags/ file at the merge base is at HEAD with the same content,

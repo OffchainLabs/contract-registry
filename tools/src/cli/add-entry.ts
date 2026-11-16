@@ -1,9 +1,9 @@
 // Adds a manual entry: one contract from a build you made yourself, of code that no published ref
 // builds (a one-off or patched build deployed somewhere). Extracts the contract as publish does and
-// writes nothing unless it matches the code deployed at --address, its fingerprint has no entry yet,
-// its label isn't a published tag, and entries of one code length still mask the same bytes. Then
-// writes the entry and regenerates registry/by-length/ and registry/index.json. Builds nothing;
-// commits nothing.
+// writes nothing unless it matches the code deployed at --address, its fingerprint has no entry yet
+// in any source, its label isn't a published tag of the source, and entries of one code length
+// still mask the same bytes across every source. Then writes the entry and regenerates
+// registry/by-length/ and registry/index.json. Builds nothing; commits nothing.
 //   node tools/src/cli/add-entry.ts --source <id> --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>]
 //        --contract <file>:<name> --rpc <url> --address <address> [--block latest] --label <label> [--notes <text>]
 //        [--ref <tag or branch> --commit <sha>] [--data-repo <dir>]
@@ -18,13 +18,13 @@ import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { cborMetadataFields, cborMetadataLength } from '../lib/cbor.ts'
 import { listSources, loadSourceConfig } from '../lib/config.ts'
-import { DataRepo, SourceData, entryFromBuild } from '../lib/datarepo.ts'
+import { DataRepo, entryFromBuild } from '../lib/datarepo.ts'
 import { git, remoteRefCommits } from '../lib/exec.ts'
 import { extractContract, loadBuildInfos, packageOf, runtimeCode, selectArtifacts } from '../lib/extract.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import { INDEX_PATH, byLengthPath } from '../lib/layout.ts'
-import { rangeConflictReport, rangeConflicts } from '../lib/ranges.ts'
+import { rangeConflictReport } from '../lib/ranges.ts'
 import { SchemaValidator } from '../lib/schema.ts'
 import type { BuiltContract, CompilerInfo, Entry } from '../lib/types.ts'
 import { DirSource, Registry, versionOf } from '../walker/registry.ts'
@@ -83,7 +83,8 @@ const commit = a.commit?.toLowerCase() ?? null
 const block = /^\d+$/.test(a.block!) ? `0x${BigInt(a.block!).toString(16)}` : a.block!
 
 const cfg = loadSourceConfig(root, a.source)
-const data = new SourceData(root, cfg.directory, cfg.repo)
+const repo = DataRepo.open(root)
+const data = repo.source(cfg.directory)
 if (data.hasTag(label)) refuse(`--label ${label} is a published tag of ${cfg.repo}; getVersion would report it for code that tag doesn't contain. Choose another label.`)
 
 // --- The contract, extracted as publish extracts it ---------------------------------------------
@@ -97,9 +98,12 @@ if (!ref) {
 const extracted = extractContract(ref)
 if (!extracted) refuse(`${a.contract} has no code to fingerprint: an interface, an abstract contract, or a library with no external functions`)
 const built: BuiltContract = { ...extracted, package: packageOf(checkout, ref.source) }
-if (data.hasEntry(built.fingerprint)) {
+// One entry per fingerprint across every source: code another source has published is that
+// source's, whatever --source says.
+const owner = repo.ownerOf(built.fingerprint)
+if (owner) {
   const existing = (await new Registry(new DirSource(root)).byLength(built.codeLength)).find(e => e.fingerprint === built.fingerprint)
-  refuse(`${built.fingerprint} already has an entry, ${data.entryPath(built.fingerprint)}${existing ? `, which reports ${versionOf(existing)}` : ''}. Entries are write-once.`)
+  refuse(`${built.fingerprint} already has an entry in ${owner.id}, ${owner.entryPath(built.fingerprint)}${existing ? `, which reports ${versionOf(existing)} of ${existing.repo}` : ''}. Entries are write-once.`)
 }
 if (a.ref) {
   const problem = publicCommitProblem(cfg.url, checkout, a.ref, commit!)
@@ -117,12 +121,13 @@ if (!matches(deployed, built)) {
 const entry = entryFromBuild(cfg.repo, [built], { ref: a.ref ?? null, commit, label, notes: a.notes?.trim() || undefined }, cfg.contractRoles)
 const schemaErrors = new SchemaValidator(root).validate('entry', entry)
 if (schemaErrors.length) refuse(['The entry fails the schema:', ...schemaErrors.map(e => `  ${e}`)])
-const others = data.entries()
-const conflicts = rangeConflicts([...others, entry], cfg.reviewedRangePairs)
-if (conflicts.length) refuse(['The entry would break the range invariant (see "Publishing" in the README):', ...rangeConflictReport(cfg.directory, conflicts).split('\n')])
+// Every source's entries: the range invariant and the names check cover the whole registry.
+const others = repo.allEntries()
+const conflicts = repo.rangeConflicts([{ ...entry, source: cfg.directory }])
+if (conflicts.length) refuse(['The entry would break the range invariant (see "Publishing" in the README):', ...rangeConflictReport(conflicts).split('\n')])
 
 data.writeEntry(entry)
-DataRepo.open(root).writeViews()
+repo.writeViews()
 
 // --- What the registry now says --------------------------------------------------------------
 const registry = new Registry(new DirSource(root))
@@ -215,7 +220,8 @@ function describeCompiler(c: CompilerInfo): string {
 
 /**
  * The names in an entry that come from the source code (contracts, getters, masked ranges) and
- * that no other entry has. A private build can bring names that only exist in its repo.
+ * that no other entry, of any source, has. A private build can bring names that only exist in its
+ * repo.
  */
 function namesNoOtherEntryHas(e: Entry, others: Entry[]): string[] {
   const known = new Set(others.flatMap(o => [...o.contracts.map(c => `contract ${c}`), ...o.getters.map(g => `getter ${g.signature}`), ...o.maskedRanges.map(r => `masked range ${r.name}`)]))
