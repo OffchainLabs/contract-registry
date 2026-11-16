@@ -17,7 +17,8 @@ To get the version of the contract at an address:
 import { openSource, Registry, Rpc } from '<this repo>/walker'
 
 // openSource resolves `main` to a commit once, so every file is read from one snapshot.
-const registry = new Registry(await openSource('github:<owner>/<repo>@main'), 'nitro-contracts')
+// One registry covers every source repo: a lookup searches all of them.
+const registry = new Registry(await openSource('github:<owner>/<repo>@main'))
 const version = await registry.getVersion(new Rpc(rpcUrl), address) // e.g. 'v3.2.0', or null
 ```
 
@@ -51,8 +52,8 @@ versionOf(entry) -> string:
   return entry.ref + "@" + entry.commit[:12]                 # e.g. release-3.3.0@abcdef012345
 
 lookup(code) -> entry | null:
-  # every read at one commit of this repo
-  for entry in <source>/by-length/<len(code)>.json .entries:
+  # every read at one commit of this repo; one file holds that length's entries of every source
+  for entry in registry/by-length/<len(code)>.json .entries:
     masked = copy of code
     for range in entry.maskedRanges:
       for offset in range.offsets: zero masked[offset : offset + range.length]
@@ -130,8 +131,8 @@ entry says what the code is:
   code but isn't necessarily the earliest commit that does. When a new tag and a new branch head
   bring the same new code in one run, the entry names the tag. Entries are write-once: code first
   built from a release branch keeps naming that branch after a tag includes it (the tag shows in
-  the entry's `tags` in `by-length/`) and after the branch is deleted. A manual entry, which has a
-  `label`, may have a null `ref` or `commit` (see "Manual entries").
+  the entry's `tags` in `registry/by-length/`) and after the branch is deleted. A manual entry,
+  which has a `label`, may have a null `ref` or `commit` (see "Manual entries").
 - `packages`: for contracts compiled from an installed dependency package, the package and version,
   e.g. `{"@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy":
   "@openzeppelin/contracts@4.7.3"}`. It maps each such contract's name, so an entry whose contracts
@@ -149,15 +150,28 @@ config/<source>/sources.json                  which refs are published; how to f
                                               reviewed range pairs
 config/<source>/out-of-scope-getters.json     getters the walker doesn't follow
 schema/                                       JSON schemas for every file type
-<source>/entries/<fingerprint>.json           one per distinct fingerprint; write-once
-<source>/tags/<tag>.json                      contract -> fingerprint for a tag's build; write-once
-<source>/branches/<branch>.json               same for the head of a live release or hotfix branch;
+registry/<source>/entries/<fingerprint>.json  one per distinct fingerprint; write-once
+registry/<source>/tags/<tag>.json             contract -> fingerprint for a tag's build; write-once
+registry/<source>/branches/<branch>.json      same for the head of a live release or hotfix branch;
                                               overwritten, and removed with the branch
-<source>/by-length/<codeLength>.json          generated: every entry of that length, with its tags
-<source>/index.json                           generated: code lengths present, every getter known
+registry/by-length/<codeLength>.json          generated, all sources: every entry of that length,
+                                              with its tags
+registry/index.json                           generated, all sources: code lengths present; per
+                                              source, its repo and getters
 ```
 
-`by-length/` and `index.json` are generated from `entries/` and `tags/` and never hand-edited.
+`<source>` is a source's id, its `directory` in `sources.json` (`nitro-contracts`). Each source's
+inputs are under `registry/<source>/`; the generated views combine every source, so one lookup
+covers them all. `by-length` and `index.json` are taken, so no source can use them as its id.
+
+The views are generated from the inputs and never hand-edited. `registry/by-length/<len>.json`
+lists every entry of that length, sorted by fingerprint; each keeps its own `repo`, and its `tags`
+come from its own source's tag files only (tag names overlap across source repos).
+`registry/index.json` lists the code lengths that have a file and, per source, its `repo` and
+getters: those of its own entries and of every entry its tag and branch files reference. The walker
+calls a source's getters on code it doesn't know. The views have `schemaVersion` 2; entries, tags,
+branches and config stay at 1.
+
 Read every file at one commit of this repo, never across a push.
 
 ## Look up and walk
@@ -169,8 +183,12 @@ node tools/src/cli/version.ts --rpc $RPC --address 0x...       # prints e.g. v3.
 # identify one contract (the code at the address itself, as JSON)
 node tools/src/cli/lookup.ts --rpc $RPC --address 0x...
 # walk a chain from any core contract (JSON on stdout)
-node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> [--registry github:<owner>/<repo>@main]
+node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> --source nitro-contracts [--registry github:<owner>/<repo>@main]
 ```
+
+`version` and `lookup` search every source. A walk belongs to one source (`--source`, its id):
+code the registry doesn't know is probed with that source's getters, and that source's
+out-of-scope list applies. Every CLI reads the registry in this checkout unless given `--registry`.
 
 From TypeScript: `import { walk, Registry, openSource, Rpc } from '<this repo>/walker'` (run
 `npm run build:walker` to emit `dist/`). `Registry.lookup(code)` returns the matched entry or null,
@@ -214,8 +232,17 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   fails if one holds an address the walk didn't read: a proxy missing from `contractRoles`.
 - `reconcile.yml` (daily): the same run, plus an alert for any published ref that should already
   have been processed.
-- `ci.yml` (every push and PR): schemas, generated files match their inputs, the range invariant
-  (with `reviewedRangePairs`), `entries/` and `tags/` are append-only.
+- `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; nothing outside the
+  layout (a source's directory at the top of the repo, or anything in `registry/` but configured
+  sources, `by-length/` and `index.json`); generated files match their inputs; the range invariant
+  (with `reviewedRangePairs`); `entries/` and `tags/` files are append-only. Append-only compares
+  content with the base, so a file moved into `registry/` passes, and a changed or deleted one
+  fails wherever it moved.
+
+A run publishes each source in turn, in id order (every configured source unless `--source` names
+some), and lands each as its own commit: the source's files under `registry/<source>/` and the
+regenerated views. A failed run discards both. One run at a time per work directory, since every
+run rewrites the shared views.
 
 Failures open or update one GitHub issue per failure kind and source repo, and close it once every
 item is resolved. A build or test-chain failure at a branch head also resolves once the branch has
@@ -223,9 +250,10 @@ a newer head or is deleted, since only current heads are built. Locally, `--aler
 writes the same alerts as JSON files.
 
 ```sh
-node tools/src/cli/publish.ts --source nitro-contracts [--reconcile] [--push] [--alerts github:<owner>/<repo>]
-node tools/src/cli/check.ts --rev v3.2.0         # test-chain check of one commit, writes nothing
-node tools/src/cli/rebuild.ts --tag v3.2.0       # rebuild a tag and compare with its tags/ file
+node tools/src/cli/publish.ts [--source nitro-contracts ...] [--reconcile] [--push] [--alerts github:<owner>/<repo>]
+node tools/src/cli/check.ts --source nitro-contracts --rev v3.2.0    # test-chain check of one commit, writes nothing
+node tools/src/cli/rebuild.ts --source nitro-contracts --tag v3.2.0  # rebuild a tag and compare with its tags/ file
+node tools/src/cli/generate.ts [--check]   # regenerate the views (--check: compare only)
 node tools/src/cli/ci-check.ts --base origin/main
 npm test && npm run test:integration
 ```
@@ -308,7 +336,7 @@ To add one:
    (`bytecode_hash = 'none'`), so the example reads what `forge build --build-info` writes:
 
    ```sh
-   node tools/src/cli/add-entry.ts --checkout /path/to/checkout \
+   node tools/src/cli/add-entry.ts --source nitro-contracts --checkout /path/to/checkout \
      --build-info out/build-info --layout standard-json \
      --contract src/bridge/Bridge.sol:Bridge \
      --rpc $RPC --address 0xfE4749061Fb052c354aaC65b9Fb0cCD7e20D2418 \
@@ -316,8 +344,10 @@ To add one:
    ```
 
    `--build-info`, `--layout` and `--artifacts` are as in a `sources.json` output, relative to
-   `--checkout`. A Hardhat build takes `--layout hardhat` and `--artifacts`. `--source` defaults to
-   `nitro-contracts`, `--block` to `latest`.
+   `--checkout`. A Hardhat build takes `--layout hardhat` and `--artifacts`. `--source` is
+   required, with no default: it picks the entry's directory (`registry/<source>/entries/`), its
+   `repo` and the `contractRoles` its role comes from, and the entry is write-once. `--block`
+   defaults to `latest`.
 3. Check what it prints: `getVersion` should give your label (a one-slot proxy gives its
    implementation's version), and any names it lists must be public (see below).
 4. Run `node tools/src/cli/ci-check.ts --base origin/main`, commit on a branch and open a PR.
@@ -328,9 +358,9 @@ before the trailers differs. A trailer that differs alone usually means another 
 setting; a different solc version or code means other settings or source. It also refuses a
 missing label, a label that is a published tag, a fingerprint that already has an entry, and an
 entry that breaks the range invariant (see "Publishing"). The role comes from `contractRoles` and
-`packages` from the checkout, as in publish. It then writes the entry, regenerates `by-length/` and
-`index.json`, and prints the entry's path, its fingerprint and what `getVersion` reports for the
-address. It builds nothing and commits nothing.
+`packages` from the checkout, as in publish. It then writes the entry, regenerates
+`registry/by-length/` and `registry/index.json`, and prints the entry's path, its fingerprint and
+what `getVersion` reports for the address. It builds nothing and commits nothing.
 
 `--ref` and `--commit` default to null. Set them only for a build of a public commit: `--ref` must
 point at `--commit` in the source repo at its `url` in `sources.json`, and the checkout must be at
