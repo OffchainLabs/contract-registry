@@ -50,6 +50,8 @@
     4793,
     5171,
     5172,
+    5427,
+    6204,
     6306,
     6414,
     6455,
@@ -468,6 +470,10 @@
           "kind": "single"
         }
       ]
+    },
+    "upgrade-executor": {
+      "repo": "OffchainLabs/upgrade-executor",
+      "getters": []
     }
   }
 }

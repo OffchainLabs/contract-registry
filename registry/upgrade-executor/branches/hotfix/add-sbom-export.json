@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/upgrade-executor",
+  "branch": "hotfix/add-sbom-export",
+  "commit": "afbdb0a0e680ea39744fec5423edb0d8fb17ec51",
+  "contracts": {
+    "src/UpgradeExecutor.sol:UpgradeExecutor": "0x3a2e9e5602502cc9acf737fc677588230d8dbbfe05e71222c3ef389f4b7bdafb"
+  }
+}

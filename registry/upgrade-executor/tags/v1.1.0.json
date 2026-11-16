@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "repo": "OffchainLabs/upgrade-executor",
+  "tag": "v1.1.0",
+  "commit": "66be85c6da93010effb929e221865caad6cd0af7",
+  "prerelease": false,
+  "packageVersion": "1.1.0-beta.0",
+  "contracts": {
+    "src/UpgradeExecutor.sol:UpgradeExecutor": "0x3a2e9e5602502cc9acf737fc677588230d8dbbfe05e71222c3ef389f4b7bdafb"
+  }
+}

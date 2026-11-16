@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "fingerprint": "0x3a2e9e5602502cc9acf737fc677588230d8dbbfe05e71222c3ef389f4b7bdafb",
+  "repo": "OffchainLabs/upgrade-executor",
+  "contracts": [
+    "src/UpgradeExecutor.sol:UpgradeExecutor"
+  ],
+  "role": "logic",
+  "codeLength": 6204,
+  "maskedRanges": [],
+  "cborMetadataLength": 53,
+  "getters": [],
+  "selectors": [
+    "0x01ffc9a7",
+    "0x07bd0265",
+    "0x1cff79cd",
+    "0x248a9ca3",
+    "0x2f2ff15d",
+    "0x36568abe",
+    "0x75b238fc",
+    "0x91d14854",
+    "0x946d9204",
+    "0xa217fddf",
+    "0xbca8c7b5",
+    "0xd547741f"
+  ],
+  "compiler": {
+    "language": "Solidity",
+    "version": "0.8.16+commit.07a7930e",
+    "evmVersion": null,
+    "optimizer": {
+      "enabled": true,
+      "runs": 20000
+    },
+    "viaIR": false,
+    "metadata": {
+      "bytecodeHash": null,
+      "appendCBOR": true
+    }
+  },
+  "ref": "v1.1.0-beta.0",
+  "commit": "66be85c6da93010effb929e221865caad6cd0af7"
+}
