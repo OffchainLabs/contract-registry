@@ -1,34 +1,32 @@
-// Rebuilds a published tag from scratch and checks it reproduces its recorded fingerprints
-// (acceptance criterion 3). Writes nothing.
-//   node tools/src/cli/rebuild.ts --source <id> --tag <tag>     e.g. --source nitro-contracts --tag v3.2.0
-// --source is required: tag names overlap across sources.
+// Rebuilds published tags from scratch and checks each reproduces the fingerprints in its tag
+// file (acceptance criterion 3). Writes nothing to the data.
+//   node tools/src/cli/rebuild.ts --source <id> --tag <tag> [--tag <tag> ...]   e.g. --source nitro-contracts --tag v3.2.0
+//   node tools/src/cli/rebuild.ts --source <id> --all                            every tag file of the source
+// Prints one JSON report on stdout (progress on stderr). Exits 0 if every tag reproduced, 1 if
+// any differs or fails to build, 2 if it can't run (bad arguments, unknown source or tag, no tag
+// files). --source is required: tag names overlap across sources.
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
-import { loadSourceConfig } from '../lib/config.ts'
-import { SourceRepo } from '../lib/source.ts'
-import { Builder } from '../lib/build.ts'
-import { SourceData, contractsMap } from '../lib/datarepo.ts'
-import { readJson } from '../lib/json.ts'
-import type { TagFile } from '../lib/types.ts'
+import { rebuild } from '../lib/rebuild.ts'
 
 const { values: a } = parseArgs({
   options: {
     'data-repo': { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
     'work-dir': { type: 'string' },
     source: { type: 'string' },
-    tag: { type: 'string' },
+    tag: { type: 'string', multiple: true },
+    all: { type: 'boolean', default: false },
+    'no-sync': { type: 'boolean', default: false },
   },
 })
-if (!a.tag || !a.source) { console.error('usage: rebuild --source <id> --tag <tag>'); process.exit(2) }
+if (!a.source || !a.tag === !a.all) { console.error('usage: rebuild --source <id> (--tag <tag> ... | --all)'); process.exit(2) }
 const dataRepo = path.resolve(a['data-repo']!)
 const workDir = path.resolve(a['work-dir'] ?? process.env.REGISTRY_WORK_DIR ?? path.join(dataRepo, '.work'))
-const cfg = loadSourceConfig(dataRepo, a.source!)
-const recorded = readJson<TagFile>(new SourceData(dataRepo, cfg.directory, cfg.repo).tagPath(a.tag))
-const src = new SourceRepo(cfg, workDir)
-src.sync()
-const { result } = await new Builder(src, workDir).build(recorded.commit, { fresh: true, log: s => console.error(s) })
-if (!result.ok) { console.error(`build failed: ${result.failure?.message}`); process.exit(1) }
-const rebuilt = contractsMap(result.contracts)
-const diffs = [...new Set([...Object.keys(recorded.contracts), ...Object.keys(rebuilt)])].filter(k => recorded.contracts[k] !== rebuilt[k])
-console.log(JSON.stringify({ tag: a.tag, commit: recorded.commit, contracts: Object.keys(rebuilt).length, reproduced: diffs.length === 0, differences: diffs.map(k => ({ contract: k, recorded: recorded.contracts[k] ?? null, rebuilt: rebuilt[k] ?? null })) }, null, 2))
-process.exit(diffs.length ? 1 : 0)
+try {
+  const report = await rebuild({ dataRepo, workDir, source: a.source, tags: a.tag, sync: !a['no-sync'], log: s => console.error(s) })
+  console.log(JSON.stringify(report, null, 2))
+  process.exitCode = report.reproduced ? 0 : 1
+} catch (e) {
+  console.error(`rebuild: ${(e as Error).message}`)
+  process.exitCode = 2
+}
