@@ -7,7 +7,7 @@ import { keccak256 } from 'viem'
 import { decodeImmutables } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import type { ByLengthEntry } from '../lib/types.ts'
-import { openSource, Registry, versionOf } from '../walker/registry.ts'
+import { Registry, versionOf } from '../walker/registry.ts'
 import { Rpc } from '../walker/rpc.ts'
 
 const { values: a } = parseArgs({
@@ -16,7 +16,7 @@ const { values: a } = parseArgs({
     registry: { type: 'string', default: path.resolve(import.meta.dirname, '../../..') },
   },
 })
-const registry = new Registry(await openSource(a.registry!))
+const registry = await Registry.open(a.registry!)
 const targets: { address?: string; code: string }[] = []
 if (a.code) targets.push({ code: a.code })
 if (a.address?.length) {
@@ -39,7 +39,7 @@ console.log(JSON.stringify(out, null, 2))
 
 function describe(e: ByLengthEntry, code: Uint8Array) {
   return {
-    contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
+    repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}),
     fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),

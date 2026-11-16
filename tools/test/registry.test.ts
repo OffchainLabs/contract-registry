@@ -5,7 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { keccak256 } from 'viem'
-import { generateViews } from '../src/lib/datarepo.ts'
+import { generateViews, type SourceInputs } from '../src/lib/datarepo.ts'
 import { decodeImmutables, fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
@@ -26,15 +26,38 @@ function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   }
 }
 
-/** A registry snapshot in memory, with tags given as tag -> fingerprints. */
-function registryOf(entries: Entry[], tags: Record<string, Hex[]>): Registry {
-  const tagFiles = Object.entries(tags).map(([tag, fps]): TagFile => ({
-    schemaVersion: 1, repo: REPO, tag, commit: '2'.repeat(40), prerelease: tag.includes('-'), packageVersion: tag.slice(1),
-    contracts: Object.fromEntries(fps.map((f, i) => [`src/C${i}.sol:C${i}`, f])),
-  }))
-  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags: tagFiles }])
-  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
+const tagFilesOf = (repo: string, tags: Record<string, Hex[]>) => Object.entries(tags).map(([tag, fps]): TagFile => ({
+  schemaVersion: 1, repo, tag, commit: '2'.repeat(40), prerelease: tag.includes('-'), packageVersion: tag.slice(1),
+  contracts: Object.fromEntries(fps.map((f, i) => [`src/C${i}.sol:C${i}`, f])),
+}))
+
+/** A registry snapshot in memory, with tags given as tag -> fingerprints, and `others` as further sources. `reads` records every file read. */
+function registryOf(entries: Entry[], tags: Record<string, Hex[]>, others: SourceInputs[] = [], reads: string[] = []): Registry {
+  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags: tagFilesOf(REPO, tags) }, ...others])
+  return new Registry({ describe: () => 'memory', read: async rel => { reads.push(rel); return files.get(rel) ?? null } })
 }
+
+/** What getVersion reports for nitro-contracts code. */
+const v = (version: string, repo = REPO) => ({ version, repo })
+
+test('lookup reads the index first: a length it does not list fetches no shard; a missing index throws', async () => {
+  const reads: string[] = []
+  const reg = registryOf([entry(code(1), 'src/X.sol:X')], {}, [], reads)
+  assert.equal(await reg.lookup(hexToBytes('0x5b')), null)
+  assert.deepEqual(reads, ['registry/index.json'], 'no by-length fetch for an absent length')
+  assert.ok(await reg.lookup(hexToBytes(code(1))))
+  assert.deepEqual(reads, ['registry/index.json', 'registry/by-length/5.json'], 'the index is read once')
+
+  // An old snapshot (layout v1: no registry/index.json) fails loudly instead of answering null.
+  const old = new Registry({ describe: () => 'old', read: async rel => (rel === 'nitro-contracts/by-length/5.json' ? '{}' : null) })
+  await assert.rejects(old.lookup(hexToBytes(code(1))), /^Error: old is not a layout-v2 registry snapshot: it has no registry\/index\.json$/)
+  await assert.rejects(old.getVersion({ getCode: async () => code(1), getStorageAt: async () => word('0x') }, addr(1)), /not a layout-v2 registry snapshot/)
+  // So does an index in another format, or one that lists a length whose shard is missing.
+  const v1 = new Registry({ describe: () => 'v1', read: async rel => (rel === 'registry/index.json' ? '{"schemaVersion":1,"codeLengths":[5]}' : null) })
+  await assert.rejects(v1.lookup(hexToBytes(code(1))), /registry\/index\.json has schemaVersion 1; this client reads 2/)
+  const torn = new Registry({ describe: () => 'torn', read: async rel => (rel === 'registry/index.json' ? '{"schemaVersion":2,"codeLengths":[5],"sources":{}}' : null) })
+  await assert.rejects(torn.lookup(hexToBytes(code(1))), /lists code length 5, but registry\/by-length\/5\.json is missing/)
+})
 
 test('lookup: the entry the code matches, or null; decodeImmutables reads its immutables', async () => {
   // Two entries of one length that mask the same bytes: a uint256 immutable and a library address.
@@ -120,27 +143,27 @@ function versionChain() {
 test('getVersion: logic and proxy admins report their own release; a one-slot proxy reports its implementation', async () => {
   const reg = versionRegistry()
   const { rpc, storageReads } = versionChain()
-  assert.equal(await reg.getVersion(rpc, A.logic), 'v3.2.0', 'the first release, skipping the earlier prerelease')
-  assert.equal(await reg.getVersion(rpc, A.admin), 'v3.1.0', 'a proxy admin reports itself')
-  assert.equal(await reg.getVersion(rpc, A.tup), 'v3.2.0', "a one-slot proxy (v3.1.0) reports its implementation's version")
-  assert.equal(await reg.getVersion(rpc, A.tupPreImpl), 'v3.4.0-beta.0', "the implementation's prerelease")
+  assert.deepEqual(await reg.getVersion(rpc, A.logic), v('v3.2.0'), 'the first release, skipping the earlier prerelease')
+  assert.deepEqual(await reg.getVersion(rpc, A.admin), v('v3.1.0'), 'a proxy admin reports itself')
+  assert.deepEqual(await reg.getVersion(rpc, A.tup), v('v3.2.0'), "a one-slot proxy (v3.1.0) reports its implementation's version")
+  assert.deepEqual(await reg.getVersion(rpc, A.tupPreImpl), v('v3.4.0-beta.0'), "the implementation's prerelease")
   assert.deepEqual(storageReads, [`${A.tup} ${EIP1967}`, `${A.tupPreImpl} ${EIP1967}`], 'only one-slot proxies read a slot')
 })
 
 test('getVersion: RollupProxy (two slots) reports itself, even when its logic is newer', async () => {
   const { rpc, storageReads } = versionChain()
-  assert.equal(await versionRegistry().getVersion(rpc, A.rollup), 'v3.1.0')
+  assert.deepEqual(await versionRegistry().getVersion(rpc, A.rollup), v('v3.1.0'))
   assert.deepEqual(storageReads, [])
 })
 
-test('getVersion: unknown code is probed at the EIP-1967 slot, after checking the secondary slot is zero', async () => {
+test('getVersion: unknown code reports the implementation at its EIP-1967 slot, unless its secondary slot is set', async () => {
   const reg = versionRegistry()
   const { rpc, storageReads } = versionChain()
-  assert.equal(await reg.getVersion(rpc, A.unknownTup), 'v3.2.0', "an unknown proxy reports its known implementation's version")
-  assert.deepEqual(storageReads.splice(0), [`${A.unknownTup} ${SECONDARY}`, `${A.unknownTup} ${EIP1967}`], 'secondary slot first')
-  assert.equal(await reg.getVersion(rpc, A.unknownRollup), null, 'an unknown two-slot proxy has no version of its own')
-  assert.deepEqual(storageReads.splice(0), [`${A.unknownRollup} ${SECONDARY}`], 'its EIP-1967 slot is never read')
+  assert.deepEqual(await reg.getVersion(rpc, A.unknownTup), v('v3.2.0'), "an unknown proxy reports its known implementation's version")
+  assert.deepEqual(storageReads.splice(0), [`${A.unknownTup} ${EIP1967}`, `${A.unknownTup} ${SECONDARY}`], 'probed as the walker probes it')
+  assert.equal(await reg.getVersion(rpc, A.unknownRollup), null, 'an unknown two-slot proxy has no version of its own, not its admin logic\'s')
   assert.equal(await reg.getVersion(rpc, A.unknown), null, 'unknown code with neither slot set')
+  assert.deepEqual(storageReads.splice(0).filter(r => r.startsWith(A.unknown + ' ')), [`${A.unknown} ${EIP1967}`], 'a zero EIP-1967 slot ends the probe')
   assert.equal(await reg.getVersion(rpc, A.unknownTupUnknownImpl), null, 'an unknown proxy whose implementation is unknown')
   assert.equal(await reg.getVersion(rpc, A.unknownTupNoCodeImpl), null, 'an unknown proxy whose implementation has no code')
 })
@@ -157,9 +180,27 @@ test('getVersion: an account, and a known proxy with an unknown, zero or codeles
 test('getVersion: prerelease-only code gives its first prerelease; code in no tag gives ref@commit; a manual entry its label', async () => {
   const reg = versionRegistry()
   const { rpc } = versionChain()
-  assert.equal(await reg.getVersion(rpc, A.pre), 'v3.4.0-beta.0')
-  assert.equal(await reg.getVersion(rpc, A.branchOnly), `release-3.5.0@${BRANCH_COMMIT.slice(0, 12)}`)
-  assert.equal(await reg.getVersion(rpc, A.manual), 'Arbitrum One Bridge (patched v3.0.0)')
+  assert.deepEqual(await reg.getVersion(rpc, A.pre), v('v3.4.0-beta.0'))
+  assert.deepEqual(await reg.getVersion(rpc, A.branchOnly), v(`release-3.5.0@${BRANCH_COMMIT.slice(0, 12)}`))
+  assert.deepEqual(await reg.getVersion(rpc, A.manual), v('Arbitrum One Bridge (patched v3.0.0)'))
+})
+
+test("getVersion: a proxy reports its implementation's repo, which can be another source's", async () => {
+  // An Orbit chain's upgrade executor: a nitro-contracts proxy in front of upgrade-executor logic.
+  const UE = 'OffchainLabs/upgrade-executor'
+  const ueLogic = code(9)
+  const ue: SourceInputs = { id: 'upgrade-executor', repo: UE, entries: [entry(ueLogic, 'src/UpgradeExecutor.sol:UpgradeExecutor', { repo: UE })], tags: tagFilesOf(UE, { 'v1.1.0': [keccak256(ueLogic)] }) }
+  const reg = registryOf([entry(C.tup, OZ_TUP, { role: 'proxy', implementationSlots: [EIP1967] })], { 'v3.2.0': [keccak256(C.tup)] }, [ue])
+  const [proxy, unknownProxy, logic] = [addr(1), addr(2), addr(3)]
+  const codes: Record<string, Hex> = { [proxy]: C.tup, [unknownProxy]: C.unknown, [logic]: ueLogic }
+  const rpc = {
+    getCode: async (a: string) => codes[a] ?? '0x',
+    getStorageAt: async (a: string, slot: string) => (a !== logic && slot === EIP1967 ? word(logic) : word('0x')),
+  }
+  assert.deepEqual(await reg.getVersion(rpc, proxy), v('v1.1.0', UE), "the implementation's version and repo, not the proxy's v3.2.0")
+  assert.deepEqual(await reg.getVersion(rpc, unknownProxy), v('v1.1.0', UE), 'likewise behind an unknown proxy')
+  assert.deepEqual(await reg.getVersion(rpc, logic), v('v1.1.0', UE))
+  assert.equal((await reg.lookup(hexToBytes(C.tup)))?.repo, REPO, "the proxy's own entry is still nitro-contracts'")
 })
 
 test('versionOf: release, then prerelease, then a manual entry\'s label, then ref@commit', () => {

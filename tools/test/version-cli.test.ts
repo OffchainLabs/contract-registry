@@ -75,16 +75,16 @@ function run(args: string[]): Promise<{ status: number | null; stdout: string; s
   })
 }
 
-test('version CLI: a proxy, known or not, reports its implementation; unknown code exits 1; several addresses print one line each', async () => {
+test('version CLI: prints the version and repo; a proxy, known or not, reports its implementation; unknown code exits 1; several addresses print one line each', async () => {
   const dir = registryDir()
   const rpc = await stubRpc()
   try {
     const base = ['--rpc', rpc.url, '--registry', dir]
-    assert.deepEqual(await run([...base, '--address', PROXY]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
-    assert.deepEqual(await run([...base, '--address', UNKNOWN_PROXY]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
-    assert.deepEqual(await run([...base, '--address', IMPL]), { status: 0, stdout: 'v3.3.0\n', stderr: '' })
+    assert.deepEqual(await run([...base, '--address', PROXY]), { status: 0, stdout: 'v3.3.0 OffchainLabs/nitro-contracts\n', stderr: '' })
+    assert.deepEqual(await run([...base, '--address', UNKNOWN_PROXY]), { status: 0, stdout: 'v3.3.0 OffchainLabs/nitro-contracts\n', stderr: '' })
+    assert.deepEqual(await run([...base, '--address', IMPL]), { status: 0, stdout: 'v3.3.0 OffchainLabs/nitro-contracts\n', stderr: '' })
     assert.deepEqual(await run([...base, '--address', OTHER]), { status: 1, stdout: '', stderr: 'unknown\n' })
-    assert.deepEqual(await run([...base, '--address', PROXY, '--address', OTHER]), { status: 1, stdout: `${PROXY} v3.3.0\n${OTHER} unknown\n`, stderr: '' })
+    assert.deepEqual(await run([...base, '--address', PROXY, '--address', OTHER]), { status: 1, stdout: `${PROXY} v3.3.0 ${REPO}\n${OTHER} unknown\n`, stderr: '' })
     assert.equal((await run(['--registry', dir])).status, 2)
   } finally {
     rpc.close()

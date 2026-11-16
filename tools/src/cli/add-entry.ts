@@ -139,7 +139,7 @@ const out = [
   `  and regenerated ${byLengthPath(entry.codeLength)} and ${INDEX_PATH}.`,
   `fingerprint: ${entry.fingerprint}`,
   `contract:    ${entry.contracts[0]} (${entry.role}${entry.packages ? `, ${Object.values(entry.packages)[0]}` : ''})`,
-  `getVersion(${a.address}) at ${a.block}: ${version ?? 'null'}`,
+  `getVersion(${a.address}) at ${a.block}: ${version ? `${version.version} ${version.repo}` : 'null'}`,
 ]
 if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) out.push(`  (a one-slot proxy reports its implementation's version; the entry itself gives ${versionOf(found)})`)
 const novel = namesNoOtherEntryHas(entry, others)

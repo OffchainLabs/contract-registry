@@ -138,7 +138,7 @@ test('add-entry: a matching build writes the entry and the views, which pass ci-
     const index: IndexFile = JSON.parse(fs.readFileSync(path.join(t.dir, 'registry/index.json'), 'utf8'))
     assert.deepEqual(index.codeLengths, [66])
     assert.ok(t.data.entryPath(BRIDGE_FP).endsWith(`/registry/nitro-contracts/entries/${BRIDGE_FP}.json`))
-    for (const line of [`Wrote ${t.data.entryPath(BRIDGE_FP)}`, '  and regenerated registry/by-length/66.json and registry/index.json.', `fingerprint: ${BRIDGE_FP}`, `getVersion(${A.bridge}) at latest: v3.1.0-patched`, '  contract src/bridge/Bridge.sol:Bridge', '  getter rollup()', '  masked range __self', '  1. node tools/src/cli/ci-check.ts --base origin/main']) {
+    for (const line of [`Wrote ${t.data.entryPath(BRIDGE_FP)}`, '  and regenerated registry/by-length/66.json and registry/index.json.', `fingerprint: ${BRIDGE_FP}`, `getVersion(${A.bridge}) at latest: v3.1.0-patched OffchainLabs/nitro-contracts`, '  contract src/bridge/Bridge.sol:Bridge', '  getter rollup()', '  masked range __self', '  1. node tools/src/cli/ci-check.ts --base origin/main']) {
       assert.ok(r.stdout.includes(line), `${line}\n---\n${r.stdout}`)
     }
 
@@ -297,7 +297,7 @@ test('add-entry: --ref and --commit are recorded only if the ref points at that 
     assert.equal(ok.status, 0, ok.stderr)
     const e = t.data.readEntry(BRIDGE_FP)
     assert.deepEqual([e.ref, e.commit, e.label], ['v9.0.0', head, 'x'])
-    assert.match(ok.stdout, /getVersion\(0xb{40}\) at latest: x\n/, 'the label still gives the version')
+    assert.match(ok.stdout, /getVersion\(0xb{40}\) at latest: x OffchainLabs\/nitro-contracts\n/, 'the label still gives the version')
   } finally {
     t.close()
   }

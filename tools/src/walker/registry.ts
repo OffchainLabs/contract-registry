@@ -6,9 +6,9 @@ import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import { INDEX_PATH, byLengthPath, outOfScopePath } from '../lib/layout.ts'
 import { isPrerelease } from '../lib/semver.ts'
-import type { ByLengthEntry, ByLengthFile, IndexFile } from '../lib/types.ts'
+import { VIEW_SCHEMA_VERSION, type ByLengthEntry, type ByLengthFile, type IndexFile } from '../lib/types.ts'
+import { readImplementations, reportsImplementation } from './proxy.ts'
 import type { Rpc } from './rpc.ts'
-import { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from './walk.ts'
 
 /** Where registry files come from. Every implementation reads one fixed snapshot. */
 export interface RegistrySource {
@@ -108,6 +108,17 @@ export function versionOf(entry: ByLengthEntry): string {
   return `${entry.ref}@${entry.commit.slice(0, 12)}`
 }
 
+/** What `Registry.getVersion` reports: a version (see `versionOf`) and the repo it is a version of. */
+export interface ContractVersion {
+  version: string
+  /** The matched entry's repo (`owner/repo`). Tag names overlap across repos, so a version alone is ambiguous. */
+  repo: string
+}
+
+function contractVersion(entry: ByLengthEntry): ContractVersion {
+  return { version: versionOf(entry), repo: entry.repo }
+}
+
 /** A registry snapshot: every source's entries, looked up together. */
 export class Registry {
   readonly source: RegistrySource
@@ -119,23 +130,39 @@ export class Registry {
     this.source = source
   }
 
-  /** Every entry of one code length, of every source (one small static fetch). */
+  /** Opens a snapshot (see `openSource`); by default this repo's `main`, resolved to a commit once. */
+  static async open(spec = 'github:OffchainLabs/contract-registry@main'): Promise<Registry> {
+    return new Registry(await openSource(spec))
+  }
+
+  /**
+   * The code lengths present, and per source its repo and getters. Read once. A snapshot without
+   * it (the old layout, or not a registry at all) throws, so lookups can't quietly answer null
+   * for everything.
+   */
+  index(): Promise<IndexFile> {
+    this.indexP ??= this.source.read(INDEX_PATH).then(t => {
+      if (!t) throw new Error(`${this.source.describe()} is not a layout-v2 registry snapshot: it has no ${INDEX_PATH}`)
+      const ix = JSON.parse(t) as IndexFile
+      if (ix.schemaVersion !== VIEW_SCHEMA_VERSION) throw new Error(`${this.source.describe()}: ${INDEX_PATH} has schemaVersion ${ix.schemaVersion}; this client reads ${VIEW_SCHEMA_VERSION}`)
+      return ix
+    })
+    return this.indexP
+  }
+
+  /** Every entry of one code length, of every source: one small static fetch, and none for a length the index doesn't list. */
   byLength(len: number): Promise<ByLengthEntry[]> {
     let p = this.shards.get(len)
     if (!p) {
-      p = this.source.read(byLengthPath(len)).then(t => (t ? (JSON.parse(t) as ByLengthFile).entries : []))
+      p = this.index().then(async ix => {
+        if (!ix.codeLengths.includes(len)) return []
+        const t = await this.source.read(byLengthPath(len))
+        if (!t) throw new Error(`${this.source.describe()}: ${INDEX_PATH} lists code length ${len}, but ${byLengthPath(len)} is missing`)
+        return (JSON.parse(t) as ByLengthFile).entries
+      })
       this.shards.set(len, p)
     }
     return p
-  }
-
-  /** The code lengths present, and per source its repo and getters. */
-  index(): Promise<IndexFile> {
-    this.indexP ??= this.source.read(INDEX_PATH).then(t => {
-      if (!t) throw new Error(`${this.source.describe()}: no ${INDEX_PATH}`)
-      return JSON.parse(t) as IndexFile
-    })
-    return this.indexP
   }
 
   /** Every entry (fetches every shard; only needed to find the closest entry for unknown code). */
@@ -151,47 +178,39 @@ export class Registry {
   }
 
   /**
-   * The lookup (§5.5): the entry of the code's length that passes the match rule, or null. At most
-   * one entry can pass, because publish and CI require entries of one length to mask the same
-   * bytes, apart from reviewed pairs (see `rangeConflicts`). `decodeImmutables(code, entry)` reads
-   * the matched code's immutables.
+   * The lookup (§5.5): the entry of the code's length that passes the match rule, or null. Reads
+   * the index, then the length's shard if the index lists that length. At most one entry can
+   * pass, because publish and CI require entries of one length to mask the same bytes, in every
+   * source, apart from reviewed pairs (see `rangeConflicts`). `decodeImmutables(code, entry)`
+   * reads the matched code's immutables.
    */
   async lookup(code: Uint8Array): Promise<ByLengthEntry | null> {
     return (await this.byLength(code.length)).find(e => matches(code, e)) ?? null
   }
 
   /**
-   * The version of the contract at `address` (see `versionOf`), or null. A proxy with one
-   * implementation slot reports its implementation's version (null if the slot is zero or its code
-   * missing or unknown). Everything else the registry knows reports its own code's version: logic,
-   * proxy admins, and proxies with two slots (RollupProxy, AdminFallbackProxy), whose own version
-   * can lag the logic behind them.
+   * The version of the contract at `address` (see `versionOf`) and the repo it is a version of,
+   * or null. A proxy with one implementation slot reports its implementation, whichever repo that
+   * comes from (null if the slot is zero or its code missing or unknown). Everything else the
+   * registry knows reports its own code: logic, proxy admins, and proxies with two slots
+   * (RollupProxy, AdminFallbackProxy), whose own version can lag the logic behind them.
    *
    * Unknown code may be a proxy the registry doesn't have (e.g. Arbitrum One's, older than the
-   * registry's first tag). If its secondary slot is set, it's a two-slot proxy, with no version of
-   * its own: null. Otherwise it reports the implementation at the EIP-1967 slot, as a one-slot
-   * proxy does, and so gives null unless that slot holds code the registry knows.
+   * registry's first tag), so it is probed as `readImplementations` says. If its secondary slot is
+   * set, it's a two-slot proxy, with no version of its own: null. Otherwise it reports the
+   * implementation at the EIP-1967 slot, as a one-slot proxy does, and so gives null unless that
+   * slot holds code the registry knows.
    */
-  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, address: string, block = 'latest'): Promise<string | null> {
+  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, address: string, block = 'latest'): Promise<ContractVersion | null> {
     const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
-    if (!entry) {
-      // Unknown code: maybe a proxy the registry doesn't have. Secondary slot first, so an unknown
-      // two-slot proxy (an old RollupProxy) gives null rather than its admin logic's version.
-      if (!/^(0x)?0*$/.test(await rpc.getStorageAt(address, SECONDARY_IMPLEMENTATION_SLOT, block))) return null
-      return this.implementationVersion(rpc, address, EIP1967_IMPLEMENTATION_SLOT, block)
-    }
-    if (entry.role === 'proxy' && entry.implementationSlots?.length === 1) return this.implementationVersion(rpc, address, entry.implementationSlots[0], block)
-    return versionOf(entry)
-  }
-
-  /** The version of the code at the address in `slot` of `proxy`; null if the slot is zero, or that code is missing or unknown. */
-  private async implementationVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt'>, proxy: string, slot: string, block: string): Promise<string | null> {
-    const word = (await rpc.getStorageAt(proxy, slot, block)).replace(/^0x/, '').padStart(64, '0')
-    const impl = `0x${word.slice(-40)}`
-    if (/^0x0{40}$/.test(impl)) return null
-    const code = hexToBytes(await rpc.getCode(impl, block))
-    if (!code.length) return null
-    const implEntry = await this.lookup(code)
-    return implEntry ? versionOf(implEntry) : null
+    if (entry && !reportsImplementation(entry)) return contractVersion(entry)
+    const impls = await readImplementations(rpc, address, entry, block)
+    // Only unknown code gives a secondary here. An unknown two-slot proxy (an old RollupProxy)
+    // gives null, not the version of the admin logic in its EIP-1967 slot.
+    if (impls.some(i => i.role === 'secondaryImplementation')) return null
+    const impl = impls.find(i => i.role === 'implementation')
+    if (!impl) return null
+    const implEntry = await this.lookup(hexToBytes(await rpc.getCode(impl.address, block)))
+    return implEntry && contractVersion(implEntry)
   }
 }
