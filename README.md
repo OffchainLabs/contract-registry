@@ -8,7 +8,9 @@ discovers and identifies every contract of a chain.
 
 Design: `contract-registry-spec.md` (BLK-491). Status: prototype. Sources: `nitro-contracts`,
 every tag from `v3.2.0` onward, plus the releases from `v3.0.0` on (backfilled; see "Backfill");
-and `upgrade-executor`, every tag from `v1.0.0`, its whole release history (see "Backfill").
+`token-bridge-contracts`, every tag from `v1.0.1-beta.0`, the first that reproduces Arbitrum One's
+and Nova's canonical bridge; and `upgrade-executor`, every tag from `v1.0.0`, its whole release
+history (see "Backfill").
 
 ## How to use
 
@@ -31,8 +33,9 @@ or a directory.
 **What a version means.** A version is the earliest release in the registry's range for that
 source whose build contains the code: the first non-prerelease tag, else the first prerelease tag,
 else a manual entry's label, else `<ref>@<commit>`. So nitro-contracts code unchanged since
-`v2.1.0` reports `v3.0.0`, the first release the registry builds. "Backfill" gives each
-source's range.
+`v2.1.0` reports `v3.0.0`, the first release the registry builds, and the token bridge's
+canonical bridge reports `v1.0.1-beta.0`, the prerelease that first contains it. "Backfill" gives
+each source's range.
 
 `getVersion` does this:
 
@@ -111,12 +114,13 @@ The choices it makes:
   e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
   commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
 - Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
-  One, for example, most proxies are early nitro-contracts builds, and the Inbox proxy an Arbitrum
-  Classic build. So unknown code is probed at the EIP-1967 implementation slot and, like a one-slot
-  proxy, reports the version of the implementation there. If that slot and the secondary slot are
-  both zero, the EIP-1967 beacon slot is probed, and a beacon there is asked for its
-  implementation, as for a beacon proxy. That is safe for any unknown code: these are the standard
-  slots, and the fallback can only return a version if it reaches code the registry recognises.
+  One, for example, many core proxies are early nitro-contracts builds, older than the registry's
+  range, and the Arbitrum DAO's upgrade executors sit behind proxy code that no source builds. So
+  unknown code is probed at the EIP-1967 implementation slot and, like a one-slot proxy, reports
+  the version of the implementation there. If that slot and the secondary slot are both zero, the
+  EIP-1967 beacon slot is probed, and a beacon there is asked for its implementation, as for a
+  beacon proxy. That is safe for any unknown code: these are the standard slots, and the fallback
+  can only return a version if it reaches code the registry recognises.
 - Unknown code whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives
   null, whatever its other slots hold, since a two-slot proxy reports its own version, which here
   is unknown. It never reports the admin logic in its EIP-1967 slot, and its beacon slot isn't
@@ -231,7 +235,7 @@ node tools/src/cli/version.ts --rpc $RPC --address 0x...   # prints e.g. "v3.2.0
 # identify one contract (the code at the address itself, as JSON)
 node tools/src/cli/lookup.ts --rpc $RPC --address 0x...
 # walk a chain from any core contract (JSON on stdout)
-node tools/src/cli/walk.ts --rpc $RPC --start <rollup or inbox> [--source nitro-contracts] [--registry github:<owner>/<repo>@main]
+node tools/src/cli/walk.ts --rpc $RPC --start <rollup, inbox or token bridge router> [--source nitro-contracts] [--registry github:<owner>/<repo>@main]
 ```
 
 `version` and `lookup` search every source. Given several `--address`es, `version` prints
@@ -262,9 +266,9 @@ reads the entry's `beaconSlot` and calls the beacon's `implementation()`: the no
 address. A beacon whose `implementation()` reverts or returns no address gives no implementation.
 Either way, the getters of the proxy's code and of its implementation are called on the proxy.
 Logic and proxy-admin code isn't probed. Code the registry doesn't know (for example a release
-older than the registry's range, or a proxy built outside it, like Arbitrum One's Arbitrum
-Classic-era Inbox proxy) is probed at the EIP-1967 and secondary slots and, if both are zero, at
-the beacon slot.
+older than the registry's range, or a proxy built outside it, like the one in front of the
+Arbitrum DAO's upgrade executor on each chain) is probed at the EIP-1967 and secondary slots and,
+if both are zero, at the beacon slot.
 
 A getter in the source's out-of-scope list (`config/<source>/out-of-scope-getters.json`) leads to a
 leaf. A leaf is labelled with the edges that reached it (`RollupProxy.owner()`) and identified like
@@ -463,6 +467,88 @@ and names it in the data commit's message. `check.ts --rev` refuses such a commi
 
 The run checks the range invariant against every existing entry of every source, as for any new
 tag.
+
+#### token-bridge-contracts
+
+`OffchainLabs/token-bridge-contracts` builds the token bridge: the gateway routers and gateways of
+both chains, the child chain's tokens (`StandardArbERC20`, `aeWETH`) and their beacon, and the
+Orbit creator (`L1AtomicTokenBridgeCreator`, `L2AtomicTokenBridgeFactory`). The registry covers its
+release history from `v1.0.1-beta.0`: `start` is `{"tag": "v1.0.1-beta.0"}`, so 15 `v*` tags are
+published, `v1.0.1-beta.0` to `v1.2.5`, prereleases included, and the heads of `release-main`,
+`release-1.1.1` and `hotfix/add-sbom-export`. `v1.1.0-alpha.0` and `v1.1.0-alpha.1` are on a side
+branch, so they stay out. Every tag equals `v` + `package.json` version.
+
+What real chains run, and the version `getVersion` reports for it:
+
+| Code | Version |
+|---|---|
+| Arbitrum One's and Nova's canonical bridge (deployed 2021 to 2023 from an older repo): router and gateway logic on both chains, `StandardArbERC20`, Nova's aeWETH, Arbitrum One's proxy admins and beacon, and the DAO's reverse gateways for ARB | `v1.0.1-beta.0`: that code is only in the `v1.0.1-beta.*` prereleases |
+| The creators' L1 and L2 templates (Ethereum and Arbitrum One), and the routers and gateways of the Orbit chains created from them (still in 2026) | `v1.1.0` |
+| The creators' `L2AtomicTokenBridgeFactory` template | `v1.2.0` |
+| The creators (Ethereum, Arbitrum One, Nova) and their `L1TokenBridgeRetryableSender` | `v1.2.2` |
+
+Two contracts of Arbitrum One's 2021 bridge are older than any tag and unknown: its aeWETH logic
+(`0x8b194bEa…`) and its `BeaconProxyFactory` (`0x3fE38087…`). Nova's proxies, beacon and
+`BeaconProxyFactory` come from a 2022 build that no tag reproduces; the logic behind its proxies is
+known, so `getVersion` reaches it through the slot probe for unknown code. Arbitrum One's
+Classic-era core proxies on Ethereum (its Inbox `0x4Dbd4fc5…`, among others) were compiled from the
+same OpenZeppelin 3.4.2 `TransparentUpgradeableProxy` with the same settings as `v1.0.1-beta.*`, so
+they match that entry: `lookup` reports token bridge proxy code, `getVersion` reports the
+nitro-contracts logic behind it, and a nitro-contracts walk lists them in
+`summary.otherRepoInScope`.
+
+- **Two profiles, Hardhat only**, both on Node 24 and yarn 1.22.22:
+
+  | Profile | Selects | Builds |
+  |---|---|---|
+  | `hardhat-0.6.11-oz3` | commits that don't descend from `v1.1.0-beta.0` | `v1.0.1-beta.*` and `release-main`: gateways at solc 0.6.11, OpenZeppelin 3.4.2 |
+  | `hardhat-0.8.16-oz4` | descendants of `v1.1.0-beta.0` that don't descend from `3f643a0c` | `v1.1.0-beta.0` to `v1.2.5`, `release-1.1.1` and `hotfix/add-sbom-export`: solc 0.8.16, OpenZeppelin 4.8.3 |
+
+  The Hardhat build is the deployed one: the deploy scripts use its artifacts. There's no Foundry
+  parity output. The repo builds with `bytecodeHash: ipfs`, so the two toolchains' raw bytes
+  differ, and three factories embed other contracts' creation code, metadata hash included, so
+  even their masked code differs.
+- **The YBB guard.** `3f643a0c` ("add L1YbbBridgeDeployer lib", 2026-02-05, on `develop`) set
+  `foundry.toml` to 200 optimizer runs, while Hardhat stays at 100. No published ref contains it
+  yet. A release that does matches no profile and fails the run, so its deployed toolchain gets
+  decided before anything of it is published.
+- **Setup.** `yarn install --ignore-scripts`, because a `v1.0.1-beta.*` dependency's postinstall
+  fails (`phantomjs-prebuilt`); no tag has install scripts of its own. Submodules are fetched over
+  HTTPS (`git -c url.https://github.com/.insteadOf=git@github.com: submodule update ...`): the
+  tags from `v1.1.0-beta.0` to `v1.2.0` point `lib/nitro-contracts` at an SSH URL, which CI can't
+  clone. The output sets `INTERFACE_TESTER_SOLC_VERSION` to empty: when it is set, the Hardhat
+  config adds that solc to its compilers, which would change the compiler of every `^0.8` file.
+- **Excludes.** Tests and mocks (`contracts/tokenbridge/test/**` and the test directories), and
+  other sources' packages: `@offchainlabs/upgrade-executor/**` (the repo compiles its own copy of
+  `UpgradeExecutor`, never deployed) and `@arbitrum/nitro-contracts/**`.
+- **Roles.** OpenZeppelin's `TransparentUpgradeableProxy`, `UpgradeableProxy` (3.4.2) and
+  `ERC1967Proxy` (4.8.3) are proxies at the EIP-1967 slot; `ProxyAdmin` and `UpgradeableBeacon`
+  are proxy admins. OpenZeppelin's `BeaconProxy` and the repo's `ClonableBeaconProxy`, which
+  compile to one fingerprint, are beacon proxies, so a bridged token reports its beacon's
+  implementation: Arbitrum One's LINK (`0xf97f4df7…`) reports `v1.0.1-beta.0`, from
+  `StandardArbERC20`.
+- **No test chains** (`testChains: null`). Deploying a token bridge needs a parent and a child
+  chain with retryables executed, and there's no deployer for that yet. The out-of-scope list was
+  checked instead by walking real chains (below).
+
+**Out of scope.** The token bridge is mostly pointers to the other chain, so its list
+(`config/token-bridge-contracts/out-of-scope-getters.json`) is long:
+
+- addresses on the other chain: `counterpartGateway()`, `l2BeaconProxyFactory()`,
+  `canonicalL2FactoryAddress()`, `l1Address()`, the `v1.1.x` creators' `getCanonicalL2*(uint256)`,
+  and `L1WethGateway.l2Weth()`. On the child chain, `L2WethGateway.l2Weth()` is that chain's own
+  aeWETH, so it stays in scope;
+- other repos and external code: `inbox()` (nitro-contracts), `owner()` (an upgrade executor or an
+  account), `l1Weth()` (WETH9), `l1USDC()` and `l2USDC()`;
+- accounts: `burner()`, `usdcOwnershipTransferrer()`, `getCurrentBlockCoinbase()`, and the legacy
+  `whitelist()`;
+- the creator's child-chain templates (`l2RouterTemplate()`, ...): code to copy, initialised with
+  placeholder addresses (`0x…dEaD`). They are still identified, as leaves.
+
+Walks from Arbitrum One's routers (Ethereum and Arbitrum One), its WETH gateways and LINK, both
+creators, Nova's routers and a 2026 Orbit chain's router match every in-scope contract except
+Arbitrum One's two 2021 ones and Nova's 2022 proxies, beacon and factory; no in-scope getter
+reaches an account.
 
 #### upgrade-executor
 
