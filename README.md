@@ -528,7 +528,7 @@ rests on the person who added it; the on-chain match when `add-entry` writes it 
 
 ## Changes
 
-**Layout v2 and one lookup across sources (2026-11).** One break for every client that reads
+**Layout v2 and one lookup across sources (2026-11-16).** One break for every client that reads
 `main`. Clients pinned to an earlier commit keep working, since old commits keep the old layout.
 
 - Data moved under `registry/`: a source's inputs are in `registry/<source>/` (was `<source>/`), and
