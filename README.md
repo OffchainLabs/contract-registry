@@ -189,6 +189,7 @@ entry says what the code is:
   "@openzeppelin/contracts@4.7.3"}`. It maps each such contract's name, so an entry whose contracts
   come from several packages, or from a package and the repo's own code, stays unambiguous.
   Contracts not listed are the source repo's own code; the field is absent when all of them are.
+  None of them is another source's package: publish refuses that code (see "Across sources").
   The version is read from the package's `package.json` in the build checkout. Like `ref` and
   `commit`, it records the first build that produced the fingerprint: a later build may compile the
   same code from another version of the package, and the entry doesn't change.
@@ -197,8 +198,8 @@ entry says what the code is:
 
 ```
 config/<source>/sources.json                  which refs are published; how to fetch, build (profiles
-                                              by ref range) and check the source repo; proxies;
-                                              reviewed range pairs
+                                              by ref range) and check the source repo; its npm
+                                              packages; proxies; reviewed range pairs
 config/<source>/out-of-scope-getters.json     getters the walker doesn't follow
 schema/                                       JSON schemas for every file type
 registry/<source>/entries/<fingerprint>.json  one per distinct fingerprint, in one source only (see
@@ -322,13 +323,14 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   address: a proxy missing from `contractRoles`, or listed with the wrong slots.
 - `reconcile.yml` (daily): the same run, plus an alert for any published ref that should already
   have been processed.
-- `ci.yml` (every push and PR): schemas; no two sources share an id or a repo; each source's
+- `ci.yml` (every push and PR): schemas; no two sources share an id, a repo or an npm package; each source's
   `outOfScopeGetters` is `config/<source>/out-of-scope-getters.json`, the file the walker reads
   (publish's test-chain check reads the field); nothing outside the layout (a source's directory
   at the top of the repo, or anything in `registry/` but configured sources, `by-length/` and
   `index.json`); generated files match their inputs; one entry per fingerprint across sources,
   and an entry for every fingerprint a tag or branch file lists; shared code's role agrees with
-  its owner's entry in every source's `contractRoles`; the range invariant across sources (with
+  its owner's entry in every source's `contractRoles`; no source's entries, tags or branches have
+  another source's package code; the range invariant across sources (with
   every source's `reviewedRangePairs`); `entries/` and `tags/` files are append-only. Append-only compares content with the base, so a file moved into
   `registry/` passes, and a changed or deleted one fails wherever it moved.
 
@@ -381,6 +383,34 @@ One lookup searches every source, so the registry's rules hold across sources. P
   names each entry's source and the configs the pair can go in.
 - **Every listed fingerprint has an entry.** Each fingerprint in a tag or branch file has an entry
   in some source (`ci-check`).
+- **A source never publishes another source's code.** A build compiles its dependencies too, and
+  some are other sources: the token bridge installs `@arbitrum/nitro-contracts` and
+  `@offchainlabs/upgrade-executor`, and has nitro-contracts as the submodule `lib/nitro-contracts`.
+  Published, that code would get entries with this source's repo and versions, built with its
+  settings. Each source lists the npm package names its code is installed under in `npmPackages`
+  (required: its `package.json` name, every name it has had, or `[]` for a repo with no package;
+  no two sources may list the same one): `@arbitrum/nitro-contracts`,
+  `@arbitrum/token-bridge-contracts` and `@offchainlabs/upgrade-executor`. A contract a build
+  would fingerprint is another source's code when its file is anywhere inside another source's
+  package or repo:
+  - it was compiled from an installed package (the `packages` field) that is one of that source's
+    `npmPackages`, by the name in the installed `package.json`, so an npm alias counts;
+  - its path names one of those packages at its start (a Hardhat import name, or a copy at the top
+    of the repo) or after a `node_modules/` directory (Foundry's names, nested installs); or
+  - it is in a git submodule, nested ones included, whose URL in `.gitmodules` is that source's
+    `repo` on GitHub (HTTPS, SSH or relative).
+
+  Publish refuses such a build before writing anything: the run fails (`publish-error`) and
+  publishes nothing, and its message names each contract, the package or submodule, the source it
+  belongs to and the exclude to add to the build profile (the package or submodule directory and
+  `/**`, e.g. `@offchainlabs/upgrade-executor/**` or `lib/**`). This holds for shared code too, so
+  the tag or branch file doesn't list it either. Publish also fails while a built commit's
+  `package.json` name isn't in its own source's `npmPackages`, so a new or renamed package can't
+  go unlisted. `add-entry` refuses a contract from another source's package or repo and names the
+  `--source` it belongs to. `ci-check` checks the data: no entry's `packages`, and no contract
+  name in an entry, tag or branch file, names another source's package. It can't see submodules
+  (the data doesn't record them); publish checks those when it builds. A file vendored some other
+  way, copied into the repo's own directories, isn't recognised: excludes still need review.
 
 ### Rebuilding tags: `rebuild.yml`
 
@@ -519,8 +549,10 @@ nitro-contracts logic behind it, and a nitro-contracts walk lists them in
   clone. The output sets `INTERFACE_TESTER_SOLC_VERSION` to empty: when it is set, the Hardhat
   config adds that solc to its compilers, which would change the compiler of every `^0.8` file.
 - **Excludes.** Tests and mocks (`contracts/tokenbridge/test/**` and the test directories), and
-  other sources' packages: `@offchainlabs/upgrade-executor/**` (the repo compiles its own copy of
-  `UpgradeExecutor`, never deployed) and `@arbitrum/nitro-contracts/**`.
+  other sources' code, which publish would refuse (see "Across sources"):
+  `@offchainlabs/upgrade-executor/**` (the repo compiles its own copy of `UpgradeExecutor`, never
+  deployed), `@arbitrum/nitro-contracts/**`, and `lib/**`, which holds the `lib/nitro-contracts`
+  submodule.
 - **Roles.** OpenZeppelin's `TransparentUpgradeableProxy`, `UpgradeableProxy` (3.4.2) and
   `ERC1967Proxy` (4.8.3) are proxies at the EIP-1967 slot; `ProxyAdmin` and `UpgradeableBeacon`
   are proxy admins. OpenZeppelin's `BeaconProxy` and the repo's `ClonableBeaconProxy`, which
@@ -627,8 +659,10 @@ To add one:
 code at the address. On a mismatch it prints both lengths and metadata trailers, and where the code
 before the trailers differs. A trailer that differs alone usually means another metadata hash
 setting; a different solc version or code means other settings or source. It also refuses a
-missing label, a label that is a published tag of the source, a fingerprint that already has an
-entry in any source (it names that source and what its entry reports), and an entry that breaks
+missing label, a label that is a published tag of the source, another source's code (from its npm
+package or a submodule of its repo; it names the `--source` the contract belongs to), a
+fingerprint that already has an entry in any source (it names that source and what its entry
+reports), and an entry that breaks
 the range invariant, checked against every source's entries (see "Across sources"). The role
 comes from `contractRoles` and `packages` from the checkout, as in publish. It then writes the
 entry, regenerates `registry/by-length/` and `registry/index.json`, and prints the entry's path,
