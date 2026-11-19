@@ -31,6 +31,10 @@
     "l2TokenBridgeFactoryTemplate()": "Creator: a child-chain template, code to copy",
     "l2WethGatewayTemplate()": "Creator: a child-chain template, code to copy; its initializer is locked with placeholder addresses (0x…dEaD)",
     "l2WethTemplate()": "Creator: a child-chain template, code to copy",
-    "getCurrentBlockCoinbase()": "Multicall: the block's coinbase, an account"
+    "getCurrentBlockCoinbase()": "Multicall: the block's coinbase, an account",
+    "L1GatewayRouter.router()": "A router's own router(): always zero (a gateway's router() is in scope)",
+    "L1OrbitGatewayRouter.router()": "A router's own router(): always zero (a gateway's router() is in scope)",
+    "L2GatewayRouter.router()": "A router's own router(): always zero (a gateway's router() is in scope)",
+    "UpgradeableBeacon.implementation()": "The logic the beacon's proxies run (StandardArbERC20): code, not an instance, so its own getters are unset; each bridged token's implementation identifies it"
   }
 }
