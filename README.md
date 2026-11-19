@@ -313,14 +313,16 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   checks that entries of one code length mask the same bytes, in every source (so no code can
   match two; a conflict fails the whole run, and its alert says how to review the pair and list it
   in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
-  tag and changed head in the check's range and walks them, and lands everything as one commit.
+  tag and changed head in the check's range and walks them (see "Test chains"), and lands
+  everything as one commit.
   It checks that each new tag equals `v` + `package.json` version at its commit; a mismatch is
   published anyway and raises an alert until the tag is listed in `tagValidation.allowlist`.
   The test-chain check
   requires all in-scope code, proxies and proxy admins included, to match an entry from that
   commit's build. It also reads the known slots (EIP-1967's implementation and beacon slots, and the
-  secondary slot) on every matched contract, and fails if one that its entry doesn't list holds an
-  address: a proxy missing from `contractRoles`, or listed with the wrong slots.
+  secondary slot, plus any other slot the source's `contractRoles` lists) on every matched
+  contract, and fails if one that its entry doesn't list holds an address: a proxy missing from
+  `contractRoles`, or listed with the wrong slots.
 - `reconcile.yml` (daily): the same run, plus an alert for any published ref that should already
   have been processed.
 - `ci.yml` (every push and PR): schemas; no two sources share an id, a repo or an npm package; each source's
@@ -412,6 +414,51 @@ One lookup searches every source, so the registry's rules hold across sources. P
   (the data doesn't record them); publish checks those when it builds. A file vendored some other
   way, copied into the repo's own directories, isn't recognised: excludes still need review.
 
+### Test chains
+
+The test-chain check deploys a source's contracts from the commit being published on local anvil
+nodes, walks them with the registry, and fails on in-scope code that doesn't match an entry from
+that commit's build, on an in-scope getter that returns zero, on a probed slot holding an address
+the walk didn't read, and on a walk that can't complete. A source's `testChains.deployer` names its
+deployer, `tools/src/testchain/<deployer>.ts`. It runs its scripts (`tools/testchain/<deployer>/`)
+inside the built checkout, so the deployment comes from that commit's own deploy code and
+artifacts, and returns the walks: for each, a name, the address it starts from and the node it
+reads. Each walk's problems are reported under its name. A result is cached per commit, keyed by
+`CHECK_VERSION`, the source's out-of-scope list and the deployer's code (its module, the helpers
+the deployers share, `common.ts`, and its scripts).
+
+- **nitro-contracts** deploys the RollupCreator with the commit's deploy scripts, creates four
+  rollups (ETH or ERC20 fee token, delay-bufferable or not) with every optional address set, and
+  walks each from its rollup. The deployment takes under 20 seconds.
+- **token-bridge-contracts** needs a parent chain with a rollup, and a child chain that executes
+  retryable tickets. On a parent anvil, it deploys the creator and its templates with the commit's
+  own `deployL1TokenBridgeCreator` (`scripts/atomicTokenBridgeDeployer.ts`). For each variant it
+  stands up the parent side of a rollup: nitro-contracts' `Bridge` and `Inbox` (`ERC20Bridge` and
+  `ERC20Inbox` with a fee token) behind proxies, the rollup's `ProxyAdmin` and `UpgradeExecutor`,
+  and a stand-in for the rollup contract that answers `owner()` and `chainId()`, the only calls the
+  creator makes to it. The nitro-contracts artifacts come from the npm release
+  `@arbitrum/nitro-contracts@1.1.1` (its integrity hash is checked), not the checkout's, whose
+  version varies by tag. The variants are ETH and an ERC20 fee token, plus the yield-bearing bridge
+  of each where the creator has `createYbbTokenBridge`. It creates a token bridge for each and
+  deposits a token through each ETH router. Then, per variant, a child anvil with the rollup's chain
+  id replays the retryables the variant's Inbox recorded, in order: each from its sender (aliased
+  by the Inbox) by impersonation, to its destination or, if that is zero, as a contract creation,
+  as ArbOS runs them. So the child side is what the creator's own retryables deploy, at the
+  addresses the creator predicted, which the deployer checks. The child anvils run Prague, not
+  Osaka: Osaka's per-transaction gas cap (2^24) is barely above the one transaction that deploys the
+  child side (15.4M gas at `v1.2.5`). The walks start from the creator; each variant's
+  parent-chain contracts (`inboxToL1Deployment`: router and gateways); and its child-chain
+  contracts (`inboxToL2Deployment`, the factory, and the bridged token). Before `v1.2.0` the
+  creator keeps no such record, so they come from its `OrbitTokenBridgeCreated` event and its
+  `getCanonicalL2*(chainId)`, as those releases' own deploy script collects them. Two are left
+  out: the parent chain's WETH (external code) and the child chain's upgrade executor
+  (upgrade-executor's logic behind a token bridge proxy; walks reach it through `owner()`, as a
+  leaf). Two token bridges and 25 walks up to `v1.2.5` (four and 49 with the yield-bearing ones
+  on `develop`); deploying and walking takes about 10 seconds.
+
+Each deployer has a CLI that deploys from a built checkout and prints the addresses as JSON:
+`node tools/src/testchain/<deployer>-cli.ts --checkout <dir> [--keep]`.
+
 ### Rebuilding tags: `rebuild.yml`
 
 `rebuild.ts` shows that a source's published tags reproduce. It rebuilds each tag from scratch,
@@ -482,7 +529,10 @@ whatever solc is newest, so the fingerprint would change with each solc release.
 SequencerInbox uses (`0x15b25E3f…d4ca`).
 
 **Which commits get a test-chain check: `testChains.when`.** For nitro-contracts it is
-`{"descendantOf": ["v3.2.0"]}`, because the deployer targets `v3.2.0`'s `createRollup`. A
+`{"descendantOf": ["v3.2.0"]}`, because the deployer targets `v3.2.0`'s `createRollup`. For
+token-bridge-contracts it is `{"descendantOf": ["v1.1.1"]}`: the `v1.0.1-beta.*` releases have no
+creator, and up to `v1.1.0`, `deployL1TokenBridgeCreator` estimates the child chain's factory
+deployment on a live child chain (Arbitrum's NodeInterface), which an anvil doesn't have. A
 published commit outside it is built and published without the check, and not silently: each run
 lists it in `checksSkipped` (commit, refs, reason), logs `test-chain check skipped for <refs>`,
 and names it in the data commit's message. `check.ts --rev` refuses such a commit.
@@ -559,9 +609,9 @@ nitro-contracts logic behind it, and a nitro-contracts walk lists them in
   compile to one fingerprint, are beacon proxies, so a bridged token reports its beacon's
   implementation: Arbitrum One's LINK (`0xf97f4df7…`) reports `v1.0.1-beta.0`, from
   `StandardArbERC20`.
-- **No test chains** (`testChains: null`). Deploying a token bridge needs a parent and a child
-  chain with retryables executed, and there's no deployer for that yet. The out-of-scope list was
-  checked instead by walking real chains (below).
+- **Test chains** from `v1.1.1` on (see "Test chains"): every tag from `v1.1.1` to `v1.2.5` and
+  the head of `hotfix/add-sbom-export` pass. Older releases are published without the check; their
+  out-of-scope list was checked by walking real chains (below).
 
 **Out of scope.** The token bridge is mostly pointers to the other chain, so its list
 (`config/token-bridge-contracts/out-of-scope-getters.json`) is long:
@@ -575,7 +625,12 @@ nitro-contracts logic behind it, and a nitro-contracts walk lists them in
 - accounts: `burner()`, `usdcOwnershipTransferrer()`, `getCurrentBlockCoinbase()`, and the legacy
   `whitelist()`;
 - the creator's child-chain templates (`l2RouterTemplate()`, ...): code to copy, initialised with
-  placeholder addresses (`0x…dEaD`). They are still identified, as leaves.
+  placeholder addresses (`0x…dEaD`). They are still identified, as leaves. Likewise the beacon's
+  `UpgradeableBeacon.implementation()`, the `StandardArbERC20` logic that bridged tokens run: code,
+  not an instance, so its own getters are unset. It is identified as a leaf, and as each bridged
+  token's implementation;
+- zero by design: a router's own `router()` (`L1GatewayRouter`, `L1OrbitGatewayRouter`,
+  `L2GatewayRouter`). A gateway's `router()` stays in scope.
 
 Walks from Arbitrum One's routers (Ethereum and Arbitrum One), its WETH gateways and LINK, both
 creators, Nova's routers and a 2026 Orbit chain's router match every in-scope contract except
