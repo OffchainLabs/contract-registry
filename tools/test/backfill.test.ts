@@ -185,6 +185,28 @@ test('publish backfills old releases with their own profile, and reports skipped
   assert.equal(git(data, 'rev-parse', 'HEAD'), head)
   assert.deepEqual(r2.checksSkipped, [])
   assert.deepEqual(deployed, [c100], 'the check result is cached')
+
+  // A live branch head outside testChains.when is reported as skipped when it's published, not
+  // again on every later run.
+  git(srcDir, 'checkout', '-qb', 'hotfix-old', c100)
+  fs.writeFileSync(path.join(srcDir, 'NOTES'), 'hotfix\n')
+  git(srcDir, 'add', '-A'); git(srcDir, 'commit', '-qm', 'hotfix')
+  const cHot = git(srcDir, 'rev-parse', 'HEAD')
+  git(srcDir, 'checkout', '-q', 'main')
+  const cfgFile = path.join(data, 'config/fake/sources.json')
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'))
+  cfg.testChains.when = { descendantOf: ['v1.0.0'], notDescendantOf: ['hotfix-old'] }
+  fs.writeFileSync(cfgFile, stableJson(cfg))
+  git(data, 'commit', '-qam', 'test chains: not hotfix-old')
+  const r3 = await run()
+  assert.ok(r3.ok, JSON.stringify(r3.failures))
+  assert.deepEqual(r3.branchesUpdated, ['hotfix-old'])
+  assert.deepEqual(r3.checksSkipped.map(s => [s.commit, s.refs]), [[cHot, ['hotfix-old']]])
+  const r4 = await run()
+  assert.ok(r4.ok, JSON.stringify(r4.failures))
+  assert.equal(r4.commit, null)
+  assert.deepEqual(r4.checksSkipped, [], 'an unchanged head outside testChains.when is not reported again')
+  assert.deepEqual(deployed, [c100])
   execFileSync(process.execPath, [path.join(ROOT, 'tools/src/cli/ci-check.ts'), '--data-repo', data, '--base', git(data, 'rev-list', '--max-parents=0', 'HEAD')], { stdio: 'pipe' })
   fs.rmSync(tmp, { recursive: true, force: true })
 })

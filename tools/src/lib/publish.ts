@@ -143,7 +143,9 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     const addTarget = (c: string, ref: string) => addRef(checkApplies(c) ? checkTargets : skippedChecks, c, ref)
     if (deployerName && !opts.skipTestChains) {
       for (const [branch, head] of branches) if (inRange(head)) {
-        if (recorded.get(branch) !== head || !checkCache.get(head, key)) addTarget(head, branch)
+        // An unchanged head is due only a check it hasn't had with this key. One outside
+        // testChains.when never has one; it was reported as skipped when it changed.
+        if (recorded.get(branch) !== head || (checkApplies(head) && !checkCache.get(head, key))) addTarget(head, branch)
       }
       for (const [t, c] of newTags) addTarget(c, t)
       // The newest tag the check applies to.

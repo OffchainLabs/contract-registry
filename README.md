@@ -533,9 +533,10 @@ SequencerInbox uses (`0x15b25E3f…d4ca`).
 token-bridge-contracts it is `{"descendantOf": ["v1.1.1"]}`: the `v1.0.1-beta.*` releases have no
 creator, and up to `v1.1.0`, `deployL1TokenBridgeCreator` estimates the child chain's factory
 deployment on a live child chain (Arbitrum's NodeInterface), which an anvil doesn't have. A
-published commit outside it is built and published without the check, and not silently: each run
-lists it in `checksSkipped` (commit, refs, reason), logs `test-chain check skipped for <refs>`,
-and names it in the data commit's message. `check.ts --rev` refuses such a commit.
+published commit outside it is built and published without the check, and not silently: the run
+that publishes it (a new tag, or a branch head that changed) lists it in `checksSkipped` (commit,
+refs, reason), logs `test-chain check skipped for <refs>`, and names it in the data commit's
+message. Later runs don't repeat it for an unchanged branch head. `check.ts --rev` refuses such a commit.
 
 **Going further back.** Lower `start.releasesFrom`; that one line is the range rule. Then:
 
