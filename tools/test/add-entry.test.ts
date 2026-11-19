@@ -238,7 +238,7 @@ test('add-entry: refuses without a source or a label, with a label that is a pub
     const named = { [other.fingerprint]: 'src/bridge/Inbox.sol:Inbox', [BRIDGE_FP]: BRIDGE }
     const [x, y] = Object.keys(named).sort()
     for (const line of [
-      'The entry would break the range invariant (see "Publishing" in the README):',
+      'The entry would break the range invariant (see "Across sources" in docs/publishing.md):',
       `- 66-byte entries ${x} in nitro-contracts (${named[x]}) and ${y} in nitro-contracts (${named[y]})`,
       `    masked only by ${BRIDGE_FP}: bytes 1-32 (__self)`,
       'Nothing written.',
@@ -342,7 +342,7 @@ test('add-entry: looks across every source: code another source owns is refused,
     const named = { [conflicting.fingerprint]: 'other (contracts/Inbox.sol:Inbox)', [BRIDGE_FP]: `nitro-contracts (${BRIDGE})` }
     const [x, y] = Object.keys(named).sort()
     for (const line of [
-      'The entry would break the range invariant (see "Publishing" in the README):',
+      'The entry would break the range invariant (see "Across sources" in docs/publishing.md):',
       `- 66-byte entries ${x} in ${named[x]} and ${y} in ${named[y]}`,
       '    once reviewed, add to reviewedRangePairs in config/nitro-contracts/sources.json or config/other/sources.json: ',
       'Nothing written.',

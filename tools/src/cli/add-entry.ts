@@ -133,7 +133,7 @@ if (schemaErrors.length) refuse(['The entry fails the schema:', ...schemaErrors.
 // Every source's entries: the range invariant and the names check cover the whole registry.
 const others = repo.allEntries()
 const conflicts = repo.rangeConflicts([{ ...entry, source: cfg.directory }])
-if (conflicts.length) refuse(['The entry would break the range invariant (see "Publishing" in the README):', ...rangeConflictReport(conflicts).split('\n')])
+if (conflicts.length) refuse(['The entry would break the range invariant (see "Across sources" in docs/publishing.md):', ...rangeConflictReport(conflicts).split('\n')])
 
 data.writeEntry(entry)
 repo.writeViews()
