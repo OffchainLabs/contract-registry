@@ -144,7 +144,7 @@ test('ci-check: data outside the layout fails', () => {
   t.close()
 })
 
-test('ci-check: no two sources share a directory or a repo, and each config sits in its directory', () => {
+test('ci-check: no two sources share a directory, a repo or an npm package, and each config sits in its directory', () => {
   const t = setup()
   t.views(); t.commit('nothing yet')
   const cfg = JSON.parse(fs.readFileSync(path.join(t.dir, 'config/nitro-contracts/sources.json'), 'utf8'))
@@ -152,7 +152,10 @@ test('ci-check: no two sources share a directory or a repo, and each config sits
   fs.writeFileSync(path.join(t.dir, 'config/other/sources.json'), JSON.stringify({ ...cfg, directory: 'other' }))
   const repo = t.check()
   assert.ok(!repo.ok)
-  assert.ok(repo.out.includes('sources: repo OffchainLabs/nitro-contracts is configured by more than one source: config/nitro-contracts/sources.json, config/other/sources.json'), repo.out)
+  for (const line of [
+    'sources: repo OffchainLabs/nitro-contracts is configured by more than one source: config/nitro-contracts/sources.json, config/other/sources.json',
+    'sources: npm package @arbitrum/nitro-contracts is in the npmPackages of more than one source: config/nitro-contracts/sources.json, config/other/sources.json',
+  ]) assert.ok(repo.out.includes(line), `${line}\n---\n${repo.out}`)
 
   fs.writeFileSync(path.join(t.dir, 'config/other/sources.json'), JSON.stringify({ ...cfg, repo: 'OffchainLabs/other' }))
   const dir = t.check()
@@ -225,7 +228,7 @@ function addOther(dir: string): SourceData {
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'config/nitro-contracts/sources.json'), 'utf8'))
   fs.mkdirSync(path.join(dir, 'config/other'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'config/other/sources.json'), JSON.stringify({
-    ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [], outOfScopeGetters: 'config/other/out-of-scope-getters.json',
+    ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', npmPackages: ['@example/other'], reviewedRangePairs: [], outOfScopeGetters: 'config/other/out-of-scope-getters.json',
   }))
   fs.writeFileSync(path.join(dir, 'config/other/out-of-scope-getters.json'), JSON.stringify({ schemaVersion: 1, repo: 'Example/other', getters: {} }))
   return new SourceData(dir, 'other', 'Example/other')

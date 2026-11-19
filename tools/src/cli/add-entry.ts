@@ -1,6 +1,7 @@
 // Adds a manual entry: one contract from a build you made yourself, of code that no published ref
 // builds (a one-off or patched build deployed somewhere). Extracts the contract as publish does and
-// writes nothing unless it matches the code deployed at --address, its fingerprint has no entry yet
+// writes nothing unless it matches the code deployed at --address, it isn't another source's code
+// (from another source's npm package or a submodule of its repo), its fingerprint has no entry yet
 // in any source, its label isn't a published tag of the source, and entries of one code length
 // still mask the same bytes across every source. Then writes the entry and regenerates
 // registry/by-length/ and registry/index.json. Builds nothing; commits nothing.
@@ -21,6 +22,7 @@ import { listSources, loadSourceConfig } from '../lib/config.ts'
 import { DataRepo, entryFromBuild } from '../lib/datarepo.ts'
 import { git, remoteRefCommits } from '../lib/exec.ts'
 import { extractContract, loadBuildInfos, packageOf, runtimeCode, selectArtifacts } from '../lib/extract.ts'
+import { describeForeign, foreignOrigin, submodulesOf } from '../lib/foreign.ts'
 import { matches } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import { INDEX_PATH, byLengthPath } from '../lib/layout.ts'
@@ -99,6 +101,12 @@ if (!ref) {
 const extracted = extractContract(ref)
 if (!extracted) refuse(`${a.contract} has no code to fingerprint: an interface, an abstract contract, or a library with no external functions`)
 const built: BuiltContract = { ...extracted, package: packageOf(checkout, ref.source) }
+// A source never publishes another source's code: a contract from another source's npm package,
+// or from a git submodule of its repo, goes in that source.
+const foreign = foreignOrigin(built.fqName, built.package, submodulesOf(checkout, cfg.repo), repo.otherSources(cfg.directory))
+if (foreign) {
+  refuse(`${built.fqName} is ${describeForeign(foreign)}, and a source never publishes another source's code. Add it to ${foreign.owner} instead: --source ${foreign.owner}.`)
+}
 // One entry per fingerprint across every source: code another source has published is that
 // source's, whatever --source says.
 const owner = repo.ownerOf(built.fingerprint)

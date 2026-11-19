@@ -3,6 +3,7 @@
   "repo": "OffchainLabs/upgrade-executor",
   "url": "https://github.com/OffchainLabs/upgrade-executor.git",
   "directory": "upgrade-executor",
+  "npmPackages": ["@offchainlabs/upgrade-executor"],
   "start": { "tag": "v1.0.0" },
   "publishedRefs": {
     "tags": ["v*"],

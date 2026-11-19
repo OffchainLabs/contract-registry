@@ -4,11 +4,12 @@ import { createHash } from 'node:crypto'
 import { sh, Mutex, git } from './exec.ts'
 import { loadBuildInfos, selectArtifacts, filterSources, extractContract, packageOf, parityCheck, type ArtifactRef } from './extract.ts'
 import { profileFor, type BuildProfile } from './config.ts'
+import { submodulesOf, type Submodule } from './foreign.ts'
 import type { SourceRepo } from './source.ts'
 import type { BuiltContract } from './types.ts'
 
 /** Bump when extraction or fingerprinting changes, so cached results are not reused. */
-export const GENERATOR_VERSION = 3
+export const GENERATOR_VERSION = 4
 
 export interface BuildFailure { kind: 'build-failure' | 'parity-mismatch'; message: string }
 
@@ -21,6 +22,11 @@ export interface BuildResult {
   failure?: BuildFailure
   packageVersion: string | null
   contracts: BuiltContract[]
+  /**
+   * The checkout's git submodules, nested ones included (see `submodulesOf`), so publish can tell
+   * code from another source's repo. Empty for a failed build.
+   */
+  submodules: Submodule[]
 }
 
 export interface Checkout { dir: string; remove(): void }
@@ -108,7 +114,7 @@ export class Builder {
   private async buildOnce(commit: string, opts: BuildOptions, attempt: number): Promise<{ result: BuildResult; checkout?: Checkout }> {
     const profile = profileFor(this.src.cfg, this.src.gitDir, commit)
     const base: Omit<BuildResult, 'ok' | 'contracts'> = {
-      generatorVersion: GENERATOR_VERSION, commit, profile: profile.name, profileHash: this.profileHash(profile), packageVersion: null,
+      generatorVersion: GENERATOR_VERSION, commit, profile: profile.name, profileHash: this.profileHash(profile), packageVersion: null, submodules: [],
     }
     const logFile = this.logPath(commit, opts.fresh ? '.fresh' : '')
     fs.mkdirSync(path.dirname(logFile), { recursive: true })
@@ -171,7 +177,7 @@ export class Builder {
       }
       contracts.sort((a, b) => a.fqName.localeCompare(b.fqName))
       opts.log?.(`built ${commit.slice(0, 12)}: ${contracts.length} contracts, ${new Set(contracts.map(c => c.fingerprint)).size} fingerprints`)
-      return done({ ...base, ok: true, contracts })
+      return done({ ...base, ok: true, contracts, submodules: submodulesOf(dir, this.src.cfg.repo) })
     } catch (e) {
       return done({ ...base, ok: false, failure: { kind: 'build-failure', message: `extracting build output: ${(e as Error).message}` }, contracts: [] })
     }

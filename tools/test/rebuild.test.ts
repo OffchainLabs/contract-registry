@@ -41,7 +41,7 @@ test('rebuild reproduces published tags and reports each that does not', { timeo
   fs.mkdirSync(path.join(data, 'config/fake'), { recursive: true })
   fs.cpSync(path.join(ROOT, 'schema'), path.join(data, 'schema'), { recursive: true })
   fs.writeFileSync(path.join(data, 'config/fake/sources.json'), stableJson({
-    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake',
+    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake', npmPackages: ['x'],
     start: { tag: 'v1.0.0' }, publishedRefs: { tags: ['v*'], branches: ['release-*'] },
     tagValidation: { rule: 'tag-equals-v-package-version', allowlist: { 'v1.1.0-beta.0': 'shares its commit with v1.1.0' } },
     outOfScopeGetters: 'config/fake/out-of-scope-getters.json',

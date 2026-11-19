@@ -3,13 +3,19 @@
   "$id": "https://contract-registry/schema/sources.schema.json",
   "title": "Sources config for one source repo (config/<source>/sources.json)",
   "type": "object",
-  "required": ["schemaVersion", "repo", "url", "directory", "start", "publishedRefs", "tagValidation", "outOfScopeGetters", "contractRoles", "reviewedRangePairs", "testChains", "reconcileGraceMinutes", "builds"],
+  "required": ["schemaVersion", "repo", "url", "directory", "npmPackages", "start", "publishedRefs", "tagValidation", "outOfScopeGetters", "contractRoles", "reviewedRangePairs", "testChains", "reconcileGraceMinutes", "builds"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "$ref": "common.schema.json#/$defs/schemaVersion" },
     "repo": { "$ref": "common.schema.json#/$defs/repo" },
     "url": { "type": "string", "pattern": "^https://github\\.com/[^/]+/[^/]+\\.git$", "description": "Public, anonymous URL. Private repos are never sources." },
     "directory": { "$ref": "common.schema.json#/$defs/sourceId" },
+    "npmPackages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$" },
+      "description": "The npm package names this source's code is installed under: its package.json name (every name it has had), or [] for a repo with no package. A source never publishes another source's code: publish and add-entry refuse a contract from another source's package (installed, or a path naming it) or from a git submodule of another source's repo, and publish refuses a build whose package.json name isn't listed here. Unique across sources."
+    },
     "start": {
       "type": "object",
       "required": ["tag"],

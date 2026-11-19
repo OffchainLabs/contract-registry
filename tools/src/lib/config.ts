@@ -70,6 +70,13 @@ export interface SourceConfig {
    * `registry/` (see `layout.ts`), and what CLIs take as `--source`.
    */
   directory: string
+  /**
+   * The npm package names this source's code is installed under: its package.json `name` (every
+   * name it has had), or none for a repo with no package. Another source's build that compiles
+   * code from one of them, or from a git submodule of `repo`, is refused (see `foreignOrigin`);
+   * so is a build of this source whose package.json `name` isn't listed. Unique across sources.
+   */
+  npmPackages: string[]
   start: StartConfig
   publishedRefs: { tags: string[]; branches: string[] }
   tagValidation: { rule: 'tag-equals-v-package-version'; allowlist: Record<string, string> }

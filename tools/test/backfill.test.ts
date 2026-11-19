@@ -141,7 +141,7 @@ test('publish backfills old releases with their own profile, and reports skipped
     include: ['src/**'], exclude: [],
   })
   fs.writeFileSync(path.join(data, 'config/fake/sources.json'), stableJson({
-    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake',
+    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake', npmPackages: ['x'],
     start: { tag: 'v1.0.0', releasesFrom: 'v0.9.0' }, publishedRefs: { tags: ['v*'], branches: ['hotfix*'] },
     tagValidation: { rule: 'tag-equals-v-package-version', allowlist: {} },
     outOfScopeGetters: 'config/fake/out-of-scope-getters.json', contractRoles: {}, reviewedRangePairs: [],

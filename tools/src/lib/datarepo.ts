@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { listSources, loadSourceConfig, type ReviewedRangePair } from './config.ts'
+import { describeForeign, foreignOrigin, type SourceIdentity } from './foreign.ts'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
 import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir, sourcesConfigPath } from './layout.ts'
 import { rangeConflicts, type RangeConflict } from './ranges.ts'
@@ -205,13 +206,16 @@ export class DataRepo {
   private readonly pairs: ReviewedRangePair[]
   /** Each source's `contractRoles` by id (none given: every contract is logic). */
   private readonly roles: Map<string, Record<string, RoleConfig>>
+  /** Each source's id, repo and `npmPackages` (none given: no packages), in source id order. */
+  private readonly identities: SourceIdentity[]
 
-  constructor(root: string, sources: { directory: string; repo: string; reviewedRangePairs?: ReviewedRangePair[]; contractRoles?: Record<string, RoleConfig> }[]) {
+  constructor(root: string, sources: { directory: string; repo: string; reviewedRangePairs?: ReviewedRangePair[]; contractRoles?: Record<string, RoleConfig>; npmPackages?: string[] }[]) {
     this.root = root
     const ordered = [...sources].sort((a, b) => compareIds(a.directory, b.directory))
     this.sources = ordered.map(s => new SourceData(root, s.directory, s.repo))
     this.pairs = ordered.flatMap(s => s.reviewedRangePairs ?? [])
     this.roles = new Map(ordered.map(s => [s.directory, s.contractRoles ?? {}]))
+    this.identities = ordered.map(s => ({ id: s.directory, repo: s.repo, npmPackages: s.npmPackages ?? [] }))
   }
 
   /** The data repo with the sources configured under `config/`. */
@@ -232,6 +236,50 @@ export class DataRepo {
    */
   ownerOf(fp: string): SourceData | null {
     return this.sources.find(s => s.hasEntry(fp)) ?? null
+  }
+
+  /**
+   * Every source but `id`, by its repo and npm packages: the code `id`'s builds must not publish
+   * (see `foreignOrigin`).
+   */
+  otherSources(id: string): SourceIdentity[] {
+    return this.identities.filter(s => s.id !== id)
+  }
+
+  /**
+   * Another source's code in a source's data, as publish refuses it in a build (see
+   * `foreignOrigin`): an entry's contract from another source's package (by its `packages`, or by
+   * a path that names the package), or a tag or branch file's contract whose path names one. The
+   * data doesn't say which submodules a build had, so this can't see code from another source's
+   * repo; publish refuses that when it builds. One problem per contract, naming the files.
+   */
+  foreignCodeProblems(): string[] {
+    const packagesOf = new Map<string, Record<string, string>>()
+    for (const s of this.sources) for (const e of s.entries()) if (e.packages && !packagesOf.has(e.fingerprint.toLowerCase())) packagesOf.set(e.fingerprint.toLowerCase(), e.packages)
+    const found = new Map<string, string[]>() // problem -> the files that give it
+    for (const s of this.sources) {
+      const others = this.otherSources(s.id)
+      const files = [
+        ...s.entries().map(e => ({ path: inputPath(s.id, 'entries', e.fingerprint), contracts: Object.fromEntries(e.contracts.map(c => [c, e.fingerprint])) })),
+        ...s.tags().map(t => ({ path: inputPath(s.id, 'tags', t.tag), contracts: t.contracts })),
+        ...s.branches().map(b => ({ path: inputPath(s.id, 'branches', b.branch), contracts: b.contracts })),
+      ]
+      for (const f of files) {
+        for (const [contract, fp] of Object.entries(f.contracts ?? {})) {
+          // The package as the fingerprint's entry recorded it, when it lists this name.
+          const pkg = packagesOf.get(String(fp).toLowerCase())?.[contract] ?? null
+          const foreign = foreignOrigin(contract, pkg, [], others)
+          if (!foreign) continue
+          const problem = `${contract} is ${describeForeign(foreign)}, and a source never publishes another source's code. ` +
+            `Builds of ${s.id} must exclude "${foreign.exclude}" (${sourcesConfigPath(s.id)})`
+          found.set(problem, [...(found.get(problem) ?? []), f.path])
+        }
+      }
+    }
+    return [...found].map(([problem, files]) => {
+      const [first, ...rest] = files.sort()
+      return `${first}${rest.length ? ` and ${rest.length} other file(s)` : ''}: ${problem}`
+    }).sort()
   }
 
   /** Every source's entries, each with its source's id, in source id order. */

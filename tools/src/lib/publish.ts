@@ -5,6 +5,7 @@ import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, tagInR
 import { SourceRepo } from './source.ts'
 import { Builder, type BuildResult, type Checkout } from './build.ts'
 import { DataRepo, SourceData, byFingerprint, contractsMap, entryFromBuild, sharedRoleDisagreement } from './datarepo.ts'
+import { foreignCode, foreignCodeRefusal, unlistedOwnPackage } from './foreign.ts'
 import { BY_LENGTH_DIR, INDEX_PATH, sourceDir } from './layout.ts'
 import { validateDataRepo } from './schema.ts'
 import { rangeConflictReport } from './ranges.ts'
@@ -66,6 +67,8 @@ export interface SkippedCheck { commit: string; refs: string[]; reason: string }
  * source that published it first (a build that reproduces another source's code writes no entry,
  * only lists the fingerprint, and its `contractRoles` must give that code the entry's role), and
  * entries of one code length mask the same bytes, apart from pairs reviewed in any source's config.
+ * And a source never publishes another source's code: a build that has some (from another
+ * source's npm package, or a submodule of its repo) fails the run until its profile excludes it.
  */
 export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
   const log = opts.log ?? ((s: string) => console.error(s))
@@ -177,7 +180,15 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     // An entry for each fingerprint no source has an entry for yet. Code that another source
     // already published (shared code) gets no entry here: the tag or branch file lists its
     // fingerprint, and the owner's entry is the one lookups find. Its role must agree.
-    const writeEntries = (r: BuildResult, from: { ref: string; commit: string }) => {
+    // First, the build must have none of another source's code (its packages, or a submodule of
+    // its repo), and this source's own package must be one of its npmPackages, so that other
+    // sources' builds are refused its code. Either fails the whole run.
+    const others = repo.otherSources(data.id)
+    const writeEntries = (r: BuildResult, from: { ref: string; commit: string }, where: string) => {
+      const unlisted = unlistedOwnPackage(cfg, where, src.fileAt(from.commit, 'package.json'))
+      if (unlisted) throw new Error(unlisted)
+      const foreign = foreignCode(r.contracts, r.submodules, others)
+      if (foreign.length) throw new Error(foreignCodeRefusal(data.id, where, r.profile, foreign))
       for (const [fp, cs] of byFingerprint(r.contracts)) {
         const owner = repo.ownerOf(fp)
         if (!owner) { data.writeEntry(entryFromBuild(cfg.repo, cs, from, cfg.contractRoles)); outcome.newEntries++ }
@@ -217,7 +228,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
         fail('tag-nondeterministic', { key: `tag:${tag}`, commit, refs: [tag], tag, message: `tag ${tag} build doesn't reproduce the fingerprints of ${commit.slice(0, 12)} built as the head of ${[...new Set(heads.map(h => h.branch))].join(', ')}; tag file not written`, details: diffs.join('\n') })
         continue
       }
-      writeEntries(r, { ref: tag, commit })
+      writeEntries(r, { ref: tag, commit }, `tag ${tag} (${commit.slice(0, 12)})`)
       data.writeTag({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, tag, commit, prerelease: isPrerelease(tag), packageVersion: r.packageVersion, contracts: mine })
       outcome.tagsAdded.push(tag)
     }
@@ -233,7 +244,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
         fail(r.failure!.kind, { key: head, commit: head, refs, head: true, message: `${r.failure!.kind} at ${head.slice(0, 12)}, head of ${refs.join(', ')}`, details: r.failure!.message })
         continue
       }
-      writeEntries(r, { ref: branch, commit: head })
+      writeEntries(r, { ref: branch, commit: head }, `branch ${branch} at ${head.slice(0, 12)}`)
       if (data.writeBranch({ schemaVersion: SCHEMA_VERSION, repo: cfg.repo, branch, commit: head, contracts: contractsMap(r.contracts) })) outcome.branchesUpdated.push(branch)
     }
     for (const b of deleted) { data.deleteBranch(b); outcome.branchesDeleted.push(b) }

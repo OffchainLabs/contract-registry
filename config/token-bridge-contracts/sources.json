@@ -3,6 +3,7 @@
   "repo": "OffchainLabs/token-bridge-contracts",
   "url": "https://github.com/OffchainLabs/token-bridge-contracts.git",
   "directory": "token-bridge-contracts",
+  "npmPackages": ["@arbitrum/token-bridge-contracts"],
   "start": { "tag": "v1.0.1-beta.0" },
   "publishedRefs": {
     "tags": ["v*"],

@@ -76,7 +76,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   fs.mkdirSync(path.join(data, 'config/fake'), { recursive: true })
   fs.cpSync(path.join(ROOT, 'schema'), path.join(data, 'schema'), { recursive: true })
   fs.writeFileSync(path.join(data, 'config/fake/sources.json'), stableJson({
-    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake',
+    schemaVersion: 1, repo: 'Example/fake', url: 'https://github.com/Example/fake.git', directory: 'fake', npmPackages: ['x'],
     start: { tag: 'v1.0.0' }, publishedRefs: { tags: ['v*'], branches: ['release-*', 'hotfix*'] },
     tagValidation: { rule: 'tag-equals-v-package-version', allowlist: {} },
     outOfScopeGetters: 'config/fake/out-of-scope-getters.json',

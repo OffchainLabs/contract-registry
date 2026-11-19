@@ -255,14 +255,9 @@ function linkReferencesOf(ref: ArtifactRef): Record<string, Record<string, { sta
  */
 export function packageOf(checkoutDir: string, source: string): string | null {
   const marker = 'node_modules/'
-  const i = source.lastIndexOf(marker)
-  let root: string
-  if (i === 0 || (i > 0 && source[i - 1] === '/')) {
-    root = source.slice(0, i + marker.length) + packageDirName(source.slice(i + marker.length), source)
-  } else {
-    if (fs.existsSync(path.join(checkoutDir, source))) return null
-    root = marker + packageDirName(source, source)
-  }
+  const inNodeModules = lastNodeModules(source) >= 0
+  if (!inNodeModules && fs.existsSync(path.join(checkoutDir, source))) return null
+  const root = (inNodeModules ? '' : marker) + packageRootOf(source)
   const file = path.join(checkoutDir, root, 'package.json')
   if (!fs.existsSync(file)) throw new Error(`${source}: not a file in the checkout, and no installed package at ${root}`)
   const pkg = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -270,6 +265,25 @@ export function packageOf(checkoutDir: string, source: string): string | null {
   // The package's own name, which differs from its directory under an npm alias.
   const name = typeof pkg.name === 'string' && pkg.name ? pkg.name : root.slice(root.lastIndexOf(marker) + marker.length)
   return `${name}@${pkg.version}`
+}
+
+/**
+ * The directory of the package a package source file is in, as a prefix of the source path: up to
+ * the package after the last `node_modules/` (`node_modules/@scope/pkg` for
+ * `node_modules/@scope/pkg/x.sol`), or an import name's first one or two segments (`@scope/pkg`
+ * for `@scope/pkg/x.sol`). For a file `packageOf` says comes from a package.
+ */
+export function packageRootOf(source: string): string {
+  const i = lastNodeModules(source)
+  if (i < 0) return packageDirName(source, source)
+  const after = i + 'node_modules/'.length
+  return source.slice(0, after) + packageDirName(source.slice(after), source)
+}
+
+/** Where the last `node_modules/` directory starts in a source path, or -1. */
+function lastNodeModules(source: string): number {
+  const i = source.lastIndexOf('node_modules/')
+  return i === 0 || (i > 0 && source[i - 1] === '/') ? i : -1
 }
 
 /** `@scope/pkg/x.sol` -> `@scope/pkg`; `pkg/x.sol` -> `pkg`. */

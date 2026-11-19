@@ -1,9 +1,10 @@
-// The data repo's own CI (every push and PR): source configs agree with each other, schema
-// validation, nothing outside the layout, generated files equal what the generator produces, one
-// entry per fingerprint across sources and an entry for every fingerprint a tag or branch file
-// lists, shared code has its owner's entry's role in every other source's contractRoles, entries
-// of one code length mask the same bytes across sources (so a lookup matches at most one entry),
-// and entries/ and tags/ files are append-only relative to the base commit.
+// The data repo's own CI (every push and PR): source configs agree with each other (no two share
+// an id, a repo or an npm package), schema validation, nothing outside the layout, generated files
+// equal what the generator produces, one entry per fingerprint across sources and an entry for
+// every fingerprint a tag or branch file lists, shared code has its owner's entry's role in every
+// other source's contractRoles, no source's data has another source's package code, entries of one
+// code length mask the same bytes across sources (so a lookup matches at most one entry), and
+// entries/ and tags/ files are append-only relative to the base commit.
 //   node tools/src/cli/ci-check.ts [--base <rev>]
 import * as path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -28,7 +29,7 @@ const report = (what: string, problems: string[], ok: string) => {
   failed ||= problems.length > 0
 }
 
-report('sources', sourceConfigProblems(configs.map(c => ({ configDir: c.configDir, directory: c.cfg.directory, repo: c.cfg.repo, outOfScopeGetters: c.cfg.outOfScopeGetters }))), 'unique directories and repos; out-of-scope lists where the walker reads them')
+report('sources', sourceConfigProblems(configs.map(c => ({ configDir: c.configDir, directory: c.cfg.directory, repo: c.cfg.repo, outOfScopeGetters: c.cfg.outOfScopeGetters, npmPackages: c.cfg.npmPackages }))), 'unique directories, repos and npm packages; out-of-scope lists where the walker reads them')
 
 const schemaErrors = validateDataRepo(root, sources)
 for (const e of schemaErrors) console.error(`schema: ${e}`)
@@ -52,6 +53,12 @@ try {
   report('roles', repo.sharedRoleProblems(), "shared code has its owner's role in every source's contractRoles")
 } catch (e) {
   console.error(`roles: can't check: ${(e as Error).message}`)
+  failed = true
+}
+try {
+  report('packages', repo.foreignCodeProblems(), "no source's entries, tags or branches have another source's package code")
+} catch (e) {
+  console.error(`packages: can't check: ${(e as Error).message}`)
   failed = true
 }
 

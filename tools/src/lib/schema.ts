@@ -69,12 +69,13 @@ export function validateDataRepo(dataRepo: string, sources: { directory: string;
 
 /**
  * Rules across the source configs: each lives in `config/<its directory>/`, no two share a
- * `directory` or a `repo`, and none uses a name the generated views need. Each one's
- * `outOfScopeGetters` is `config/<directory>/out-of-scope-getters.json`, the file the walker
+ * `directory`, a `repo` or an npm package, and none uses a name the generated views need. Each
+ * one's `outOfScopeGetters` is `config/<directory>/out-of-scope-getters.json`, the file the walker
  * reads (`outOfScopePath`): publish's test-chain check reads the field, so another file would
- * check walks against one list and leave the walker to use another.
+ * check walks against one list and leave the walker to use another. A package belongs to one
+ * source: publish refuses it in every other source's builds (see `foreignOrigin`).
  */
-export function sourceConfigProblems(configs: { configDir: string; directory: string; repo: string; outOfScopeGetters: string }[]): string[] {
+export function sourceConfigProblems(configs: { configDir: string; directory: string; repo: string; outOfScopeGetters: string; npmPackages?: string[] }[]): string[] {
   const problems: string[] = []
   for (const c of configs) {
     if (c.directory !== c.configDir) problems.push(`${CONFIG_DIR}/${c.configDir}/sources.json: directory ${c.directory} must equal its config directory's name, ${c.configDir}`)
@@ -87,6 +88,9 @@ export function sourceConfigProblems(configs: { configDir: string; directory: st
     for (const c of configs) seen.set(c[key], [...(seen.get(c[key]) ?? []), c.configDir])
     for (const [value, dirs] of seen) if (dirs.length > 1) problems.push(`${key} ${value} is configured by more than one source: ${dirs.map(d => `${CONFIG_DIR}/${d}/sources.json`).join(', ')}`)
   }
+  const listedBy = new Map<string, string[]>()
+  for (const c of configs) for (const p of new Set(c.npmPackages ?? [])) listedBy.set(p, [...(listedBy.get(p) ?? []), c.configDir])
+  for (const [p, dirs] of listedBy) if (dirs.length > 1) problems.push(`npm package ${p} is in the npmPackages of more than one source: ${dirs.map(d => `${CONFIG_DIR}/${d}/sources.json`).join(', ')}`)
   return problems
 }
 

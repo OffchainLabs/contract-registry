@@ -311,7 +311,7 @@ test('add-entry: looks across every source: code another source owns is refused,
     const cfg = JSON.parse(fs.readFileSync(path.join(t.dir, 'config/nitro-contracts/sources.json'), 'utf8'))
     fs.mkdirSync(path.join(t.dir, 'config/other'))
     const otherCfg = path.join(t.dir, 'config/other/sources.json')
-    fs.writeFileSync(otherCfg, JSON.stringify({ ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', reviewedRangePairs: [] }))
+    fs.writeFileSync(otherCfg, JSON.stringify({ ...cfg, directory: 'other', repo: 'Example/other', url: 'https://github.com/Example/other.git', npmPackages: [], reviewedRangePairs: [] }))
     const other = new SourceData(t.dir, 'other', 'Example/other')
     const owned: Entry = {
       schemaVersion: 1, fingerprint: BRIDGE_FP, repo: 'Example/other', contracts: ['contracts/Copy.sol:Bridge'], role: 'logic',
@@ -356,6 +356,38 @@ test('add-entry: looks across every source: code another source owns is refused,
     assert.equal(ok.status, 0, ok.stderr)
     assert.ok(t.data.hasEntry(BRIDGE_FP))
     assert.ok(ok.stdout.includes(`no other entry has them. If the build is from a private repo, check that each is public:\n  contract ${BRIDGE}\n  masked range __self\n\nNext:`), ok.stdout)
+  } finally {
+    t.close()
+  }
+})
+
+test("add-entry: refuses another source's code, from its package or a submodule of its repo, and names the source it goes in", async () => {
+  const t = await setup()
+  try {
+    // A source `oz` whose npm package is the checkout's OpenZeppelin: the proxy compiled from it is oz's code.
+    const cfg = JSON.parse(fs.readFileSync(path.join(t.dir, 'config/nitro-contracts/sources.json'), 'utf8'))
+    fs.mkdirSync(path.join(t.dir, 'config/oz'))
+    fs.writeFileSync(path.join(t.dir, 'config/oz/sources.json'), JSON.stringify({
+      ...cfg, directory: 'oz', repo: 'Example/oz', url: 'https://github.com/Example/oz.git', npmPackages: ['@openzeppelin/contracts'], reviewedRangePairs: [], outOfScopeGetters: 'config/oz/out-of-scope-getters.json',
+    }))
+    fs.writeFileSync(path.join(t.dir, 'config/oz/out-of-scope-getters.json'), JSON.stringify({ schemaVersion: 1, repo: 'Example/oz', getters: {} }))
+    t.commit('a source for OpenZeppelin')
+    const tup = [...t.standardJson, '--contract', TUP, '--address', A.tup, '--label', 'a proxy one-off']
+    const refused = await t.run(tup)
+    assert.equal(refused.status, 1)
+    assert.ok(refused.stderr.includes(`${TUP} is code from oz (package @openzeppelin/contracts@4.7.3; see config/oz/sources.json), and a source never publishes another source's code. Add it to oz instead: --source oz.\nNothing written.`), refused.stderr)
+    assert.equal(t.changes(), '')
+    const inOz = await t.run(['--source', 'oz', ...tup], { withSource: false })
+    assert.equal(inOz.status, 0, inOz.stderr)
+    assert.ok(new SourceData(t.dir, 'oz', 'Example/oz').entries().some(e => e.contracts[0] === TUP))
+
+    // The Bridge's directory as a submodule of the token bridge's repo: the token bridge's code.
+    fs.writeFileSync(path.join(t.checkout, '.gitmodules'), '[submodule "bridge"]\n\tpath = src/bridge\n\turl = git@github.com:OffchainLabs/token-bridge-contracts.git\n')
+    const sub = await t.run(t.bridge(A.bridge, '--label', 'x'))
+    assert.equal(sub.status, 1)
+    assert.ok(sub.stderr.includes(`${BRIDGE} is code from token-bridge-contracts (git submodule src/bridge (OffchainLabs/token-bridge-contracts); see config/token-bridge-contracts/sources.json), ` +
+      "and a source never publishes another source's code. Add it to token-bridge-contracts instead: --source token-bridge-contracts."), sub.stderr)
+    assert.ok(!t.data.hasEntry(BRIDGE_FP))
   } finally {
     t.close()
   }

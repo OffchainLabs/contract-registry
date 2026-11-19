@@ -3,6 +3,7 @@
   "repo": "OffchainLabs/nitro-contracts",
   "url": "https://github.com/OffchainLabs/nitro-contracts.git",
   "directory": "nitro-contracts",
+  "npmPackages": ["@arbitrum/nitro-contracts"],
   "start": { "tag": "v3.2.0", "releasesFrom": "v3.0.0" },
   "publishedRefs": {
     "tags": ["v*"],

@@ -36,7 +36,7 @@ test("each build's submodules come from its own commit's .gitmodules, not an ear
     const c2 = withUrl(sub)
 
     const cfg = {
-      schemaVersion: 1, repo: 'Example/fake', url: src, directory: 'fake', start: { tag: 'v1.0.0' },
+      schemaVersion: 1, repo: 'Example/fake', url: src, directory: 'fake', npmPackages: [], start: { tag: 'v1.0.0' },
       publishedRefs: { tags: ['v*'], branches: ['release-*'] }, tagValidation: { rule: 'tag-equals-v-package-version', allowlist: {} },
       outOfScopeGetters: 'config/fake/out-of-scope-getters.json', contractRoles: {}, reviewedRangePairs: [], testChains: null, reconcileGraceMinutes: 0,
       builds: [{

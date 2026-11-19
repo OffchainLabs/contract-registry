@@ -27,7 +27,7 @@ const B = (v: number) => contract('B', `  function f() external pure returns (ui
 
 function sourcesJson(id: string, startTag: string): Record<string, any> {
   return {
-    schemaVersion: 1, repo: `Example/${id}`, url: `https://github.com/Example/${id}.git`, directory: id,
+    schemaVersion: 1, repo: `Example/${id}`, url: `https://github.com/Example/${id}.git`, directory: id, npmPackages: [id],
     start: { tag: startTag }, publishedRefs: { tags: ['v*'], branches: ['release-*'] },
     tagValidation: { rule: 'tag-equals-v-package-version', allowlist: {} },
     outOfScopeGetters: `config/${id}/out-of-scope-getters.json`,
