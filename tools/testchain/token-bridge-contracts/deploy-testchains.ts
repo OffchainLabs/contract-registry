@@ -18,7 +18,8 @@
 //   3. creates a token bridge for each with the creator, which deploys the parent side and sends
 //      the child side as two retryable tickets;
 //   4. on ETH variants, deposits a token through the router, so the child chain gets a bridged
-//      token (a third retryable);
+//      token (a third retryable) and, on a yield-bearing bridge, the parent chain the token's
+//      MasterVault;
 //   5. writes the addresses as JSON to $REGISTRY_TESTCHAIN_OUT.
 // The driver then replays every retryable on a child chain per variant. On failure this script
 // writes the error's stack to $REGISTRY_TESTCHAIN_ERROR.
@@ -101,7 +102,7 @@ async function main() {
 
     // 4. A deposit, so the child chain deploys a bridged token.
     const tokens = []
-    if (!feeToken) tokens.push(await deposit(deployer, l1))
+    if (!feeToken) tokens.push(await deposit(deployer, l1, v.ybb))
 
     out.push({
       name: v.name,
@@ -180,8 +181,9 @@ function rollupStandInRuntime(owner: string, chainId: number): string {
 }
 
 // Deposits a new token into the standard gateway through the router, as a user would; returns
-// the token and the address its bridged token gets on the child chain.
-async function deposit(deployer, l1: Record<string, string>) {
+// the token, the address its bridged token gets on the child chain and, on a yield-bearing
+// bridge, the token's vault, which the deposit deployed.
+async function deposit(deployer, l1: Record<string, string>, ybb: boolean) {
   const token = await deploy(deployer, nitroArtifact('src/test-helpers/TestToken.sol/TestToken.json'), [ethers.utils.parseEther('1000')])
   const amount = ethers.utils.parseEther('1')
   await (await token.approve(l1.standardGateway, amount)).wait()
@@ -196,8 +198,15 @@ async function deposit(deployer, l1: Record<string, string>) {
       value: DEPOSIT_MAX_SUBMISSION_COST.add(GAS_PRICE_BID.mul(DEPOSIT_MAX_GAS)),
     })
   ).wait()
-  const gateway = new ethers.Contract(l1.standardGateway, ['function calculateL2TokenAddress(address) view returns (address)'], deployer)
-  return { l1: token.address, l2: await gateway.calculateL2TokenAddress(token.address) }
+  const gateway = new ethers.Contract(
+    l1.standardGateway,
+    ['function calculateL2TokenAddress(address) view returns (address)', 'function masterVaultFactory() view returns (address)'],
+    deployer
+  )
+  const out = { l1: token.address, l2: await gateway.calculateL2TokenAddress(token.address) }
+  if (!ybb) return out
+  const factory = new ethers.Contract(await gateway.masterVaultFactory(), ['function calculateVaultAddress(address) view returns (address)'], deployer)
+  return { ...out, vault: await factory.calculateVaultAddress(token.address) }
 }
 
 // The token bridge's addresses on both chains, keyed as in the creator's L1DeploymentAddresses

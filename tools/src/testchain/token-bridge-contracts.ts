@@ -12,7 +12,8 @@
 //      Inbox) by impersonation, to its destination or, if that is zero, as a contract creation,
 //      as ArbOS executes them. So the child side is what the creator's own retryables deploy, at
 //      the addresses the creator predicted.
-// The check then walks the creator, and each variant's contracts on both chains.
+// The check then walks the creator, and each variant's contracts on both chains (and, on a
+// yield-bearing bridge, the deposited token's vault).
 //
 // The checkout needs `node_modules`, the Hardhat build (`build/contracts`) and its typechain
 // output (`build/types`). The parent side of the rollups uses nitro-contracts' Bridge and Inbox
@@ -53,8 +54,11 @@ export interface Variant {
   /** The creator's `inboxToL1Deployment(inbox)` and `inboxToL2Deployment(inbox)`, without zeros. */
   l1: Record<string, Address>
   l2: Record<string, Address>
-  /** Deposited tokens: on the parent chain, and their bridged tokens on the child chain. */
-  tokens: { l1: Address; l2: Address }[]
+  /**
+   * Deposited tokens: on the parent chain, their bridged tokens on the child chain and, on a
+   * yield-bearing bridge, their vaults on the parent chain.
+   */
+  tokens: { l1: Address; l2: Address; vault?: Address }[]
   /** The retryables replayed on the child chain, in order. */
   retryables: { sender: Address; to: Address | null; transactionHash: Hex }[]
 }
@@ -168,6 +172,9 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
       for (const [what, a] of [['l2Factory', v.l2Factory], ...Object.entries(v.l2).map(([k, x]) => [`l2.${k}`, x]), ...v.tokens.map((t, i) => [`tokens[${i}].l2`, t.l2])]) {
         if ((await rpc<Hex>(child.rpcUrl, 'eth_getCode', [a, 'latest'])) === '0x') throw new Error(`${v.name}: no code at ${what} ${a} on the child chain after the retryables`)
       }
+      for (const [i, t] of v.tokens.entries()) {
+        if (t.vault && (await rpc<Hex>(parent.rpcUrl, 'eth_getCode', [t.vault, 'latest'])) === '0x') throw new Error(`${v.name}: no code at tokens[${i}].vault ${t.vault} on the parent chain`)
+      }
       variants.push({
         ...v,
         childRpcUrl: child.rpcUrl,
@@ -181,7 +188,11 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
       for (const [k, a] of Object.entries(v.l1)) if (!NOT_STARTS.l1.has(k)) chains.push({ name: `${v.name}-parent:${k}`, start: a, rpcUrl: parent.rpcUrl })
       chains.push({ name: `${v.name}-child:factory`, start: v.l2Factory, rpcUrl: v.childRpcUrl })
       for (const [k, a] of Object.entries(v.l2)) if (!NOT_STARTS.l2.has(k)) chains.push({ name: `${v.name}-child:${k}`, start: a, rpcUrl: v.childRpcUrl })
-      for (const [i, t] of v.tokens.entries()) chains.push({ name: `${v.name}-child:token${v.tokens.length > 1 ? i : ''}`, start: t.l2, rpcUrl: v.childRpcUrl })
+      for (const [i, t] of v.tokens.entries()) {
+        const n = v.tokens.length > 1 ? String(i) : ''
+        chains.push({ name: `${v.name}-child:token${n}`, start: t.l2, rpcUrl: v.childRpcUrl })
+        if (t.vault) chains.push({ name: `${v.name}-parent:vault${n}`, start: t.vault, rpcUrl: parent.rpcUrl })
+      }
     }
     return { rpcUrl: parent.rpcUrl, chainId: out.chainId, anvilPid: parent.pid, creator: out.creator, retryableSender: out.retryableSender, variants, chains, stop }
   } catch (err) {
@@ -358,7 +369,7 @@ function parseOutput(raw: unknown): ScriptOutput {
     checkAddressMap(v.l2, `${v.name}.l2`, fail)
     if (!v.l1.router || !v.l2.router) fail(`${v.name}: no router`)
     if (!Array.isArray(v.tokens)) fail(`${v.name}.tokens`)
-    for (const t of v.tokens) if (!isAddress(t.l1) || !isAddress(t.l2)) fail(`${v.name}.tokens`)
+    for (const t of v.tokens) if (!isAddress(t.l1) || !isAddress(t.l2) || (t.vault !== undefined && !isAddress(t.vault))) fail(`${v.name}.tokens`)
   }
   return o
 }

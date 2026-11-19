@@ -431,30 +431,34 @@ the deployers share, `common.ts`, and its scripts).
   rollups (ETH or ERC20 fee token, delay-bufferable or not) with every optional address set, and
   walks each from its rollup. The deployment takes under 20 seconds.
 - **token-bridge-contracts** needs a parent chain with a rollup, and a child chain that executes
-  retryable tickets. On a parent anvil, it deploys the creator and its templates with the commit's
-  own `deployL1TokenBridgeCreator` (`scripts/atomicTokenBridgeDeployer.ts`). For each variant it
-  stands up the parent side of a rollup: nitro-contracts' `Bridge` and `Inbox` (`ERC20Bridge` and
-  `ERC20Inbox` with a fee token) behind proxies, the rollup's `ProxyAdmin` and `UpgradeExecutor`,
-  and a stand-in for the rollup contract that answers `owner()` and `chainId()`, the only calls the
-  creator makes to it. The nitro-contracts artifacts come from the npm release
-  `@arbitrum/nitro-contracts@1.1.1` (its integrity hash is checked), not the checkout's, whose
-  version varies by tag. The variants are ETH and an ERC20 fee token, plus the yield-bearing bridge
-  of each where the creator has `createYbbTokenBridge`. It creates a token bridge for each and
-  deposits a token through each ETH router. Then, per variant, a child anvil with the rollup's chain
-  id replays the retryables the variant's Inbox recorded, in order: each from its sender (aliased
-  by the Inbox) by impersonation, to its destination or, if that is zero, as a contract creation,
-  as ArbOS runs them. So the child side is what the creator's own retryables deploy, at the
-  addresses the creator predicted, which the deployer checks. The child anvils run Prague, not
-  Osaka: Osaka's per-transaction gas cap (2^24) is barely above the one transaction that deploys the
-  child side (15.4M gas at `v1.2.5`). The walks start from the creator; each variant's
-  parent-chain contracts (`inboxToL1Deployment`: router and gateways); and its child-chain
-  contracts (`inboxToL2Deployment`, the factory, and the bridged token). Before `v1.2.0` the
-  creator keeps no such record, so they come from its `OrbitTokenBridgeCreated` event and its
-  `getCanonicalL2*(chainId)`, as those releases' own deploy script collects them. Two are left
-  out: the parent chain's WETH (external code) and the child chain's upgrade executor
-  (upgrade-executor's logic behind a token bridge proxy; walks reach it through `owner()`, as a
-  leaf). Two token bridges and 25 walks up to `v1.2.5` (four and 49 with the yield-bearing ones
-  on `develop`); deploying and walking takes about 10 seconds.
+  retryable tickets. Two token bridges and 25 walks up to `v1.2.5` (four and 50 with the
+  yield-bearing bridges on `develop`); deploying and walking takes about 10 seconds.
+  - *Parent chain.* One anvil. The creator and its templates come from the commit's own
+    `deployL1TokenBridgeCreator` (`scripts/atomicTokenBridgeDeployer.ts`). Each variant gets the
+    parent side of a rollup: nitro-contracts' `Bridge` and `Inbox` (`ERC20Bridge` and `ERC20Inbox`
+    with a fee token) behind proxies, the rollup's `ProxyAdmin` and `UpgradeExecutor`, and a
+    stand-in for the rollup contract that answers `owner()` and `chainId()`, the only calls the
+    creator makes to it. The nitro-contracts artifacts come from the npm release
+    `@arbitrum/nitro-contracts@1.1.1` (its integrity hash is checked), not the checkout's, whose
+    version varies by tag.
+  - *Variants.* ETH and an ERC20 fee token, plus the yield-bearing bridge of each where the
+    creator has `createYbbTokenBridge`. The deployer creates a token bridge for each, and deposits a
+    token through each ETH router; on a yield-bearing bridge, the deposit also deploys the token's
+    MasterVault on the parent chain.
+  - *Child chains.* One anvil per variant, with the rollup's chain id, replays the retryables the
+    variant's Inbox recorded, in order: each from its sender (aliased by the Inbox) by
+    impersonation, to its destination or, if that is zero, as a contract creation, as ArbOS runs
+    them. So the child side is what the creator's own retryables deploy, at the addresses the
+    creator predicted, which the deployer checks. The child anvils run Prague, not Osaka: Osaka's
+    per-transaction gas cap (2^24) is barely above the transaction that deploys the child side
+    (15.4M gas at `v1.2.5`).
+  - *Walks.* From the creator; each variant's parent-chain contracts (`inboxToL1Deployment`: router
+    and gateways); its child-chain contracts (`inboxToL2Deployment`, the factory and the bridged
+    token); and the MasterVault. Before `v1.2.0` the creator keeps no such record, so the
+    addresses come from its `OrbitTokenBridgeCreated` event and its `getCanonicalL2*(chainId)`, as
+    those releases' own deploy script collects them. Two are left out: the parent chain's WETH
+    (external code) and the child chain's upgrade executor (upgrade-executor's logic behind a token
+    bridge proxy; walks reach it through `owner()`, as a leaf).
 
 Each deployer has a CLI that deploys from a built checkout and prints the addresses as JSON:
 `node tools/src/testchain/<deployer>-cli.ts --checkout <dir> [--keep]`.
