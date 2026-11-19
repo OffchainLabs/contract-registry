@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { abbreviate, collapseData, truncateMiddle } from '../src/lib/abbrev.ts'
-import { CommandFailed, startLogged } from '../src/testchain/nitro-contracts.ts'
+import { CommandFailed, startLogged } from '../src/testchain/common.ts'
 
 // The shape of the error that hid the cause in CI: an ethers v5 estimateGas failure whose message
 // embeds the transaction's init code as hex and again as a JSON byte map.

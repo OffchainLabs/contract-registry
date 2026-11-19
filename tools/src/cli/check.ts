@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util'
 import { describeSelector, gitRefFacts, loadOutOfScope, loadSourceConfig, testChainsApply } from '../lib/config.ts'
 import { SourceRepo } from '../lib/source.ts'
 import { Builder } from '../lib/build.ts'
-import { checkCommit, checkKey, loadDeployer } from '../lib/testcheck.ts'
+import { checkCommit, checkKey, loadDeployer, probeSlots } from '../lib/testcheck.ts'
 
 const { values: a } = parseArgs({
   options: {
@@ -40,7 +40,7 @@ try {
   const res = await checkCommit({
     commit, key: checkKey(outOfScope, cfg.testChains.deployer), checkoutDir: checkout.dir,
     commitFingerprints: new Set(result.contracts.map(c => c.fingerprint)), dataRepo, source: cfg.directory,
-    outOfScope, deployer: await loadDeployer(cfg.testChains.deployer), log, walkOutDir: path.join(workDir, 'walks', cfg.directory),
+    outOfScope, slots: probeSlots(cfg.contractRoles), deployer: await loadDeployer(cfg.testChains.deployer), log, walkOutDir: path.join(workDir, 'walks', cfg.directory),
   })
   console.log(JSON.stringify(res, null, 2))
   process.exitCode = res.ok ? 0 : 1

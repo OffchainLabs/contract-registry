@@ -11,7 +11,7 @@ import { validateDataRepo } from './schema.ts'
 import { rangeConflictReport } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { ALERT_KINDS, type AlertItem, type AlertKind, type AlertSink } from './alerts.ts'
-import { CheckCache, checkCommit, checkKey, loadDeployer, type CheckResult, type TestChainDeployer } from './testcheck.ts'
+import { CheckCache, checkCommit, checkKey, loadDeployer, probeSlots, type CheckResult, type TestChainDeployer } from './testcheck.ts'
 import { SCHEMA_VERSION, type Entry, type Hex } from './types.ts'
 
 export interface PublishOptions {
@@ -275,7 +275,7 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
           }
           res = await checkCommit({
             commit, key, checkoutDir: co.dir, commitFingerprints: new Set(r.contracts.map(c => c.fingerprint)),
-            dataRepo: opts.dataRepo, source: cfg.directory, outOfScope, deployer, log,
+            dataRepo: opts.dataRepo, source: cfg.directory, outOfScope, slots: probeSlots(cfg.contractRoles), deployer, log,
             walkOutDir: path.join(opts.workDir, 'walks', cfg.directory),
           })
           checkCache.put(res)

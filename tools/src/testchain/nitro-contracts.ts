@@ -5,17 +5,11 @@
 // come from that commit's deploy scripts and build artifacts. The checkout needs `node_modules`,
 // the Hardhat build (`build/contracts`, `build/types`) and the Yul build (`out/yul`).
 
-import { spawn } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
-import { rmSync } from 'node:fs'
-import { access, copyFile, mkdtemp, readFile, rm } from 'node:fs/promises'
-import { createServer } from 'node:net'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { abbreviate, collapseData, truncateMiddle } from '../lib/abbrev.ts'
+import { ANVIL_DEPLOYER_KEY, checkAddressMap, isAddress, requireFiles, runCheckoutScript, startAnvil, type Address } from './common.ts'
 
-export type Address = `0x${string}`
+export type { Address }
 
 export interface TestChain {
   /** e.g. 'eth-bufferable', 'erc20-nonbufferable' */
@@ -23,6 +17,8 @@ export interface TestChain {
   variant: { feeToken: 'eth' | 'erc20'; delayBufferable: boolean }
   /** Parent-chain block of the createRollup transaction. */
   blockNumber: number
+  /** Where the test-chain check walks from: the rollup (`contracts.rollup`). */
+  start: Address
   /**
    * Every address in the creator's RollupCreated event except nativeToken: rollup, inbox, outbox,
    * rollupEventInbox, challengeManager, adminProxy (the ProxyAdmin of the bridge contracts),
@@ -68,10 +64,6 @@ export interface DeployTestChainsOptions {
   detach?: boolean
 }
 
-/** anvil's default account 0, the deployer. */
-export const ANVIL_DEPLOYER_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-
 /**
  * The parent chain's id. deploymentUtils.ts deploys the real Reader4844 (Yul) only when the chain
  * id is 1 or 11155111; on any other non-Arbitrum chain it passes 0x…dead to the SequencerInbox
@@ -98,69 +90,38 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
   const log = opts.log ?? (() => {})
   const checkoutDir = path.resolve(opts.checkoutDir)
   const hardhatBin = path.join(checkoutDir, 'node_modules', '.bin', 'hardhat')
-  for (const required of [
+  await requireFiles(checkoutDir, [
     hardhatBin,
     path.join(checkoutDir, 'scripts', 'deploymentUtils.ts'),
     path.join(checkoutDir, 'build', 'contracts'),
     path.join(checkoutDir, 'out', 'yul', 'Reader4844.yul', 'Reader4844.json'),
-  ]) {
-    await access(required).catch(() => {
-      throw new Error(`${required} missing: is ${checkoutDir} an installed and built checkout?`)
-    })
-  }
+  ])
 
-  const port = opts.port ?? (await freePort())
-  if (opts.port !== undefined) await assertPortFree(port)
-  const rpcUrl = `http://127.0.0.1:${port}`
-  const anvil = await startAnvil(port, rpcUrl, opts.detach ?? false, log)
-
-  const tmp = await mkdtemp(path.join(tmpdir(), 'registry-testchain-'))
-  const outFile = path.join(tmp, 'out.json')
-  const errorFile = path.join(tmp, 'error.txt')
-  const scriptRel = path.join('scripts', `.registry-testchain-${randomBytes(4).toString('hex')}.ts`)
-  const scriptAbs = path.join(checkoutDir, scriptRel)
-  let killHardhat: (() => void) | undefined
-  // A signal would skip the cleanup below and leave the script copy in the checkout.
-  const onSignal = (signal: NodeJS.Signals) => {
-    killHardhat?.()
-    anvil.kill()
-    rmSync(scriptAbs, { force: true })
-    rmSync(tmp, { recursive: true, force: true })
-    process.kill(process.pid, signal)
-  }
-  process.once('SIGINT', onSignal)
-  process.once('SIGTERM', onSignal)
+  const anvil = await startAnvil({
+    port: opts.port,
+    chainId: PARENT_CHAIN_ID, // see PARENT_CHAIN_ID
+    hardfork: ANVIL_HARDFORK, // see ANVIL_HARDFORK
+    // v3.2.0's deploymentUtils.create2() waits for 2 confirmations (tx.wait(2)). With anvil's
+    // default automine a second block never comes, so also mine an empty block every 0.5s.
+    extraArgs: ['--mixed-mining', '--block-time', '0.5'],
+    detach: opts.detach,
+    log,
+  })
+  const rpcUrl = anvil.rpcUrl
   try {
-    await copyFile(DEPLOY_SCRIPT, scriptAbs)
     // --no-compile: use the checkout's existing build and leave its build/cache untouched.
     // The `custom` network is defined in the checkout's hardhat.config.ts from these env vars.
-    const run = startLogged(
-      hardhatBin,
-      ['run', '--no-compile', '--network', 'custom', scriptRel],
+    const raw = await runCheckoutScript({
       checkoutDir,
-      {
-        CUSTOM_RPC_URL: rpcUrl,
-        CUSTOM_PRIVKEY: ANVIL_DEPLOYER_KEY,
-        DISABLE_VERIFICATION: 'true',
-        REGISTRY_TESTCHAIN_OUT: outFile,
-        REGISTRY_TESTCHAIN_ERROR: errorFile,
-      },
-      HARDHAT_TIMEOUT_MS,
-      log
-    )
-    killHardhat = run.kill
-    await run.done.catch(async (err: Error) => {
-      // Report the script's own error first, then its last progress lines: an ethers error's stack
-      // doesn't say which deployment step failed.
-      const scriptError = await readFile(errorFile, 'utf8').catch(() => '')
-      if (!scriptError) throw err
-      const progress = err instanceof CommandFailed ? err.stdoutTail.slice(-5) : []
-      throw new Error(
-        `deploy script failed: ${abbreviate(scriptError.replaceAll(checkoutDir, '<checkout>'), { max: 2500, maxLine: MAX_LINE })}` +
-          (progress.length ? `\nlast progress output:\n${progress.join('\n')}` : '')
-      )
+      script: DEPLOY_SCRIPT,
+      scriptDir: 'scripts',
+      command: scriptRel => ({ cmd: hardhatBin, args: ['run', '--no-compile', '--network', 'custom', scriptRel] }),
+      env: { CUSTOM_RPC_URL: rpcUrl, CUSTOM_PRIVKEY: ANVIL_DEPLOYER_KEY, DISABLE_VERIFICATION: 'true' },
+      timeoutMs: HARDHAT_TIMEOUT_MS,
+      log,
+      onSignal: anvil.kill,
     })
-    const out = parseOutput(JSON.parse(await readFile(outFile, 'utf8')))
+    const out = parseOutput(raw)
     if (out.chainId !== PARENT_CHAIN_ID) {
       throw new Error(`deploy script saw chain id ${out.chainId}, expected ${PARENT_CHAIN_ID}`)
     }
@@ -168,234 +129,11 @@ export async function deployTestChains(opts: DeployTestChainsOptions): Promise<T
   } catch (err) {
     await anvil.stop()
     throw err
-  } finally {
-    process.removeListener('SIGINT', onSignal)
-    process.removeListener('SIGTERM', onSignal)
-    await rm(scriptAbs, { force: true })
-    await rm(tmp, { recursive: true, force: true })
   }
 }
 
 /** A full deploy takes under 20s; this only stops a hung run (e.g. a wait for a block that never comes). */
 const HARDHAT_TIMEOUT_MS = 5 * 60_000
-
-interface Anvil {
-  pid: number
-  /** Kills anvil and waits for it to exit. */
-  stop(): Promise<void>
-  /** Sends the kill signal without waiting. */
-  kill(): void
-}
-
-async function startAnvil(
-  port: number,
-  rpcUrl: string,
-  detach: boolean,
-  log: (s: string) => void
-): Promise<Anvil> {
-  const args = [
-    '--port', String(port),
-    '--chain-id', String(PARENT_CHAIN_ID), // see PARENT_CHAIN_ID
-    '--hardfork', ANVIL_HARDFORK, // see ANVIL_HARDFORK
-    // v3.2.0's deploymentUtils.create2() waits for 2 confirmations (tx.wait(2)). With anvil's
-    // default automine a second block never comes, so also mine an empty block every 0.5s.
-    '--mixed-mining', '--block-time', '0.5',
-  ]
-  log(`anvil ${args.join(' ')}`)
-  const child = spawn('anvil', args, {
-    detached: detach,
-    stdio: detach ? 'ignore' : ['ignore', 'ignore', 'pipe'],
-  })
-  if (child.pid === undefined) {
-    await new Promise(resolve => child.once('error', resolve))
-    throw new Error('could not start anvil (is Foundry installed and on PATH?)')
-  }
-  const pid = child.pid
-  let exited = false
-  const exitedPromise = new Promise<void>(resolve =>
-    child.once('exit', () => {
-      exited = true
-      resolve()
-    })
-  )
-  let stderr = ''
-  child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
-  const kill = () => {
-    try {
-      process.kill(pid)
-    } catch {
-      // already gone
-    }
-  }
-  if (detach) child.unref()
-  else process.once('exit', kill)
-
-  const stop = async (): Promise<void> => {
-    process.removeListener('exit', kill)
-    if (exited) return
-    kill()
-    // A detached child is unref'd, so its exit event may never be delivered.
-    if (!detach) await exitedPromise
-  }
-
-  const expected = `0x${PARENT_CHAIN_ID.toString(16)}`
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    if (exited) throw new Error(`anvil exited during startup: ${stderr.trim()}`)
-    const chainId = await rpcChainId(rpcUrl)
-    // Our anvil must still be running: a node answering after it exited is someone else's.
-    if (chainId !== undefined && !exited) {
-      if (chainId !== expected) {
-        await stop()
-        throw new Error(`a node with chain id ${chainId} is already answering on ${rpcUrl}`)
-      }
-      return { pid, stop, kill }
-    }
-    if (Date.now() > deadline) {
-      await stop()
-      throw new Error(`anvil did not answer on ${rpcUrl} within 30s`)
-    }
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-}
-
-async function rpcChainId(rpcUrl: string): Promise<string | undefined> {
-  try {
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-    })
-    const body = (await res.json()) as { result?: unknown }
-    return typeof body.result === 'string' ? body.result : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      server.close(() =>
-        typeof address === 'object' && address ? resolve(address.port) : reject(new Error('no port'))
-      )
-    })
-  })
-}
-
-function assertPortFree(port: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const server = createServer()
-    server.once('error', (err: NodeJS.ErrnoException) =>
-      reject(err.code === 'EADDRINUSE' ? new Error(`port ${port} is already in use`) : err)
-    )
-    server.listen(port, '127.0.0.1', () => server.close(() => resolve()))
-  })
-}
-
-/** Longest output line logged or kept for an error message. */
-const MAX_LINE = 2000
-
-export class CommandFailed extends Error {
-  /** The last stdout lines, shortened as logged. */
-  readonly stdoutTail: string[]
-  constructor(message: string, stdoutTail: string[]) {
-    super(message)
-    this.stdoutTail = stdoutTail
-  }
-}
-
-/**
- * Runs `cmd`, logging each output line with long data collapsed (see collapseData) and capped at
- * MAX_LINE characters. Rejects on a non-zero exit or timeout with a CommandFailed holding the last
- * 40 lines.
- */
-export function startLogged(
-  cmd: string,
-  args: string[],
-  cwd: string,
-  env: Record<string, string>,
-  timeoutMs: number,
-  log: (s: string) => void
-): { kill: () => void; done: Promise<void> } {
-  // `hardhat run` executes the script in a child node process, so give it its own process group
-  // and kill the whole group.
-  const child = spawn(cmd, args, {
-    cwd,
-    env: { ...process.env, ...env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  })
-  const kill = () => {
-    try {
-      if (child.pid !== undefined) process.kill(-child.pid)
-    } catch {
-      // already gone
-    }
-  }
-  const done = new Promise<void>((resolve, reject) => {
-    const tail: string[] = []
-    const stdoutTail: string[] = []
-    const keep = (lines: string[], line: string) => {
-      lines.push(line)
-      if (lines.length > 40) lines.shift()
-    }
-    // A chunk can end mid-line (an ethers error can print one line of hundreds of KB), so each
-    // stream keeps its unfinished line until the next chunk or the end.
-    const lineReader = (stream: NodeJS.ReadableStream | null, isStdout: boolean) => {
-      const addLine = (line: string) => {
-        if (!line) return
-        const short = truncateMiddle(collapseData(line), MAX_LINE)
-        log(short)
-        keep(tail, short)
-        if (isStdout) keep(stdoutTail, short)
-      }
-      let partial = ''
-      stream?.setEncoding('utf8')
-      stream?.on('data', (chunk: string) => {
-        const lines = (partial + chunk).split('\n')
-        partial = lines.pop()!
-        lines.forEach(addLine)
-      })
-      return () => {
-        addLine(partial)
-        partial = ''
-      }
-    }
-    const flushStdout = lineReader(child.stdout, true)
-    const flushStderr = lineReader(child.stderr, false)
-    let timedOut = false
-    const timer = setTimeout(() => {
-      timedOut = true
-      kill()
-    }, timeoutMs)
-    let finished = false
-    const finish = (code: number | null) => {
-      if (finished) return
-      finished = true
-      clearTimeout(timer)
-      flushStdout()
-      flushStderr()
-      const what = `${path.basename(cmd)} ${args.join(' ')}`
-      if (timedOut) reject(new CommandFailed(`${what} timed out after ${timeoutMs / 1000}s:\n${tail.join('\n')}`, stdoutTail))
-      else if (code !== 0) reject(new CommandFailed(`${what} exited ${code}:\n${tail.join('\n')}`, stdoutTail))
-      else resolve()
-    }
-    child.once('error', e => {
-      finished = true
-      clearTimeout(timer)
-      reject(e)
-    })
-    // Finish on 'close', after the output streams have ended, so no output is lost; but not later
-    // than 5s after 'exit', in case a leftover grandchild still holds the pipes.
-    child.once('exit', code => setTimeout(() => finish(code), 5000).unref())
-    child.once('close', code => finish(code))
-  })
-  return { kill, done }
-}
 
 type ScriptOutput = Pick<TestChainDeployment, 'chainId' | 'creator' | 'templates' | 'chains'>
 
@@ -416,16 +154,7 @@ function parseOutput(raw: unknown): ScriptOutput {
     checkAddressMap(c.contracts, `${c.name}.contracts`, fail)
     checkAddressMap(c.optional, `${c.name}.optional`, fail)
   }
-  return { chainId: o.chainId, creator: o.creator, templates: o.templates, chains: o.chains }
-}
-
-function checkAddressMap(m: unknown, what: string, fail: (what: string) => never): void {
-  if (typeof m !== 'object' || m === null) fail(what)
-  for (const [k, v] of Object.entries(m as Record<string, unknown>)) {
-    if (!isAddress(v) || /^0x0{40}$/.test(v)) fail(`${what}.${k}`)
-  }
-}
-
-function isAddress(v: unknown): v is Address {
-  return typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v)
+  const chains = o.chains.map(c => ({ ...c, start: c.contracts.rollup }))
+  for (const c of chains) if (!isAddress(c.start)) fail(`${c.name}.contracts.rollup`)
+  return { chainId: o.chainId, creator: o.creator, templates: o.templates, chains }
 }
