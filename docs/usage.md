@@ -157,7 +157,7 @@ source of the start contract's logic: of the first of these that matches an entr
 implementation, its secondary implementation, its own code. So a proxy belongs to the source of the
 logic behind it, not to the source that owns its proxy code. If nothing at the start matches and the registry has
 only one source, the walk takes that one; otherwise it fails and asks for `--source`. Arbitrum
-One's rollup (`0x5eF0D09d…` on Ethereum) is such a start: its proxy and both implementations
+One's pre-BoLD rollup (`0x5eF0D09d…` on Ethereum) is such a start: its proxy and both implementations
 predate the registry's range.
 
 From TypeScript: `import { walk, Registry, Rpc } from '<this repo>/walker'` (run

@@ -229,8 +229,6 @@ Everything else, including each case `getVersion` handles and how a walk picks i
 - [Manual entries](docs/manual-entries.md): adding code that no published ref builds.
 - [Changelog](CHANGELOG.md).
 
-Design: `contract-registry-spec.md` (BLK-491).
-
 ## Development
 
 ```sh

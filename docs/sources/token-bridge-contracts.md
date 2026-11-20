@@ -17,8 +17,10 @@ What real chains run, and the version `getVersion` reports for it:
 | The creators' `L2AtomicTokenBridgeFactory` template | `v1.2.0` |
 | The creators (Ethereum, Arbitrum One, Nova) and their `L1TokenBridgeRetryableSender` | `v1.2.2` |
 
-Two contracts of Arbitrum One's 2021 bridge are older than any tag and unknown: its aeWETH logic
-(`0x8b194bEa…`) and its `BeaconProxyFactory` (`0x3fE38087…`). Nova's proxies, beacon and
+Two contracts of Arbitrum One's 2021 bridge are older than any tag. Its aeWETH logic
+(`0x8b194bEa…`) has a [manual entry](../manual-entries.md), label `classic-2021-aeweth`, built from
+token-bridge-contracts commit `6171a34ad` (Hardhat, solc 0.6.11); its `BeaconProxyFactory`
+(`0x3fE38087…`) is unknown. Nova's proxies, beacon and
 `BeaconProxyFactory` come from a 2022 build that no tag reproduces; the logic behind its proxies is
 known, so `getVersion` reaches it through the slot probe for unknown code. Arbitrum One's
 Classic-era core proxies on Ethereum (its Inbox `0x4Dbd4fc5…`, among others) were compiled from the
