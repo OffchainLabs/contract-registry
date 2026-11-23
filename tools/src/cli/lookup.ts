@@ -7,7 +7,7 @@ import { keccak256 } from 'viem'
 import { decodeImmutables } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import type { ByLengthEntry } from '../lib/types.ts'
-import { Registry, versionOf } from '../walker/registry.ts'
+import { Registry } from '../walker/registry.ts'
 import { Rpc } from '../walker/rpc.ts'
 
 const { values: a } = parseArgs({
@@ -41,7 +41,7 @@ function describe(e: ByLengthEntry, code: Uint8Array) {
   return {
     repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}), ...(e.beaconSlot ? { beaconSlot: e.beaconSlot } : {}),
-    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
+    fingerprint: e.fingerprint, version: e.version, tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }

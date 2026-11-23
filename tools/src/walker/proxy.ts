@@ -3,15 +3,15 @@ import type { Entry, Hex } from '../lib/types.ts'
 import { ExecutionError, type Rpc } from './rpc.ts'
 
 /**
- * Following a proxy to its implementations. This is the one place that decides which storage slots
- * are read for a piece of code, and when a beacon is asked for its implementation;
- * `Registry.getVersion` and the walker (in-scope nodes and leaves) both use it.
+ * Following a proxy to its implementations: the slots and beacon calls the walker reads for each
+ * piece of code (in-scope nodes and leaves), and the beacon call `Registry.getVersion` makes too.
  */
 
 /**
- * Proxy entries list the slots to read. These three are probed only for code the registry doesn't
- * know (e.g. a chain deployed before the registry's start), so such walks still reach the logic
- * and `Registry.getVersion` can still report it.
+ * The standard slots. A walk reads the slots a proxy's entry lists, and probes these for code the
+ * registry doesn't know (e.g. a chain deployed before the registry's start), so it still reaches
+ * the logic. `Registry.getVersion` reads only these, for unknown code and single-implementation
+ * proxies alike.
  */
 export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 /** AdminFallbackProxy (RollupProxy) secondary, user-logic implementation slot. */
@@ -58,7 +58,7 @@ export async function readImplementations(rpc: Pick<Rpc, 'getStorageAt' | 'call'
   }
   const viaBeacon = async (slot: Hex): Promise<ImplementationSlot[]> => {
     const beacon = slotAddress(await rpc.getStorageAt(address, slot, block))
-    const impl = beacon && await beaconImplementation(rpc, beacon, block)
+    const impl = await beaconImplementation(rpc, beacon, block)
     return impl ? [{ role: 'implementation', slot, beacon: beacon!, address: impl }] : []
   }
   const out: ImplementationSlot[] = []
@@ -85,19 +85,12 @@ export async function readImplementations(rpc: Pick<Rpc, 'getStorageAt' | 'call'
 }
 
 /**
- * Whether `getVersion` reports the code's implementation rather than the code itself: true for a
- * proxy with one implementation slot, for a beacon proxy, and for unknown code (which may be a
- * proxy). Logic, proxy admins and two-slot proxies report themselves.
+ * The address a beacon's `implementation()` returns, or null if there is no beacon, or the call
+ * reverts or returns no address (the zero address, too short, or not an address). An RPC failure
+ * throws.
  */
-export function reportsImplementation(entry: ProxyFields | null): boolean {
-  return entry === null || (entry.role === 'proxy' && (entry.beaconSlot !== undefined || entry.implementationSlots?.length === 1))
-}
-
-/**
- * The address a beacon's `implementation()` returns, or null if the call reverts or returns no
- * address (the zero address, too short, or not an address). An RPC failure throws.
- */
-async function beaconImplementation(rpc: Pick<Rpc, 'call'>, beacon: string, block: string): Promise<string | null> {
+export async function beaconImplementation(rpc: Pick<Rpc, 'call'>, beacon: string | null, block: string): Promise<string | null> {
+  if (!beacon) return null
   let ret: string
   try {
     ret = await rpc.call(beacon, IMPLEMENTATION_SELECTOR, block)

@@ -32,7 +32,9 @@ source's range.
 
 ### How `getVersion` works
 
-`getVersion` does this:
+`getVersion` does this. `version`, `isSingleImplementationProxy` and `fingerprintMask` are fields of
+each entry in `registry/by-length/`, worked out when the registry is published (see
+[Data format](data-format.md#fields-of-the-by-length-view)), so a lookup needs nothing else.
 
 ```
 EIP1967_IMPLEMENTATION_SLOT   = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
@@ -40,98 +42,72 @@ SECONDARY_IMPLEMENTATION_SLOT = 0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0
 EIP1967_BEACON_SLOT           = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50
 
 getVersion(rpc, address) -> { version, repo } | null:
+  # slot(s): the address in storage slot s of `address` (its last 20 bytes, if the other 12 are zero), or null
   entry = lookup(rpc.getCode(address))
-  if entry != null and not (entry.role == "proxy" and (entry.beaconSlot or len(entry.implementationSlots) == 1)):
-    return versionAndRepo(entry)   # logic, proxy admins, and two-slot proxies report themselves
-  # a one-slot proxy, a beacon proxy, or unknown code (maybe a proxy the registry doesn't have)
-  impls = implementations(rpc, address, entry)
-  if impls.secondary: return null  # unknown code with both slots set (an old RollupProxy): no version of its own
-  if not impls.implementation: return null
-  implEntry = lookup(rpc.getCode(impls.implementation))
-  return implEntry ? versionAndRepo(implEntry) : null
+  if entry and not entry.isSingleImplementationProxy: return { entry.version, entry.repo }
+  if not entry and slot(SECONDARY_IMPLEMENTATION_SLOT): return null   # unknown two-slot proxy
+  impl = slot(EIP1967_IMPLEMENTATION_SLOT) or beaconImplementation(slot(EIP1967_BEACON_SLOT))
+  implEntry = impl and lookup(rpc.getCode(impl))
+  return implEntry and { implEntry.version, implEntry.repo }
 
-implementations(rpc, address, entry) -> { implementation?, secondary? }:
-  # an address is the last 20 bytes of a slot whose other 12 bytes are zero; zero slots are left out
-  if entry != null and entry.beaconSlot:     # a beacon proxy: what its beacon says
-    return { implementation: beaconImplementation(rpc, slot(entry.beaconSlot)) }
-  if entry != null:                          # a one-slot proxy: the slot its entry lists
-    return { implementation: slot(entry.implementationSlots[0]) }
-  impl = slot(EIP1967_IMPLEMENTATION_SLOT)   # unknown code: probe the known slots
-  secondary = slot(SECONDARY_IMPLEMENTATION_SLOT)
-  if impl or secondary: return { implementation: impl, secondary: secondary }
-  return { implementation: beaconImplementation(rpc, slot(EIP1967_BEACON_SLOT)) }
-
-beaconImplementation(rpc, beacon) -> address | null:
-  if not beacon: return null
-  # eth_call implementation() (selector 0x5c60da1b) on the beacon; a revert, or a result
-  # that isn't a nonzero address in its first 32 bytes, gives null
-  return address in rpc.call(beacon, 0x5c60da1b)
-
-versionAndRepo(entry) -> { version, repo }:
-  return { version: versionOf(entry), repo: entry.repo }
-
-versionOf(entry) -> string:
-  releases = [t for t in entry.tags if not isPrerelease(t)]   # tags are in semver order
-  if releases:   return releases[0]
-  if entry.tags: return entry.tags[0]
-  if entry.label: return entry.label                         # a manual entry
-  return entry.ref + "@" + entry.commit[:12]                 # e.g. release-3.3.0@abcdef012345
+beaconImplementation(beacon) -> address | null:
+  # eth_call implementation() (0x5c60da1b); a revert or a non-address result gives null
+  return beacon and address in rpc.call(beacon, 0x5c60da1b)
 
 lookup(code) -> entry | null:
-  # every read at one commit of this repo
-  index = registry/index.json      # read once; if it is missing, this isn't a layout-v2 snapshot: fail
-  if len(code) not in index.codeLengths: return null
-  for entry in registry/by-length/<len(code)>.json .entries:   # that length's entries of every source
+  if len(code) not in index.codeLengths: return null      # index.json, read once
+  for entry in registry/by-length/<len(code)>.json .entries:
     masked = copy of code
-    for range in entry.maskedRanges:
-      for offset in range.offsets: zero masked[offset : offset + range.length]
-    zero the last entry.cborMetadataLength bytes of masked
+    for [offset, length] in entry.fingerprintMask: zero masked[offset : offset + length]
     if keccak256(masked) == entry.fingerprint: return entry
   return null
 ```
 
 The choices it makes:
 
-- A proxy with one implementation slot (`TransparentUpgradeableProxy`, `ERC1967Proxy`) reports its
-  implementation's version and repo. The implementation can come from another source than the
-  proxy: a nitro-contracts proxy in front of another repo's logic reports that repo.
-- A beacon proxy (OpenZeppelin's `BeaconProxy`, and the token bridge's `ClonableBeaconProxy`, the
-  code of each standard token the bridge deploys on the child chain) reports its implementation
-  too: the one its beacon returns. Its entry has a `beaconSlot` instead of `implementationSlots`.
-  `getVersion` reads the beacon's address from that slot and calls the beacon's
-  `implementation()`, so its `rpc` needs `call` as well as `getCode` and `getStorageAt`. A
-  reverting call must throw `ExecutionError` (as `Rpc`'s does); other errors are passed on.
-- `RollupProxy` and `AdminFallbackProxy`, which have two slots, report themselves, as do logic and
-  `ProxyAdmin`. A two-slot proxy's version is the release its proxy code came from, and it can lag
-  the logic behind it: upgrades replace the logic, never the proxy.
-- Code in no tag at all was built only as the head of a release or hotfix branch. It gives
-  `<ref>@<first 12 hex digits of commit>`, the branch and head commit it was first built from,
-  e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
-  commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
+- A proxy that forwards every call to one implementation (`isSingleImplementationProxy`) reports
+  its implementation's version and repo: a proxy with one implementation slot
+  (`TransparentUpgradeableProxy`, `ERC1967Proxy`), or a beacon proxy (OpenZeppelin's
+  `BeaconProxy`, and the token bridge's `ClonableBeaconProxy`, the code of each standard token the
+  bridge deploys on the child chain), whose implementation is the one its beacon's
+  `implementation()` returns. The implementation can come from another source than the proxy: a
+  nitro-contracts proxy in front of another repo's logic reports that repo.
+- It finds the implementation through the standard slots, not the ones its entry lists: EIP-1967's
+  implementation slot, then, if that is zero, the beacon in EIP-1967's beacon slot. That works
+  because every such entry lists one of those two (the implementation slot for a one-slot proxy,
+  the beacon slot for a beacon proxy): publish, `add-entry` and `ci-check` refuse one that doesn't.
+  So a one-slot proxy whose implementation slot is zero also tries the beacon slot, and a beacon
+  proxy reads the implementation slot first.
+- A beacon is asked for its `implementation()`, so `rpc` needs `call` as well as `getCode` and
+  `getStorageAt`. A reverting call must throw `ExecutionError` (as `Rpc`'s does); other errors are
+  passed on.
+- Two-slot proxies (`RollupProxy`, `AdminFallbackProxy`) report themselves, as do logic and proxy
+  admins (`ProxyAdmin`, `UpgradeableBeacon`). A two-slot proxy's version is the release its proxy
+  code came from, and it can lag the logic behind it: upgrades replace the logic, never the proxy.
 - Unknown code may be a proxy the registry doesn't have, in front of logic it does: on Arbitrum
   One, for example, many core proxies are early nitro-contracts builds, older than the registry's
   range, and the Arbitrum DAO's upgrade executors sit behind proxy code that no source builds. So
-  unknown code is probed at the EIP-1967 implementation slot and, like a one-slot proxy, reports
-  the version of the implementation there. If that slot and the secondary slot are both zero, the
-  EIP-1967 beacon slot is probed, and a beacon there is asked for its implementation, as for a
-  beacon proxy. That is safe for any unknown code: these are the standard slots, and the fallback
-  can only return a version if it reaches code the registry recognises.
-- Unknown code whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives
-  null, whatever its other slots hold, since a two-slot proxy reports its own version, which here
-  is unknown. It never reports the admin logic in its EIP-1967 slot, and its beacon slot isn't
-  read.
-- Unknown code gives null if its EIP-1967 and beacon slots are both zero, or the implementation is
-  unknown or has no code. So does a one-slot proxy whose slot is zero or whose implementation is
-  unknown or has no code, and a beacon proxy whose beacon slot is zero, whose beacon's
-  `implementation()` reverts or returns no address, or whose implementation is unknown or has no
-  code.
-- A snapshot with no `registry/index.json` (an older commit of this repo, from before layout v2)
-  makes every lookup throw, rather than answer null.
+  unknown code is followed the same way. That is safe for any unknown code: these are the standard
+  slots, and it can only give a version if it reaches code the registry recognises. Unknown code
+  whose secondary slot is set is a two-slot proxy (an old `RollupProxy`) and gives null, whatever
+  its other slots hold, since a two-slot proxy reports its own version, which here is unknown. It
+  never reports the admin logic in its EIP-1967 slot.
+- Code in no tag at all was built only as the head of a release or hotfix branch. Its `version` is
+  `<ref>@<first 12 hex digits of commit>`, the branch and head commit it was first built from,
+  e.g. `release-3.3.0@abcdef012345`. That commit contains the code, but isn't necessarily the first
+  commit that does: only branch heads are built. Once a tag contains the code, the tag wins.
+- An address with no code gives null. So does a single-implementation proxy or unknown code whose
+  EIP-1967 implementation and beacon slots are both zero, whose beacon's `implementation()`
+  reverts or returns no address, or whose implementation is unknown or has no code.
+- `Registry.open` throws for a snapshot this client can't read, rather than let a lookup answer
+  wrongly or null: one with no `registry/index.json` (a commit of this repo from before layout
+  v2), or whose views have another `schemaVersion` (before 3, by-length entries lacked the three
+  fields above).
 
 ## Look up and walk
 
 For more than a version: `registry.lookup(code)` returns the matched entry (`repo`, contracts,
-role, tags, `ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables
+role, `version`, tags, `ref`, `commit`, ...), and `decodeImmutables(code, entry)` reads its immutables
 (`maxDataSize`, `isUsingFeeToken`, ...). `walk` discovers and identifies every contract of a chain
 from one address (below).
 

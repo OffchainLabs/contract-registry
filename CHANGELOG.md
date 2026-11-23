@@ -2,6 +2,29 @@
 
 Changes that affect clients of the registry's data, its TypeScript API or its CLIs, newest first.
 
+**`getVersion` reads its decisions from the data (2026-11-23).** View `schemaVersion` 3. A client
+that reads `main` needs this version of the walker; one pinned to an earlier commit keeps working.
+
+- Every entry in `registry/by-length/` has three new fields, worked out when the views are
+  generated: `version` (what `getVersion` reports, as `versionOf` did), `isSingleImplementationProxy`
+  (a proxy with one implementation slot, or a beacon proxy) and `fingerprintMask` (the
+  `[offset, length]` pairs a lookup zeroes before hashing: `maskedRanges` and the CBOR metadata).
+  Entry, tag and branch files and fingerprints are unchanged; `registry/index.json` changes only in
+  its `schemaVersion`.
+- `getVersion` follows a known single-implementation proxy as it follows unknown code: EIP-1967's
+  implementation slot, then the beacon in EIP-1967's beacon slot, instead of the slots its entry
+  lists. Every such entry lists those slots, and publish, `add-entry` and `ci-check` now refuse one
+  that doesn't. So a one-slot proxy whose implementation slot is zero now tries the beacon slot,
+  and a beacon proxy reads the implementation slot first. Unknown code reads its secondary slot
+  first. For Arbitrum One's core, token bridge and upgrade executor contracts, the answers are
+  unchanged.
+- `Registry.open` reads `registry/index.json` and throws for a snapshot it can't read: one with no
+  index (before layout v2) or another `schemaVersion` (any commit before this one). Before, the
+  first lookup threw. `Registry.open` also takes a `RegistrySource`; `new Registry(source)` is gone
+  (use `Registry.open(source)`), and `registry.index` is a property, not a method.
+- The walker no longer exports `versionOf`: read `entry.version`. A walk's `match.version` is that
+  field.
+
 **Layout v2 and one lookup across sources (2026-11-16).** One break for every client that reads
 `main`. Clients pinned to an earlier commit keep working, since old commits keep the old layout.
 

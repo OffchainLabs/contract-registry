@@ -1,13 +1,15 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { listSources, loadSourceConfig, type ReviewedRangePair } from './config.ts'
+import { fingerprintMask } from './fingerprint.ts'
 import { describeForeign, foreignOrigin, type SourceIdentity } from './foreign.ts'
 import { listJsonFiles, readJson, sortedRecord, stableJson, writeFileIfChanged } from './json.ts'
 import { BY_LENGTH_DIR, INDEX_PATH, byLengthPath, inputPath, sourceDir, sourcesConfigPath } from './layout.ts'
 import { rangeConflicts, type RangeConflict } from './ranges.ts'
-import { compareTags } from './semver.ts'
+import { compareTags, isPrerelease } from './semver.ts'
 import { SCHEMA_VERSION, VIEW_SCHEMA_VERSION } from './types.ts'
 import type { BranchFile, BuiltContract, ByLengthEntry, ByLengthFile, ContractRole, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT } from '../walker/proxy.ts'
 
 /** Canonical key order for an entry file. */
 export function canonicalEntry(e: Entry): Entry {
@@ -90,6 +92,32 @@ export function describeRole(r: { role: ContractRole; implementationSlots?: Hex[
   if (r.role !== 'proxy') return r.role
   const slots = [...(r.implementationSlots ?? []), ...(r.beaconSlot !== undefined ? [`beacon ${r.beaconSlot}`] : [])]
   return `proxy [${slots.join(', ').toLowerCase()}]`
+}
+
+/**
+ * A proxy that forwards every call to one implementation: one implementation slot, or a beacon.
+ * The by-length view's `isSingleImplementationProxy`.
+ */
+export function isSingleImplementationProxy(e: Pick<Entry, 'role' | 'implementationSlots' | 'beaconSlot'>): boolean {
+  return e.role === 'proxy' && (e.beaconSlot !== undefined || e.implementationSlots?.length === 1)
+}
+
+/**
+ * Why a single-implementation proxy's entry would make `getVersion` wrong, or null. `getVersion`
+ * doesn't read the slots such an entry lists: it reads EIP-1967's implementation slot and, if that
+ * is zero, asks the beacon in EIP-1967's beacon slot. So a one-slot proxy must list EIP-1967's
+ * implementation slot, and a beacon proxy EIP-1967's beacon slot. Publish, `add-entry` and
+ * `ci-check` refuse an entry that doesn't.
+ */
+export function proxySlotProblem(e: Pick<Entry, 'contracts' | 'role' | 'implementationSlots' | 'beaconSlot'>): string | null {
+  if (!isSingleImplementationProxy(e)) return null
+  const [kind, slot, want] = e.beaconSlot !== undefined
+    ? ['beacon', e.beaconSlot, EIP1967_BEACON_SLOT]
+    : ['implementation', e.implementationSlots![0], EIP1967_IMPLEMENTATION_SLOT]
+  if (slot.toLowerCase() === want) return null
+  return `${e.contracts.join(', ')} is a proxy that forwards to one implementation, but its ${kind} slot is ${slot.toLowerCase()}, not EIP-1967's ${want}. ` +
+    "getVersion reads only EIP-1967's slots for such a proxy, so it would not find this one's implementation. " +
+    `List EIP-1967's ${kind} slot in contractRoles, or make getVersion read this slot.`
 }
 
 /**
@@ -375,6 +403,17 @@ export class DataRepo {
     }).sort()
   }
 
+  /**
+   * Single-implementation proxies whose entries list a slot `getVersion` doesn't read (see
+   * `proxySlotProblem`), in every source.
+   */
+  proxySlotProblems(): string[] {
+    return this.sources.flatMap(s => s.entries().flatMap(e => {
+      const problem = proxySlotProblem(e)
+      return problem ? [`${inputPath(s.id, 'entries', e.fingerprint)}: ${problem}`] : []
+    })).sort()
+  }
+
   /** Every generated file, keyed by its path relative to the data repo root. */
   generateViews(): Map<string, string> {
     return generateViews(this.sources.map(s => s.inputs()))
@@ -423,10 +462,26 @@ export interface SourceInputs {
 }
 
 /**
+ * A version string for an entry with these tags (in semver order): its first release tag, else its
+ * first prerelease tag, else a manual entry's label, else `<ref>@<first 12 hex digits of commit>`
+ * for code in no tag (built only as a release or hotfix branch head, e.g.
+ * `release-3.3.0@abcdef012345`). The by-length view's `version`, which `getVersion` reports.
+ */
+export function versionOf(entry: Pick<Entry, 'contracts' | 'ref' | 'commit' | 'label'>, tags: string[]): string {
+  const releases = tags.filter(t => !isPrerelease(t))
+  if (releases.length) return releases[0]
+  if (tags.length) return tags[0]
+  if (entry.label !== undefined) return entry.label
+  if (entry.ref === null || entry.commit === null) return entry.contracts[0] // the schema requires a label here
+  return `${entry.ref}@${entry.commit.slice(0, 12)}`
+}
+
+/**
  * Derives the views from every source's input files. Pure and deterministic.
  * - `registry/by-length/<len>.json`: every entry of that length, of every source, sorted by
  *   fingerprint, each with the tags of its own source's tag files (tag names overlap across
- *   sources, so one source's tags never label another's entry).
+ *   sources, so one source's tags never label another's entry), and with its `version`,
+ *   `isSingleImplementationProxy` and `fingerprintMask`.
  * - `registry/index.json`: the code lengths present, and per source its repo and getters: those
  *   of its own entries and of every entry its tag and branch files reference.
  */
@@ -443,7 +498,11 @@ export function generateViews(sources: SourceInputs[]): Map<string, string> {
       for (const fp of new Set(Object.values(t.contracts).map(f => f.toLowerCase()))) tagsByFp.set(fp, [...(tagsByFp.get(fp) ?? []), t.tag])
     }
     for (const e of s.entries) {
-      const row: ByLengthEntry = { ...canonicalEntry(e), tags: (tagsByFp.get(e.fingerprint.toLowerCase()) ?? []).sort(compareTags) }
+      const tags = (tagsByFp.get(e.fingerprint.toLowerCase()) ?? []).sort(compareTags)
+      const row: ByLengthEntry = {
+        ...canonicalEntry(e), tags,
+        version: versionOf(e, tags), isSingleImplementationProxy: isSingleImplementationProxy(e), fingerprintMask: fingerprintMask(e),
+      }
       byLen.set(e.codeLength, [...(byLen.get(e.codeLength) ?? []), row])
     }
     const referenced = new Set([...s.tags, ...(s.branches ?? [])].flatMap(f => Object.values(f.contracts).map(fp => fp.toLowerCase())))

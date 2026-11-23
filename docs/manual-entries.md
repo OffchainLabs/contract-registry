@@ -40,7 +40,8 @@ setting; a different solc version or code means other settings or source. It als
 missing label, a label that is a published tag of the source, another source's code (from its npm
 package or a submodule of its repo; it names the `--source` the contract belongs to), a
 fingerprint that already has an entry in any source (it names that source and what its entry
-reports), and an entry that breaks the range invariant, checked against every source's entries
+reports), a proxy that forwards to one implementation but whose `contractRoles` slot isn't
+EIP-1967's (`getVersion` reads only those), and an entry that breaks the range invariant, checked against every source's entries
 (see [Across sources](publishing.md#across-sources)). The role comes from `contractRoles` and `packages` from the checkout, as in publish. It then writes the
 entry, regenerates `registry/by-length/` and `registry/index.json`, and prints the entry's path,
 its fingerprint and what `getVersion` reports for the address. It builds nothing and commits
@@ -58,6 +59,6 @@ deployed code is public on chain. The names in `contracts`, `getters` and `maske
 the source, not the bytecode, so `add-entry` lists any that no other entry, of any source, has.
 Before committing, grep the diff and the commit message for the private repo's identifiers.
 
-**Trust.** CI checks the schema, the generated views, one entry per fingerprint, range conflicts
-across sources and that entries are append-only. Nothing rebuilds a manual entry. Its correctness
+**Trust.** CI checks the schema, the generated views, one entry per fingerprint, proxy slots, range
+conflicts across sources and that entries are append-only. Nothing rebuilds a manual entry. Its correctness
 rests on the person who added it; the on-chain match when `add-entry` writes it is the check.

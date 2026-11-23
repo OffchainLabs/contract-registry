@@ -1,6 +1,6 @@
 import { keccak256, decodeAbiParameters, getAddress } from 'viem'
 import { bytesToHex } from './hex.ts'
-import type { Hex, MaskedRange } from './types.ts'
+import type { ByteRange, Hex, MaskedRange } from './types.ts'
 
 export interface MaskSpec {
   codeLength: number
@@ -8,18 +8,31 @@ export interface MaskSpec {
   cborMetadataLength: number
 }
 
+/**
+ * The bytes a fingerprint zeroes, as `[offset, length]` pairs sorted by offset: each masked range
+ * at every offset, and the trailing CBOR metadata section if there is one. The by-length view
+ * lists them as each entry's `fingerprintMask`.
+ */
+export function fingerprintMask(spec: MaskSpec): ByteRange[] {
+  const out = spec.maskedRanges.flatMap(r => r.offsets.map((o): ByteRange => [o, r.length]))
+  if (spec.cborMetadataLength > 0) out.push([spec.codeLength - spec.cborMetadataLength, spec.cborMetadataLength])
+  return out.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+}
+
+/** A copy of `code` with every `[offset, length]` in `ranges` zeroed. */
+export function zeroRanges(code: Uint8Array, ranges: readonly ByteRange[]): Uint8Array {
+  const out = Uint8Array.from(code)
+  for (const [offset, length] of ranges) out.fill(0, offset, offset + length)
+  return out
+}
+
 /** Zeroes every masked range and the trailing CBOR metadata section (spec §5.1). */
 export function mask(code: Uint8Array, spec: MaskSpec): Uint8Array {
   if (code.length !== spec.codeLength) throw new Error(`code length ${code.length} != ${spec.codeLength}`)
-  const out = Uint8Array.from(code)
   for (const r of spec.maskedRanges) {
-    for (const off of r.offsets) {
-      if (off + r.length > out.length) throw new Error(`masked range ${r.name} at ${off} out of range`)
-      out.fill(0, off, off + r.length)
-    }
+    for (const off of r.offsets) if (off + r.length > code.length) throw new Error(`masked range ${r.name} at ${off} out of range`)
   }
-  if (spec.cborMetadataLength > 0) out.fill(0, out.length - spec.cborMetadataLength)
-  return out
+  return zeroRanges(code, fingerprintMask(spec))
 }
 
 export function fingerprintOf(code: Uint8Array, spec: MaskSpec): Hex {

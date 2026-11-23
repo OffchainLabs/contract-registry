@@ -257,6 +257,9 @@ export async function publish(opts: PublishOptions): Promise<PublishOutcome> {
     // conflict fails the whole run: the catch below discards everything.
     const conflicts = repo.rangeConflicts()
     if (conflicts.length) throw new Error(`range invariant broken; nothing published. ${rangeConflictReport(conflicts)}`)
+    // A proxy that forwards to one implementation must list the EIP-1967 slot getVersion reads.
+    const slotProblems = repo.proxySlotProblems()
+    if (slotProblems.length) throw new Error(`a proxy's slot isn't one getVersion reads; nothing published. ${slotProblems.join('\n')}`)
 
     // --- Generated views (every source's) and validation --------------------------------------
     repo.writeViews()

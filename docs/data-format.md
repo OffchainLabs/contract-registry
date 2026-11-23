@@ -9,7 +9,8 @@ zeroed. An entry lists those bytes as `maskedRanges` (`name`, `type`, `offsets`,
 the Solidity immutables, plus the addresses of linked libraries (`<link <file>:<library>>`) and a
 library's own address (`<library address>`). The trailing CBOR metadata section, `cborMetadataLength`
 bytes, is zeroed too. On-chain code matches an entry when it has the entry's length and the same
-hash after masking with the entry's ranges.
+hash after masking with the entry's ranges. The by-length view lists the same bytes as each entry's
+`fingerprintMask` (see [below](#fields-of-the-by-length-view)), so a lookup needn't work them out.
 
 `decodeImmutables(code, entry)` reads matched code's immutables, by name and decoded by type
 (`maxDataSize`, `isUsingFeeToken`, `isDelayBufferable`, `__self`, ...); the walker and the `lookup`
@@ -58,6 +59,33 @@ entry says what the code is:
   `commit`, it records the first build that produced the fingerprint: a later build may compile the
   same code from another version of the package, and the entry doesn't change.
 
+## Fields of the by-length view
+
+Each entry in `registry/by-length/<len>.json` is its entry file plus four fields, worked out from
+the entry and its source's tag files whenever the views are generated (by publish, `add-entry` and
+`generate`). A lookup and `getVersion` read these instead of working them out.
+
+- `tags`: the tags of the entry's own source whose builds produced the code, in semver order.
+- `version`: what `getVersion` reports for the code (see
+  [What a version means](usage.md#what-a-version-means)): its first release tag, else its first tag
+  (a prerelease), else a manual entry's `label`, else `<ref>@<first 12 hex digits of commit>`, e.g.
+  `release-3.3.0@abcdef012345`.
+- `isSingleImplementationProxy`: true for a proxy that forwards every call to one implementation,
+  a `proxy` with one `implementationSlots` item or a `beaconSlot`. `getVersion` reports such a
+  proxy's implementation instead of the proxy, and finds it at EIP-1967's implementation slot or
+  through the beacon in EIP-1967's beacon slot, so publish, `add-entry` and `ci-check` require its
+  entry to list that slot. False for logic, proxy admins and two-slot proxies (`RollupProxy`,
+  `AdminFallbackProxy`).
+- `fingerprintMask`: the bytes that vary between copies of the same version, as `[offset, length]`
+  pairs sorted by offset. They are set by the deployment (immutables, linked libraries' addresses,
+  a library's own address) or by the build (the CBOR metadata): every offset of every
+  `maskedRanges` item with its length, plus `[codeLength - cborMetadataLength,
+  cborMetadataLength]` when `cborMetadataLength` is more than 0. `fingerprint = keccak256(code with
+  every [offset, length] in fingerprintMask zeroed)`. `maskedRanges` and `cborMetadataLength` stay,
+  since `decodeImmutables` needs the ranges' names and types.
+
+`implementationSlots` and `beaconSlot` stay too: a walk reads the slots an entry lists.
+
 ## Layout
 
 ```
@@ -82,11 +110,13 @@ inputs are under `registry/<source>/`; the generated views combine every source,
 covers them all. `by-length` and `index.json` are taken, so no source can use them as its id.
 
 The views are generated from the inputs and never hand-edited. `registry/by-length/<len>.json`
-lists every entry of that length, sorted by fingerprint; each keeps its own `repo`, and its `tags`
-come from its own source's tag files only (tag names overlap across source repos).
-`registry/index.json` lists the code lengths that have a file and, per source, its `repo` and
-getters: those of its own entries and of every entry its tag and branch files reference. The walker
-calls a source's getters on code it doesn't know. The views have `schemaVersion` 2; entries, tags,
-branches and config stay at 1.
+lists every entry of that length, sorted by fingerprint; each keeps its own `repo`, its `tags`
+come from its own source's tag files only (tag names overlap across source repos), and it has the
+fields [above](#fields-of-the-by-length-view). `registry/index.json` lists the code lengths that
+have a file and, per source, its `repo` and getters: those of its own entries and of every entry
+its tag and branch files reference. The walker calls a source's getters on code it doesn't know.
+The views have `schemaVersion` 3 (2 before by-length entries had `version`,
+`isSingleImplementationProxy` and `fingerprintMask`); entries, tags, branches and config stay at
+1.
 
 Read every file at one commit of this repo, never across a push.

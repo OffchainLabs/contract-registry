@@ -18,7 +18,6 @@ import { stableJson } from '../src/lib/json.ts'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { ByLengthEntry, Entry } from '../src/lib/types.ts'
 import { EIP1967_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
-import { versionOf } from '../src/walker/registry.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' }).trim()
@@ -152,7 +151,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   assert.deepEqual(shardOf(builtFrom('src/B.sol:B', 'v1.0.0')[0]).tags, ['v1.0.0'])
   const a2 = builtFrom('src/A.sol:A', 'release-1.1.0')[0]
   assert.deepEqual(shardOf(a2).tags, [])
-  assert.equal(versionOf(shardOf(a2)), `release-1.1.0@${rel2.slice(0, 12)}`)
+  assert.equal(shardOf(a2).version, `release-1.1.0@${rel2.slice(0, 12)}`)
   const releaseBuild = branchFile('release-1.1.0')
 
   // --- Run 2: nothing new. No diff; the mismatch alert stays open until allowlisted. ---
@@ -184,7 +183,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   assert.equal(only(builtFrom('src/A.sol:A', 'release-1.1.0'), 'its entries stay').commit, rel2)
   assert.equal(builtFrom('src/A.sol:A', 'hotfix/y').length, 1)
   assert.deepEqual(shardOf(a2).tags, ['v1.1.0'])
-  assert.equal(versionOf(shardOf(a2)), 'v1.1.0')
+  assert.equal(shardOf(a2).version, 'v1.1.0')
   assert.deepEqual(open(), [], 'mismatch alert closed by the allowlist')
 
   // --- Run 4: a release branch head and a tag on it, new in one run: the entry names the tag. ---
@@ -278,7 +277,7 @@ test('publish bookkeeping on a local source repo', { timeout: 10 * 60_000 }, asy
   const r10 = await run()
   assert.ok(r10.commit)
   assert.equal(only(builtFrom('src/B.sol:B', 'release-1.2.0'), 'B@8').commit, b8)
-  assert.equal(versionOf(shardOf(builtFrom('src/B.sol:B', 'release-1.2.0')[0])), `release-1.2.0@${b8.slice(0, 12)}`)
+  assert.equal(shardOf(builtFrom('src/B.sol:B', 'release-1.2.0')[0]).version, `release-1.2.0@${b8.slice(0, 12)}`)
   assert.equal(branchFile('release-1.2.0').commit, b8)
   assert.ok(!r10.failures['publish-error'])
   assert.ok(!open().some(a => a.title.endsWith('(publish-error)')), 'publish-error alert closed')

@@ -2,7 +2,8 @@
 // builds (a one-off or patched build deployed somewhere). Extracts the contract as publish does and
 // writes nothing unless it matches the code deployed at --address, it isn't another source's code
 // (from another source's npm package or a submodule of its repo), its fingerprint has no entry yet
-// in any source, its label isn't a published tag of the source, and entries of one code length
+// in any source, its label isn't a published tag of the source, a proxy that forwards to one
+// implementation lists EIP-1967's slot (the one getVersion reads), and entries of one code length
 // still mask the same bytes across every source. Then writes the entry and regenerates
 // registry/by-length/ and registry/index.json. Builds nothing; commits nothing.
 //   node tools/src/cli/add-entry.ts --source <id> --checkout <dir> --build-info <dir> --layout <hardhat|standard-json> [--artifacts <dir>]
@@ -19,7 +20,7 @@ import * as path from 'node:path'
 import { parseArgs } from 'node:util'
 import { cborMetadataFields, cborMetadataLength } from '../lib/cbor.ts'
 import { listSources, loadSourceConfig } from '../lib/config.ts'
-import { DataRepo, entryFromBuild } from '../lib/datarepo.ts'
+import { DataRepo, entryFromBuild, proxySlotProblem } from '../lib/datarepo.ts'
 import { git, remoteRefCommits } from '../lib/exec.ts'
 import { extractContract, loadBuildInfos, packageOf, runtimeCode, selectArtifacts } from '../lib/extract.ts'
 import { describeForeign, foreignOrigin, submodulesOf } from '../lib/foreign.ts'
@@ -29,8 +30,7 @@ import { INDEX_PATH, byLengthPath } from '../lib/layout.ts'
 import { rangeConflictReport } from '../lib/ranges.ts'
 import { SchemaValidator } from '../lib/schema.ts'
 import type { BuiltContract, CompilerInfo, Entry } from '../lib/types.ts'
-import { reportsImplementation } from '../walker/proxy.ts'
-import { DirSource, Registry, versionOf } from '../walker/registry.ts'
+import { DirSource, Registry } from '../walker/registry.ts'
 import { Rpc } from '../walker/rpc.ts'
 
 const { values: a } = parseArgs({
@@ -111,8 +111,8 @@ if (foreign) {
 // source's, whatever --source says.
 const owner = repo.ownerOf(built.fingerprint)
 if (owner) {
-  const existing = (await new Registry(new DirSource(root)).byLength(built.codeLength)).find(e => e.fingerprint === built.fingerprint)
-  refuse(`${built.fingerprint} already has an entry in ${owner.id}, ${owner.entryPath(built.fingerprint)}${existing ? `, which reports ${versionOf(existing)} of ${existing.repo}` : ''}. Entries are write-once.`)
+  const existing = (await (await Registry.open(new DirSource(root))).byLength(built.codeLength)).find(e => e.fingerprint === built.fingerprint)
+  refuse(`${built.fingerprint} already has an entry in ${owner.id}, ${owner.entryPath(built.fingerprint)}${existing ? `, which reports ${existing.version} of ${existing.repo}` : ''}. Entries are write-once.`)
 }
 if (a.ref) {
   const problem = publicCommitProblem(cfg.url, checkout, a.ref, commit!)
@@ -130,6 +130,8 @@ if (!matches(deployed, built)) {
 const entry = entryFromBuild(cfg.repo, [built], { ref: a.ref ?? null, commit, label, notes: a.notes?.trim() || undefined }, cfg.contractRoles)
 const schemaErrors = new SchemaValidator(root).validate('entry', entry)
 if (schemaErrors.length) refuse(['The entry fails the schema:', ...schemaErrors.map(e => `  ${e}`)])
+const slotProblem = proxySlotProblem(entry)
+if (slotProblem) refuse(slotProblem)
 // Every source's entries: the range invariant and the names check cover the whole registry.
 const others = repo.allEntries()
 const conflicts = repo.rangeConflicts([{ ...entry, source: cfg.directory }])
@@ -139,7 +141,7 @@ data.writeEntry(entry)
 repo.writeViews()
 
 // --- What the registry now says --------------------------------------------------------------
-const registry = new Registry(new DirSource(root))
+const registry = await Registry.open(new DirSource(root))
 const found = await registry.lookup(deployed)
 if (found?.fingerprint !== entry.fingerprint) throw new Error(`the deployed code looks up as ${found?.fingerprint ?? 'nothing'}, not the new entry ${entry.fingerprint}`)
 const version = await registry.getVersion(rpc, a.address!, block)
@@ -150,7 +152,7 @@ const out = [
   `contract:    ${entry.contracts[0]} (${entry.role}${entry.packages ? `, ${Object.values(entry.packages)[0]}` : ''})`,
   `getVersion(${a.address}) at ${a.block}: ${version ? `${version.version} ${version.repo}` : 'null'}`,
 ]
-if (entry.role === 'proxy' && reportsImplementation(entry)) out.push(`  (a ${entry.beaconSlot ? 'beacon' : 'one-slot'} proxy reports its implementation's version; the entry itself gives ${versionOf(found)})`)
+if (found.isSingleImplementationProxy) out.push(`  (a ${entry.beaconSlot ? 'beacon' : 'one-slot'} proxy reports its implementation's version; the entry itself gives ${found.version})`)
 const novel = namesNoOtherEntryHas(entry, others)
 if (novel.length) {
   out.push('', 'These names come from the source, and no other entry has them. If the build is from a private repo, check that each is public:')

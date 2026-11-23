@@ -4,7 +4,8 @@
 // owns S: beta's build writes no entry for it, beta's tag file lists its fingerprint, and the
 // view gives S alpha's tags only. A role in beta's contractRoles that disagrees with alpha's entry
 // fails the run and publishes nothing. A range conflict with another source's entry fails the run
-// until the pair is listed in either source's config.
+// until the pair is listed in either source's config. So does a proxy that forwards to one
+// implementation through a slot other than EIP-1967's, until contractRoles lists EIP-1967's.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
@@ -16,6 +17,7 @@ import { LocalAlertSink } from '../src/lib/alerts.ts'
 import { stableJson } from '../src/lib/json.ts'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { ByLengthFile, Entry, IndexFile } from '../src/lib/types.ts'
+import { EIP1967_IMPLEMENTATION_SLOT } from '../src/walker/proxy.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' }).trim()
@@ -173,6 +175,27 @@ test('publish across sources: shared code has one entry, its owner\'s; roles mus
   const r3b = await run('beta')
   assert.ok(r3b.ok, JSON.stringify(r3b.failures))
   assert.deepEqual([r3b.tagsAdded, r3b.newEntries], [['v2.2.0'], 1])
+
+  // --- Run 4: a proxy that forwards to one implementation through a slot getVersion doesn't read: nothing published. ---
+  const otherSlot = `0x${'ab'.repeat(32)}`
+  setConfig('alpha', c => { c.contractRoles = { 'src/A.sol:A': { role: 'proxy', implementationSlots: [otherSlot] } } })
+  write('alpha', 'src/A.sol', contract('A', '  function a() external pure returns (uint256) { return 2; }\n  function b() external pure returns (uint256) { return 3; }\n  function c() external pure returns (uint256) { return 4; }'))
+  release('alpha', '1.1.0')
+  const head4 = git(data, 'rev-parse', 'HEAD')
+  const r4 = await run('alpha')
+  assert.deepEqual(Object.keys(r4.failures), ['publish-error'])
+  const slotErr = r4.failures['publish-error']![0].message
+  assert.match(slotErr, /^a proxy's slot isn't one getVersion reads; nothing published\. registry\/alpha\/entries\/0x[0-9a-f]{64}\.json: /)
+  assert.ok(slotErr.includes(`src/A.sol:A is a proxy that forwards to one implementation, but its implementation slot is ${otherSlot}, not EIP-1967's ${EIP1967_IMPLEMENTATION_SLOT}.`), slotErr)
+  assert.equal(r4.commit, null)
+  assert.equal(git(data, 'rev-parse', 'HEAD'), head4)
+  assert.equal(git(data, 'status', '--porcelain'), '')
+  assert.ok(!alpha.hasTag('v1.1.0'))
+  // With EIP-1967's slot, it is published.
+  setConfig('alpha', c => { c.contractRoles = { 'src/A.sol:A': { role: 'proxy', implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] } } })
+  const r4b = await run('alpha')
+  assert.ok(r4b.ok, JSON.stringify(r4b.failures))
+  assert.deepEqual([r4b.tagsAdded, r4b.newEntries], [['v1.1.0'], 1])
 
   // CI's checks pass over everything, against the config-only commit.
   const ci2 = ciCheck()
