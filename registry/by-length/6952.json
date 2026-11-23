@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 6952,
   "entries": [
     {
@@ -92,7 +92,19 @@
       "commit": null,
       "label": "v3.1.0-callfilter",
       "notes": "Arbitrum One Bridge implementation, a patched build based on v3.1.0; added by hand",
-      "tags": []
+      "tags": [],
+      "version": "v3.1.0-callfilter",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          4039,
+          32
+        ],
+        [
+          6940,
+          12
+        ]
+      ]
     }
   ]
 }

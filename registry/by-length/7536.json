@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 7536,
   "entries": [
     {
@@ -49,6 +49,14 @@
       "tags": [
         "v3.1.0",
         "v3.1.1"
+      ],
+      "version": "v3.1.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          7483,
+          53
+        ]
       ]
     }
   ]

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 23581,
   "entries": [
     {
@@ -37,6 +37,14 @@
         "v1.1.0-beta.1",
         "v1.1.0-beta.2",
         "v1.1.0"
+      ],
+      "version": "v1.1.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          23528,
+          53
+        ]
       ]
     },
     {
@@ -72,6 +80,14 @@
       "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
       "tags": [
         "v1.1.0-beta.0"
+      ],
+      "version": "v1.1.0-beta.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          23528,
+          53
+        ]
       ]
     }
   ]

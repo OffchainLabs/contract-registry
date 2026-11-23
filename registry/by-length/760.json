@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 760,
   "entries": [
     {
@@ -40,6 +40,14 @@
         "v1.0.1-beta.0",
         "v1.0.1-beta.1",
         "v1.0.1-beta.2"
+      ],
+      "version": "v1.0.1-beta.0",
+      "isSingleImplementationProxy": true,
+      "fingerprintMask": [
+        [
+          707,
+          53
+        ]
       ]
     }
   ]
