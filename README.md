@@ -267,7 +267,6 @@ Everything else, including each case `getVersion` handles and how a walk picks i
   [token-bridge-contracts](docs/sources/token-bridge-contracts.md) and
   [upgrade-executor](docs/sources/upgrade-executor.md).
 - [Manual entries](docs/manual-entries.md): adding code that no published ref builds.
-- [Changelog](CHANGELOG.md).
 
 ## Development
 
