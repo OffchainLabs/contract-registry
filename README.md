@@ -170,13 +170,12 @@ slots are both zero, or whose beacon's `implementation()` reverts; and unknown c
 secondary slot set (an old `RollupProxy`), which has no version of its own. These throw instead:
 
 - A snapshot this client can't read, as soon as `Registry.open` reads its index: one with no
-  `registry/index.json`, such as a commit of this repo from before layout v2 (2026-11-16), or
-  whose views have another `schemaVersion`, such as a commit from before view schema 3
-  (2026-11-23). So no lookup can answer wrongly, or null for everything:
+  `registry/index.json`, or whose views have a `schemaVersion` other than 1. So no lookup can
+  answer wrongly, or null for everything:
 
   ```
-  Error: https://raw.githubusercontent.com/OffchainLabs/contract-registry/bfdc32b8… is not a registry snapshot this client can read: it has no registry/index.json (a commit from before layout v2, or not a registry)
-  Error: https://raw.githubusercontent.com/OffchainLabs/contract-registry/e38fd24b…: registry/index.json has schemaVersion 2, but this client reads 3 (an older snapshot: open a later commit of the registry)
+  Error: <snapshot> is not a registry snapshot this client can read: it has no registry/index.json
+  Error: <snapshot> is not a registry snapshot this client can read: registry/index.json has schemaVersion <n>; this client reads 1
   ```
 
 - An RPC request that still fails after its retries (`RpcError`).

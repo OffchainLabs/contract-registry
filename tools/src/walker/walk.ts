@@ -146,7 +146,7 @@ export interface WalkSummary {
 }
 
 export interface WalkResult {
-  schemaVersion: 2
+  schemaVersion: 1
   /** The walk's source, by id, and its repo. */
   source: string
   repo: string
@@ -375,7 +375,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   }
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 1,
     source,
     repo: sourceIndex.repo,
     registry: registry.source.describe(),

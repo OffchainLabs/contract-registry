@@ -115,8 +115,6 @@ come from its own source's tag files only (tag names overlap across source repos
 fields [above](#fields-of-the-by-length-view). `registry/index.json` lists the code lengths that
 have a file and, per source, its `repo` and getters: those of its own entries and of every entry
 its tag and branch files reference. The walker calls a source's getters on code it doesn't know.
-The views have `schemaVersion` 3 (2 before by-length entries had `version`,
-`isSingleImplementationProxy` and `fingerprintMask`); entries, tags, branches and config stay at
-1.
+Every file has `schemaVersion` 1: entries, tags, branches, config and the views.
 
 Read every file at one commit of this repo, never across a push.

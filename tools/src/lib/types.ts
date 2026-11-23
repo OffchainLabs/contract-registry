@@ -1,13 +1,9 @@
 export type Hex = `0x${string}`
 
-/** Input files (entries, tags, branches) and config. */
+/** The `schemaVersion` of input files (entries, tags, branches) and config. */
 export const SCHEMA_VERSION = 1
-/**
- * Generated views (`registry/by-length/`, `registry/index.json`): 2 since they combine every
- * source (layout v2), 3 since by-length entries carry `version`, `isSingleImplementationProxy` and
- * `fingerprintMask`.
- */
-export const VIEW_SCHEMA_VERSION = 3
+/** The `schemaVersion` of the generated views (`registry/by-length/`, `registry/index.json`). */
+export const VIEW_SCHEMA_VERSION = 1
 
 /**
  * Bytes of runtime code that are filled in at deploy time, so they are zeroed before hashing: a

@@ -38,9 +38,9 @@ test('a fingerprint produced by several tags lists all of them, in release order
   const shard = JSON.parse(views.get('registry/by-length/100.json')!)
   assert.deepEqual(shard.entries.map((e: any) => [e.fingerprint, e.tags]), [[fp(1), ['v3.2.0-beta.0', 'v3.2.0', 'v3.10.0']], [fp(2), []]])
   assert.deepEqual(Object.keys(shard), ['schemaVersion', 'codeLength', 'entries'], 'no top-level repo: each entry has its own')
-  assert.equal(shard.schemaVersion, 3)
+  assert.equal(shard.schemaVersion, 1)
   assert.deepEqual(JSON.parse(views.get('registry/index.json')!), {
-    schemaVersion: 3, codeLengths: [100, 200], sources: { 'nitro-contracts': { repo: NITRO, getters: [getter('bridge()')] } },
+    schemaVersion: 1, codeLengths: [100, 200], sources: { 'nitro-contracts': { repo: NITRO, getters: [getter('bridge()')] } },
   })
 })
 
@@ -174,12 +174,13 @@ test('schemas accept generated files and manual entries, and reject a manual ent
   const index = JSON.parse(views.get('registry/index.json')!)
   assert.deepEqual(v.validate('by-length', shard), [])
   assert.deepEqual(v.validate('index', index), [])
-  // The views are version 3; version 2 (no derived fields) and the layout-v1 shapes are rejected.
-  assert.notDeepEqual(v.validate('by-length', { ...shard, schemaVersion: 1 }), [])
+  // The views are schemaVersion 1, and a by-length entry has the fields worked out for it.
   assert.notDeepEqual(v.validate('by-length', { ...shard, schemaVersion: 2 }), [])
   assert.notDeepEqual(v.validate('index', { ...index, schemaVersion: 2 }), [])
+  const { version: _, ...noVersion } = shard.entries[0]
+  assert.notDeepEqual(v.validate('by-length', { ...shard, entries: [noVersion] }), [], 'no version')
   assert.notDeepEqual(v.validate('by-length', { ...shard, repo: NITRO }), [], 'no top-level repo')
-  assert.notDeepEqual(v.validate('index', { schemaVersion: 1, repo: NITRO, codeLengths: [100], getters: [] }), [])
+  assert.notDeepEqual(v.validate('index', { schemaVersion: 1, repo: NITRO, codeLengths: [100], getters: [] }), [], 'getters per source, not top-level')
   assert.notDeepEqual(v.validate('index', { ...index, sources: { 'by-length': index.sources['nitro-contracts'] } }), [], 'a reserved source id')
 })
 
@@ -197,7 +198,7 @@ test('file kinds follow the layout', () => {
     'config/nitro-contracts/sources.json', 'config/nitro-contracts/out-of-scope-getters.json',
     `registry/nitro-contracts/entries/${fp(1)}.json`, 'registry/nitro-contracts/tags/v3.2.0.json', 'registry/nitro-contracts/branches/hotfix/x.json',
     'registry/by-length/100.json', 'registry/index.json',
-    // Not in the layout: per-source views (layout v1), data outside registry/, a misnamed shard.
+    // Not in the layout: views in a source's directory, data outside registry/, a misnamed shard.
     'registry/nitro-contracts/by-length/100.json', 'registry/nitro-contracts/index.json', 'nitro-contracts/entries/x.json', 'registry/by-length/x.json',
   ].map(p => [p, kindOf(p)]))
   assert.deepEqual(Object.values(kinds), ['sources', 'out-of-scope', 'entry', 'tag', 'branch', 'by-length', 'index', null, null, null, null])

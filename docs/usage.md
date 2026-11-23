@@ -70,9 +70,8 @@ makes:
   EIP-1967 implementation and beacon slots are both zero, whose beacon's `implementation()`
   reverts or returns no address, or whose implementation is unknown or has no code.
 - `Registry.open` throws for a snapshot this client can't read, rather than let a lookup answer
-  wrongly or null: one with no `registry/index.json` (a commit of this repo from before layout
-  v2), or whose views have another `schemaVersion` (before 3, by-length entries lacked the three
-  fields above).
+  wrongly or null: one with no `registry/index.json`, or whose views have a `schemaVersion` other
+  than 1.
 
 ## Look up and walk
 

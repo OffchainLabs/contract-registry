@@ -60,38 +60,33 @@ test('open reads the index; a lookup reads its length\'s shard once, and none fo
   assert.deepEqual(reads, ['registry/index.json', 'registry/by-length/5.json'], 'each file is read once')
 
   // An index that lists a length whose shard is missing.
-  const torn = await Registry.open(memory('torn', new Map([['registry/index.json', '{"schemaVersion":3,"codeLengths":[5],"sources":{}}']])))
+  const torn = await Registry.open(memory('torn', new Map([['registry/index.json', '{"schemaVersion":1,"codeLengths":[5],"sources":{}}']])))
   await assert.rejects(torn.lookup(hexToBytes(code(1))), /lists code length 5, but registry\/by-length\/5\.json is missing/)
 })
 
 test('opening a snapshot this client cannot read fails at open, before any lookup', async () => {
-  // Layout v1: per-source views, no registry/index.json.
-  const v1 = memory('v1', new Map([['nitro-contracts/index.json', '{}'], ['nitro-contracts/by-length/5.json', '{}']]))
-  await assert.rejects(Registry.open(v1), /^Error: v1 is not a registry snapshot this client can read: it has no registry\/index\.json \(a commit from before layout v2, or not a registry\)$/)
+  // No registry/index.json.
+  const none = memory('none', new Map([['nitro-contracts/index.json', '{}'], ['nitro-contracts/by-length/5.json', '{}']]))
+  await assert.rejects(Registry.open(none), /^Error: none is not a registry snapshot this client can read: it has no registry\/index\.json$/)
 
-  // Layout v2 with view schemaVersion 2: by-length entries without version,
-  // isSingleImplementationProxy and fingerprintMask. Its lookups would match nothing.
+  // Views with another schemaVersion, lower or higher.
   const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries: [entry(code(1), 'src/X.sol:X')], tags: [] }])
-  const old = new Map([...files].map(([rel, text]) => {
-    const view = JSON.parse(text)
-    view.schemaVersion = 2
-    for (const e of view.entries ?? []) { delete e.version; delete e.isSingleImplementationProxy; delete e.fingerprintMask }
-    return [rel, JSON.stringify(view)]
-  }))
-  await assert.rejects(Registry.open(memory('v2', old)), /^Error: v2: registry\/index\.json has schemaVersion 2, but this client reads 3 \(an older snapshot: open a later commit of the registry\)$/)
-
-  // And a newer one.
-  const newer = new Map([['registry/index.json', '{"schemaVersion":4,"codeLengths":[],"sources":{}}']])
-  await assert.rejects(Registry.open(memory('v4', newer)), /has schemaVersion 4, but this client reads 3 \(a newer snapshot: update this client\)$/)
+  for (const n of [0, 2, 3]) {
+    const other = new Map([...files].map(([rel, text]) => [rel, JSON.stringify({ ...JSON.parse(text), schemaVersion: n })]))
+    await assert.rejects(Registry.open(memory(`v${n}`, other)), new RegExp(`^Error: v${n} is not a registry snapshot this client can read: registry/index\\.json has schemaVersion ${n}; this client reads 1$`))
+  }
 })
 
-// The last commit of this repo whose views have schemaVersion 2.
-const VIEWS_V2_COMMIT = 'e38fd24b2d52cc591b9de16da84750f8180c7630'
-const haveV2Commit = spawnSync('git', ['cat-file', '-e', `${VIEWS_V2_COMMIT}^{commit}`], { cwd: ROOT }).status === 0
+// Older commits of this repo, whose views have schemaVersion 2 and 3.
+const OLDER_COMMITS = [['e38fd24b2d52cc591b9de16da84750f8180c7630', 2], ['9865c6dbb6723d49a41e3d467bda26627d56f058', 3]] as const
+const haveCommit = (c: string) => spawnSync('git', ['cat-file', '-e', `${c}^{commit}`], { cwd: ROOT }).status === 0
 
-test('opening an older commit of this repo fails at open', { skip: !haveV2Commit && `${VIEWS_V2_COMMIT} is not in this clone` }, async () => {
-  await assert.rejects(Registry.open(`git:${ROOT}@${VIEWS_V2_COMMIT}`), new RegExp(`^Error: git:${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@${VIEWS_V2_COMMIT}: registry/index\\.json has schemaVersion 2, but this client reads 3 \\(an older snapshot: open a later commit of the registry\\)$`))
-})
+for (const [commit, n] of OLDER_COMMITS) {
+  test(`opening an older commit of this repo (views schemaVersion ${n}) fails at open`, { skip: !haveCommit(commit) && `${commit} is not in this clone` }, async () => {
+    const spec = `git:${ROOT}@${commit}`
+    await assert.rejects(Registry.open(spec), new RegExp(`^Error: ${spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is not a registry snapshot this client can read: registry/index\\.json has schemaVersion ${n}; this client reads 1$`))
+  })
+}
 
 test('a failed read is not cached: the next call reads again (index, shard, all)', async () => {
   const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries: [entry(code(1), 'src/X.sol:X')], tags: [] }])

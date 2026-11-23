@@ -127,21 +127,17 @@ export class Registry {
 
   /**
    * Opens a snapshot, given as a spec (see `openSource`; by default this repo's `main`, resolved to
-   * a commit once) or a source, and reads its index. A snapshot in a format this client doesn't
-   * read throws here, so no lookup can answer wrongly, or null for everything: one with no index
-   * (a commit of this repo from before layout v2, or not a registry), or whose views have another
-   * `schemaVersion` (a commit from before by-length entries had `version`,
-   * `isSingleImplementationProxy` and `fingerprintMask`, or one newer than this client).
+   * a commit once) or a source, and reads its index. A snapshot this client can't read throws
+   * here, so no lookup can answer wrongly, or null for everything: one with no index, or whose
+   * views have a `schemaVersion` other than the one this client reads.
    */
   static async open(spec: string | RegistrySource = 'github:OffchainLabs/contract-registry@main'): Promise<Registry> {
     const source = typeof spec === 'string' ? await openSource(spec) : spec
+    const cannot = (why: string) => new Error(`${source.describe()} is not a registry snapshot this client can read: ${why}`)
     const text = await source.read(INDEX_PATH)
-    if (!text) throw new Error(`${source.describe()} is not a registry snapshot this client can read: it has no ${INDEX_PATH} (a commit from before layout v2, or not a registry)`)
+    if (!text) throw cannot(`it has no ${INDEX_PATH}`)
     const index = JSON.parse(text) as IndexFile
-    if (index.schemaVersion !== VIEW_SCHEMA_VERSION) {
-      const fix = index.schemaVersion < VIEW_SCHEMA_VERSION ? 'an older snapshot: open a later commit of the registry' : 'a newer snapshot: update this client'
-      throw new Error(`${source.describe()}: ${INDEX_PATH} has schemaVersion ${index.schemaVersion}, but this client reads ${VIEW_SCHEMA_VERSION} (${fix})`)
-    }
+    if (index.schemaVersion !== VIEW_SCHEMA_VERSION) throw cannot(`${INDEX_PATH} has schemaVersion ${index.schemaVersion}; this client reads ${VIEW_SCHEMA_VERSION}`)
     return new Registry(source, index)
   }
 
