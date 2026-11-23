@@ -1,26 +1,14 @@
-import { ZERO_ADDRESS } from '../lib/hex.ts'
 import type { Entry, Hex } from '../lib/types.ts'
-import { ExecutionError, type Rpc } from './rpc.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, beaconImplementation, slotAddress } from './get-version.ts'
+import type { Rpc } from './rpc.ts'
 
 /**
- * Following a proxy to its implementations: the slots and beacon calls the walker reads for each
- * piece of code (in-scope nodes and leaves), and the beacon call `Registry.getVersion` makes too.
+ * Following a proxy to its implementations, for the walker: the slots and beacon calls it reads
+ * for each piece of code (in-scope nodes and leaves). A walk reads the slots a proxy's entry lists,
+ * and probes the standard slots for code the registry doesn't know (e.g. a chain deployed before
+ * the registry's start), so it still reaches the logic. The slots, and reading an address from a
+ * slot or a beacon, come from `get-version.ts`.
  */
-
-/**
- * The standard slots. A walk reads the slots a proxy's entry lists, and probes these for code the
- * registry doesn't know (e.g. a chain deployed before the registry's start), so it still reaches
- * the logic. `Registry.getVersion` reads only these, for unknown code and single-implementation
- * proxies alike.
- */
-export const EIP1967_IMPLEMENTATION_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
-/** AdminFallbackProxy (RollupProxy) secondary, user-logic implementation slot. */
-export const SECONDARY_IMPLEMENTATION_SLOT = '0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d'
-/** EIP-1967's beacon slot, where OpenZeppelin's `BeaconProxy` keeps its beacon's address. */
-export const EIP1967_BEACON_SLOT = '0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50'
-
-/** `implementation()`, which a beacon answers with the address of the logic its proxies run. */
-const IMPLEMENTATION_SELECTOR = '0x5c60da1b'
 
 /** A proxy's first implementation is its `implementation`, the second (AdminFallbackProxy's user logic) its `secondaryImplementation`. */
 export type ImplementationRole = 'implementation' | 'secondaryImplementation'
@@ -82,30 +70,4 @@ export async function readImplementations(rpc: Pick<Rpc, 'getStorageAt' | 'call'
   const secondary = await read('secondaryImplementation', SECONDARY_IMPLEMENTATION_SLOT)
   if (impl || secondary) return [impl, secondary].filter(i => i !== null)
   return viaBeacon(EIP1967_BEACON_SLOT)
-}
-
-/**
- * The address a beacon's `implementation()` returns, or null if there is no beacon, or the call
- * reverts or returns no address (the zero address, too short, or not an address). An RPC failure
- * throws.
- */
-export async function beaconImplementation(rpc: Pick<Rpc, 'call'>, beacon: string | null, block: string): Promise<string | null> {
-  if (!beacon) return null
-  let ret: string
-  try {
-    ret = await rpc.call(beacon, IMPLEMENTATION_SELECTOR, block)
-  } catch (e) {
-    if (e instanceof ExecutionError) return null
-    throw e
-  }
-  const h = ret.replace(/^0x/, '')
-  return h.length < 64 ? null : slotAddress('0x' + h.slice(0, 64))
-}
-
-/** The address in a storage word, or null if the word is zero or not an address. */
-export function slotAddress(word: string): string | null {
-  const h = word.replace(/^0x/, '').padStart(64, '0')
-  if (!/^0{24}/.test(h)) return null
-  const a = '0x' + h.slice(24)
-  return a === ZERO_ADDRESS ? null : a
 }

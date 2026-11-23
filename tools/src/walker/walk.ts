@@ -8,8 +8,6 @@ import type { Registry } from './registry.ts'
 import { ExecutionError, Rpc } from './rpc.ts'
 import { codeSelectors } from './selectors.ts'
 
-export { EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, EIP1967_BEACON_SLOT } from './proxy.ts'
-
 export interface WalkOptions {
   start: string
   rpc: Rpc

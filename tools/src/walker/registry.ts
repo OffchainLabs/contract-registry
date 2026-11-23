@@ -1,14 +1,10 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { keccak256 } from 'viem'
 import { remoteRefCommits } from '../lib/exec.ts'
-import { zeroRanges } from '../lib/fingerprint.ts'
-import { hexToBytes } from '../lib/hex.ts'
-import { INDEX_PATH, byLengthPath, outOfScopePath } from '../lib/layout.ts'
-import { VIEW_SCHEMA_VERSION, type ByLengthEntry, type ByLengthFile, type Hex, type IndexFile } from '../lib/types.ts'
-import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, beaconImplementation, slotAddress } from './proxy.ts'
-import type { Rpc } from './rpc.ts'
+import { INDEX_PATH, outOfScopePath } from '../lib/layout.ts'
+import { VIEW_SCHEMA_VERSION, type ByLengthEntry, type IndexFile } from '../lib/types.ts'
+import { getVersion, lookup, readByLength, type ContractVersion, type RegistryFiles, type VersionRpc } from './get-version.ts'
 
 /** Where registry files come from. Every implementation reads one fixed snapshot. */
 export interface RegistrySource {
@@ -105,24 +101,20 @@ export function resolveRemote(url: string, ref: string): string {
   return sha
 }
 
-/** What `Registry.getVersion` reports: an entry's `version`, and the repo it is a version of. */
-export interface ContractVersion {
-  version: string
-  /** The matched entry's repo (`owner/repo`). Tag names overlap across repos, so a version alone is ambiguous. */
-  repo: string
-}
-
 /** A registry snapshot: every source's entries, looked up together. */
 export class Registry {
   readonly source: RegistrySource
   /** The code lengths present, and per source its repo and getters. Read once, by `open`. */
   readonly index: IndexFile
-  /** Reads in progress or done: each shard, and every shard together. */
+  /** Reads in progress or done: each file, and every shard together. */
   private cache = new Map<string, Promise<unknown>>()
+  /** The snapshot as `get-version.ts` reads it: the index, and each file read once. */
+  private readonly files: RegistryFiles
 
   private constructor(source: RegistrySource, index: IndexFile) {
     this.source = source
     this.index = index
+    this.files = { index, read: rel => this.once(rel, () => source.read(rel)) }
   }
 
   /**
@@ -156,12 +148,8 @@ export class Registry {
 
   /** Every entry of one code length, of every source: one small static fetch, and none for a length the index doesn't list. */
   byLength(len: number): Promise<ByLengthEntry[]> {
-    if (!this.index.codeLengths.includes(len)) return Promise.resolve([])
-    return this.once(`by-length/${len}`, async () => {
-      const t = await this.source.read(byLengthPath(len))
-      if (!t) throw new Error(`${this.source.describe()}: ${INDEX_PATH} lists code length ${len}, but ${byLengthPath(len)} is missing`)
-      return (JSON.parse(t) as ByLengthFile).entries
-    })
+    // The by-length files have every field of a ByLengthEntry; get-version.ts types only those it reads.
+    return readByLength(this.files, len) as Promise<ByLengthEntry[]>
   }
 
   /** Every entry (fetches every shard; only needed to find the closest entry for unknown code). */
@@ -176,37 +164,23 @@ export class Registry {
   }
 
   /**
-   * The lookup (§5.5): the entry of the code's length whose `fingerprint` is the keccak256 of the
-   * code with the entry's `fingerprintMask` zeroed, or null. Fetches the length's shard if the
-   * index lists that length. At most one entry can match, because publish and CI require entries
-   * of one length to mask the same bytes, in every source, apart from reviewed pairs (see
-   * `rangeConflicts`). `decodeImmutables(code, entry)` reads the matched code's immutables.
+   * The entry of the code's length whose `fingerprint` is the keccak256 of the code with the
+   * entry's `fingerprintMask` zeroed, or null (`lookup` in `get-version.ts`). At most one entry can
+   * match, because publish and CI require entries of one length to mask the same bytes, in every
+   * source, apart from reviewed pairs (see `rangeConflicts`). `decodeImmutables(code, entry)` reads
+   * the matched code's immutables.
    */
-  async lookup(code: Uint8Array): Promise<ByLengthEntry | null> {
-    return (await this.byLength(code.length)).find(e => keccak256(zeroRanges(code, e.fingerprintMask)) === e.fingerprint) ?? null
+  lookup(code: Uint8Array): Promise<ByLengthEntry | null> {
+    return lookup(this.files, code) as Promise<ByLengthEntry | null>
   }
 
   /**
-   * The `version` and `repo` of the entry the code at `address` matches, or null. A
-   * single-implementation proxy (one implementation slot, or a beacon proxy) reports its
-   * implementation instead, whichever repo that comes from; so does unknown code, which may be a
-   * proxy the registry doesn't have (e.g. Arbitrum One's, older than the registry's first tag).
-   * Either way the implementation is the address in EIP-1967's implementation slot or, if that is
-   * zero, what the beacon in EIP-1967's beacon slot returns, and gives null unless it is code the
-   * registry knows. Publish and CI require every single-implementation proxy's entry to list that
-   * slot. Unknown code whose secondary slot is set is a two-slot proxy (an old RollupProxy), with
-   * no version of its own: null, not the version of the admin logic in its EIP-1967 slot.
-   *
-   * `rpc.call` is only used to ask a beacon for its implementation; it must throw an
-   * `ExecutionError` when the call reverts (any other error is passed on).
+   * The `version` and `repo` of the entry the code at `address` matches, following a
+   * single-implementation proxy, or unknown code, to its implementation (`getVersion` in
+   * `get-version.ts`, where each case is described). `rpc.call` must throw an `ExecutionError`
+   * when the call reverts (any other error is passed on).
    */
-  async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt' | 'call'>, address: string, block = 'latest'): Promise<ContractVersion | null> {
-    const slot = async (s: Hex) => slotAddress(await rpc.getStorageAt(address, s, block))
-    const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
-    if (entry && !entry.isSingleImplementationProxy) return { version: entry.version, repo: entry.repo }
-    if (!entry && await slot(SECONDARY_IMPLEMENTATION_SLOT)) return null
-    const impl = await slot(EIP1967_IMPLEMENTATION_SLOT) ?? await beaconImplementation(rpc, await slot(EIP1967_BEACON_SLOT), block)
-    const implEntry = impl && await this.lookup(hexToBytes(await rpc.getCode(impl, block)))
-    return implEntry ? { version: implEntry.version, repo: implEntry.repo } : null
+  getVersion(rpc: VersionRpc, address: string, block = 'latest'): Promise<ContractVersion | null> {
+    return getVersion(rpc, this.files, address, block)
   }
 }

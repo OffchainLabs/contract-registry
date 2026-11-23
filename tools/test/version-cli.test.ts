@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process'
 import { keccak256 } from 'viem'
 import { generateViews } from '../src/lib/datarepo.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
-import { EIP1967_IMPLEMENTATION_SLOT as EIP1967 } from '../src/walker/walk.ts'
+import { EIP1967_IMPLEMENTATION_SLOT as EIP1967 } from '../src/walker/get-version.ts'
 
 const CLI = path.join(import.meta.dirname, '../src/cli/version.ts')
 const REPO = 'OffchainLabs/nitro-contracts'

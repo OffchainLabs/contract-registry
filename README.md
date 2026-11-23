@@ -83,7 +83,10 @@ lookup(code) -> entry | null:
   return null
 ```
 
-Each case this handles, and why, is in [Usage](docs/usage.md#how-getversion-works).
+The reference implementation of this pseudocode is
+[`tools/src/walker/get-version.ts`](tools/src/walker/get-version.ts): one file that imports only
+`viem`, so you can copy it on its own. Each case it handles, and why, is in
+[Usage](docs/usage.md#how-getversion-works).
 
 <details>
 <summary>Usage in depth</summary>

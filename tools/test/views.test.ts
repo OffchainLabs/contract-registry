@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { describeRole, entryFromBuild, generateViews, proxySlotProblem, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
 import { loadSourceConfig } from '../src/lib/config.ts'
 import { kindOf, SchemaValidator, validateDataRepo } from '../src/lib/schema.ts'
-import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/get-version.ts'
 import type { BuiltContract, ByLengthEntry, Entry, RoleConfig, TagFile } from '../src/lib/types.ts'
 import { keccak256, toFunctionSelector, toHex } from 'viem'
 

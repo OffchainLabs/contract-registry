@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { Entry, TagFile } from '../src/lib/types.ts'
-import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/proxy.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/get-version.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const CLI = path.join(ROOT, 'tools/src/cli/ci-check.ts')

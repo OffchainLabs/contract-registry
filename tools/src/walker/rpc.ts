@@ -1,3 +1,5 @@
+import { ExecutionError } from './get-version.ts'
+
 /**
  * Minimal read-only JSON-RPC client: eth_getCode, eth_getStorageAt, eth_call, pinned to one block.
  * Transport errors and rate limits are retried; execution errors (reverts) are reported as such,
@@ -13,7 +15,8 @@ export class RpcError extends Error {
   }
 }
 
-export class ExecutionError extends Error {}
+/** What `call` throws when the call reverts or halts (defined in `get-version.ts`, whose `VersionRpc` this implements). */
+export { ExecutionError }
 
 export interface RpcOptions { concurrency?: number; retries?: number; timeoutMs?: number }
 

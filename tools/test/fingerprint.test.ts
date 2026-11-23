@@ -2,8 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { getAddress, keccak256 } from 'viem'
 import { cborMetadataFields, cborMetadataLength } from '../src/lib/cbor.ts'
-import { decodeImmutables, fingerprintMask, fingerprintOf, mask, matches, zeroRanges } from '../src/lib/fingerprint.ts'
+import { decodeImmutables, fingerprintMask, fingerprintOf, mask, matches } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
+import { zeroRanges } from '../src/walker/get-version.ts'
 import { codeSelectors } from '../src/walker/selectors.ts'
 
 // solc 0.8.17 with bytecode_hash = 'none' appends {"solc": 0x000811} plus its length (0x000a).

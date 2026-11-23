@@ -17,7 +17,7 @@ import { LocalAlertSink } from '../src/lib/alerts.ts'
 import { stableJson } from '../src/lib/json.ts'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { ByLengthEntry, Entry } from '../src/lib/types.ts'
-import { EIP1967_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
+import { EIP1967_IMPLEMENTATION_SLOT } from '../src/walker/get-version.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'init.defaultBranch=main', ...a], { cwd, encoding: 'utf8' }).trim()

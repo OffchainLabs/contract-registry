@@ -12,7 +12,7 @@ import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import { fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import type { ByLengthFile, Entry, IndexFile } from '../src/lib/types.ts'
-import { EIP1967_IMPLEMENTATION_SLOT as EIP1967 } from '../src/walker/walk.ts'
+import { EIP1967_IMPLEMENTATION_SLOT as EIP1967 } from '../src/walker/get-version.ts'
 import { toFunctionSelector } from 'viem'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')

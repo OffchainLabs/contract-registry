@@ -4,9 +4,10 @@ import { getAddress, keccak256, toFunctionSelector } from 'viem'
 import { generateViews, type SourceInputs } from '../src/lib/datarepo.ts'
 import { evaluate, unreadSlots } from '../src/lib/testcheck.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
+import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/get-version.ts'
 import { Registry } from '../src/walker/registry.ts'
 import { ExecutionError, type Rpc } from '../src/walker/rpc.ts'
-import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY, walk, type WalkNode, type WalkResult } from '../src/walker/walk.ts'
+import { walk, type WalkNode, type WalkResult } from '../src/walker/walk.ts'
 
 const REPO = 'OffchainLabs/nitro-contracts'
 const addr = (n: number) => `0x${n.toString(16).padStart(40, '0')}`

@@ -9,7 +9,7 @@ import { rangeConflicts, type RangeConflict } from './ranges.ts'
 import { compareTags, isPrerelease } from './semver.ts'
 import { SCHEMA_VERSION, VIEW_SCHEMA_VERSION } from './types.ts'
 import type { BranchFile, BuiltContract, ByLengthEntry, ByLengthFile, ContractRole, Entry, Getter, Hex, IndexFile, RoleConfig, TagFile } from './types.ts'
-import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT } from '../walker/proxy.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT } from '../walker/get-version.ts'
 
 /** Canonical key order for an entry file. */
 export function canonicalEntry(e: Entry): Entry {

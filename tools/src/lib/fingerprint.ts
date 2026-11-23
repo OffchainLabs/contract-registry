@@ -1,4 +1,5 @@
 import { keccak256, decodeAbiParameters, getAddress } from 'viem'
+import { zeroRanges } from '../walker/get-version.ts'
 import { bytesToHex } from './hex.ts'
 import type { ByteRange, Hex, MaskedRange } from './types.ts'
 
@@ -17,13 +18,6 @@ export function fingerprintMask(spec: MaskSpec): ByteRange[] {
   const out = spec.maskedRanges.flatMap(r => r.offsets.map((o): ByteRange => [o, r.length]))
   if (spec.cborMetadataLength > 0) out.push([spec.codeLength - spec.cborMetadataLength, spec.cborMetadataLength])
   return out.sort((a, b) => a[0] - b[0] || a[1] - b[1])
-}
-
-/** A copy of `code` with every `[offset, length]` in `ranges` zeroed. */
-export function zeroRanges(code: Uint8Array, ranges: readonly ByteRange[]): Uint8Array {
-  const out = Uint8Array.from(code)
-  for (const [offset, length] of ranges) out.fill(0, offset, offset + length)
-  return out
 }
 
 /** Zeroes every masked range and the trailing CBOR metadata section (spec §5.1). */

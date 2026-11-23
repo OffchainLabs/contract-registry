@@ -12,10 +12,10 @@ import { decodeImmutables, fingerprintOf } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { rangeConflicts } from '../src/lib/ranges.ts'
 import type { Entry, Hex, TagFile } from '../src/lib/types.ts'
+import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY, getVersion, lookup } from '../src/walker/get-version.ts'
 import { HttpSource, Registry, resolveRemote, type RegistrySource } from '../src/walker/registry.ts'
 import { readImplementations } from '../src/walker/proxy.ts'
 import { ExecutionError, RpcError } from '../src/walker/rpc.ts'
-import { EIP1967_BEACON_SLOT as BEACON, EIP1967_IMPLEMENTATION_SLOT as EIP1967, SECONDARY_IMPLEMENTATION_SLOT as SECONDARY } from '../src/walker/walk.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const REPO = 'OffchainLabs/nitro-contracts'
@@ -87,6 +87,17 @@ for (const [commit, n] of OLDER_COMMITS) {
     await assert.rejects(Registry.open(spec), new RegExp(`^Error: ${spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is not a registry snapshot this client can read: registry/index\\.json has schemaVersion ${n}; this client reads 1$`))
   })
 }
+
+test('get-version.ts stands alone: it imports only viem, and getVersion and lookup work on a plain { index, read }', async () => {
+  const src = fs.readFileSync(path.join(ROOT, 'tools/src/walker/get-version.ts'), 'utf8')
+  assert.deepEqual([...src.matchAll(/^import .* from '([^']+)'/gm)].map(m => m[1]), ['viem'])
+  const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries: [entry(code(1), 'src/X.sol:X')], tags: tagFilesOf(REPO, { 'v1.0.0': [keccak256(code(1))] }) }])
+  const registry = { index: JSON.parse(files.get('registry/index.json')!), read: async (rel: string) => files.get(rel) ?? null }
+  assert.equal((await lookup(registry, hexToBytes(code(1))))?.version, 'v1.0.0')
+  assert.equal(await lookup(registry, hexToBytes(code(2))), null)
+  const rpc = { getCode: async () => code(1), getStorageAt: async () => word('0x'), call: async () => '0x' }
+  assert.deepEqual(await getVersion(rpc, registry, addr(1)), v('v1.0.0'))
+})
 
 test('a failed read is not cached: the next call reads again (index, shard, all)', async () => {
   const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries: [entry(code(1), 'src/X.sol:X')], tags: [] }])
