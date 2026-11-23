@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 24061,
   "entries": [
     {
@@ -160,6 +160,14 @@
       "commit": "8667fb0ff606e89bb7966891613139e729dafc35",
       "tags": [
         "v1.1.0-beta.0"
+      ],
+      "version": "v1.1.0-beta.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          24008,
+          53
+        ]
       ]
     },
     {
@@ -320,6 +328,14 @@
       "commit": "ae6e36541bbce0291ee492f689ccd291948c9dfb",
       "tags": [
         "v1.1.0-beta.1"
+      ],
+      "version": "v1.1.0-beta.1",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          24008,
+          53
+        ]
       ]
     }
   ]

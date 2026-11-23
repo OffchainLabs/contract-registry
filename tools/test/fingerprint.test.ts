@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { getAddress, keccak256 } from 'viem'
 import { cborMetadataFields, cborMetadataLength } from '../src/lib/cbor.ts'
-import { decodeImmutables, fingerprintOf, mask, matches } from '../src/lib/fingerprint.ts'
+import { decodeImmutables, fingerprintMask, fingerprintOf, mask, matches, zeroRanges } from '../src/lib/fingerprint.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { codeSelectors } from '../src/walker/selectors.ts'
 
@@ -69,6 +69,25 @@ test('immutable values leave out link and library-address ranges, and keep __sel
   assert.deepEqual(decodeImmutables(code, spec), { __self: getAddress('0x' + 'cc'.repeat(20)) })
   // All three are still masked.
   assert.deepEqual(mask(code, spec), hexToBytes('73' + '00'.repeat(20) + '73' + '00'.repeat(20) + '00'.repeat(32) + '5b'))
+})
+
+test('fingerprintMask lists the bytes mask() zeroes: keccak256 of the code with them zeroed is the fingerprint', () => {
+  // A library: PUSH20 <own address>, an immutable at two offsets, then metadata (or none).
+  const code = (self: string, value: string, cbor: string) => hexToBytes('73' + self + '7f' + value + '7f' + value + '5b' + cbor)
+  const ranges = [
+    { name: 'maxDataSize', type: 'uint256', offsets: [55, 22], length: 32 },
+    { name: '<library address>', type: 'address', offsets: [1], length: 20 },
+  ]
+  for (const cbor of [CBOR_NONE, '']) {
+    const build = code('00'.repeat(20), '00'.repeat(32), cbor)
+    const spec = { codeLength: build.length, maskedRanges: ranges, cborMetadataLength: cbor.length / 2 }
+    const want = cbor ? [[1, 20], [22, 32], [55, 32], [88, 12]] : [[1, 20], [22, 32], [55, 32]]
+    assert.deepEqual(fingerprintMask(spec), want, cbor ? 'with CBOR metadata' : 'cborMetadataLength 0')
+    const deployed = code('ab'.repeat(20), (117964).toString(16).padStart(64, '0'), cbor && 'a164736f6c6343000812000a')
+    assert.equal(keccak256(zeroRanges(deployed, fingerprintMask(spec))), fingerprintOf(build, spec))
+    assert.deepEqual(zeroRanges(deployed, fingerprintMask(spec)), mask(deployed, spec))
+  }
+  assert.deepEqual(fingerprintMask({ codeLength: 10, maskedRanges: [], cborMetadataLength: 0 }), [])
 })
 
 test('finds PUSH4 selectors but not push data that looks like opcodes', () => {

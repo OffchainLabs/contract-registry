@@ -7,7 +7,7 @@
 import { parseArgs } from 'node:util'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { openSource, Registry } from '../src/walker/registry.ts'
+import { Registry } from '../src/walker/registry.ts'
 import { Rpc } from '../src/walker/rpc.ts'
 import { hexToBytes } from '../src/lib/hex.ts'
 import { decodeImmutables } from '../src/lib/fingerprint.ts'
@@ -65,7 +65,7 @@ const referent = JSON.parse(a.referent!.startsWith('http') ? await (await fetch(
 const list: [string, string][] = []
 const flatten = (o: any, p: string) => { if (Array.isArray(o)) o.forEach(x => list.push([p, x])); else for (const k in o) flatten(o[k], p ? `${p}.${k}` : k) }
 flatten(referent, '')
-const registry = new Registry(await openSource(a.registry!))
+const registry = await Registry.open(a.registry!)
 
 let problems = 0
 const seenAnywhere = new Set<string>()

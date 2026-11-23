@@ -120,7 +120,7 @@ export async function checkCommit(opts: {
       const start = chain.start
       const problems: string[] = []
       try {
-        const registry = new Registry(new DirSource(opts.dataRepo))
+        const registry = await Registry.open(new DirSource(opts.dataRepo))
         const rpc = new Rpc(chain.rpcUrl ?? dep.rpcUrl)
         const w = await walk({ start, rpc, registry, source: opts.source, outOfScope: opts.outOfScope })
         if (opts.walkOutDir) {

@@ -4,7 +4,7 @@ import { decodeImmutables, type ImmutableValue } from '../lib/fingerprint.ts'
 import { outOfScopePath } from '../lib/layout.ts'
 import type { ByLengthEntry, ContractRole, Getter, Hex } from '../lib/types.ts'
 import { readImplementations, type ImplementationRole } from './proxy.ts'
-import { versionOf, type Registry } from './registry.ts'
+import type { Registry } from './registry.ts'
 import { ExecutionError, Rpc } from './rpc.ts'
 import { codeSelectors } from './selectors.ts'
 
@@ -49,7 +49,7 @@ export interface MatchedEntry {
   /** Beacon proxies: the slot holding the beacon, whose `implementation()` is the node's `implementation`. */
   beaconSlot?: Hex
   fingerprint: Hex
-  /** This code's own version (`versionOf` the entry), of `repo`. */
+  /** This code's own version (its entry's `version`), of `repo`. */
   version: string
   tags: string[]
   /** The ref (tag or branch) and commit the entry was first built from; null on a manual entry. */
@@ -177,7 +177,7 @@ export async function walk(opts: WalkOptions): Promise<WalkResult> {
   const chainId = await rpc.chainId()
   const blockNumber = opts.blockNumber ?? (await rpc.blockNumber())
   const block = '0x' + blockNumber.toString(16)
-  const index = await registry.index()
+  const index = registry.index
 
   const nodes = new Map<string, WalkNode>()
   const reverted: Extract<Warning, { kind: 'getter-reverted' }>[] = []
@@ -404,7 +404,7 @@ function matchedEntry(e: ByLengthEntry, code: Uint8Array): MatchedEntry {
   return {
     repo: e.repo, contracts: e.contracts, ...(e.packages ? { packages: e.packages } : {}),
     role: e.role, ...(e.implementationSlots ? { implementationSlots: e.implementationSlots } : {}), ...(e.beaconSlot ? { beaconSlot: e.beaconSlot } : {}),
-    fingerprint: e.fingerprint, version: versionOf(e), tags: e.tags, ref: e.ref, commit: e.commit,
+    fingerprint: e.fingerprint, version: e.version, tags: e.tags, ref: e.ref, commit: e.commit,
     ...(e.label ? { label: e.label } : {}), immutables: decodeImmutables(code, e),
   }
 }

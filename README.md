@@ -69,6 +69,9 @@ mix old and new data. One registry covers every source: a lookup searches all of
 | `git:<path>@<rev>` | a local clone at a commit (`rev` defaults to `HEAD`) |
 | `dir:<path>`, or a bare path | a directory as it is now |
 
+`Registry.open` also takes a `RegistrySource` (`{ describe(), read(path) }`, such as a
+`DirSource`) instead of a spec. It reads the snapshot's `registry/index.json` before it returns.
+
 **Getting a version.** `registry.getVersion(rpc, address, block = 'latest')` returns
 `{ version, repo }`, or null. `repo` is the source repo, e.g. `OffchainLabs/nitro-contracts`; it is
 needed because tag names overlap across repos. `version` is the first of these that the code has:
@@ -80,15 +83,16 @@ needed because tag names overlap across repos. `version` is the first of these t
 4. `<branch>@<commit>`, for code built only as a release or hotfix branch head, such as
    `release-3.3.0@abcdef012345`.
 
-A proxy with one implementation slot, and a beacon proxy, report their implementation's version
-and repo. Logic, proxy admins and the two-slot proxies (`RollupProxy`, `AdminFallbackProxy`)
-report their own. Unknown code is probed at the standard EIP-1967 slots, since it may be a proxy
-the registry doesn't have, in front of logic it does.
+Each entry's `version` is worked out when the registry is published. A proxy with one
+implementation slot, and a beacon proxy, report their implementation's version and repo, found
+through the standard EIP-1967 slots. Logic, proxy admins and the two-slot proxies (`RollupProxy`,
+`AdminFallbackProxy`) report their own. Unknown code is followed the same way, since it may be a
+proxy the registry doesn't have, in front of logic it does.
 
 **Looking up code.** `registry.lookup(code)` takes runtime code as a `Uint8Array` and returns the
-one entry it matches, of any source (`repo`, `contracts`, `role`, `tags`, `ref`, `commit`, ...), or
-null. It doesn't follow proxies. `decodeImmutables(code, entry)` reads the matched code's
-immutables.
+one entry it matches, of any source (`repo`, `contracts`, `role`, `version`, `tags`, `ref`,
+`commit`, ...), or null. It doesn't follow proxies. `decodeImmutables(code, entry)` reads the
+matched code's immutables.
 
 **Walking a chain.** `walk({ start, rpc, registry })` finds every contract reachable from `start`
 through its getters, identifies each, and returns `{ nodes, warnings, summary, ... }`. Options:
@@ -126,17 +130,18 @@ throw `ExecutionError` (exported, and what `Rpc` throws). Any other error is pas
 
 **Null, and what throws.** Null is an answer, not a failure: the code at the address, or the
 implementation it leads to, matches no entry. That covers an address with no code; code older
-than a source's range, or that no source builds; a proxy whose implementation slot is zero; a
-beacon proxy whose beacon slot is zero, or whose beacon's `implementation()` reverts; and unknown
-code with the secondary slot set (an old `RollupProxy`), which has no version of its own. These
-throw instead:
+than a source's range, or that no source builds; a proxy whose EIP-1967 implementation and beacon
+slots are both zero, or whose beacon's `implementation()` reverts; and unknown code with the
+secondary slot set (an old `RollupProxy`), which has no version of its own. These throw instead:
 
-- A snapshot with no `registry/index.json`, such as a commit of this repo from before layout v2
-  (2026-11-16), or an index with another `schemaVersion`. Every lookup throws, rather than answer
-  null for everything:
+- A snapshot this client can't read, as soon as `Registry.open` reads its index: one with no
+  `registry/index.json`, such as a commit of this repo from before layout v2 (2026-11-16), or
+  whose views have another `schemaVersion`, such as a commit from before view schema 3
+  (2026-11-23). So no lookup can answer wrongly, or null for everything:
 
   ```
-  Error: https://raw.githubusercontent.com/OffchainLabs/contract-registry/bfdc32b8… is not a layout-v2 registry snapshot: it has no registry/index.json
+  Error: https://raw.githubusercontent.com/OffchainLabs/contract-registry/bfdc32b8… is not a registry snapshot this client can read: it has no registry/index.json (a commit from before layout v2, or not a registry)
+  Error: https://raw.githubusercontent.com/OffchainLabs/contract-registry/e38fd24b…: registry/index.json has schemaVersion 2, but this client reads 3 (an older snapshot: open a later commit of the registry)
   ```
 
 - An RPC request that still fails after its retries (`RpcError`).

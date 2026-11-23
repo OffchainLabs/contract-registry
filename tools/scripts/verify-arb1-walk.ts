@@ -7,7 +7,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { parseArgs } from 'node:util'
 import { toFunctionSelector } from 'viem'
-import { openSource, Registry } from '../src/walker/registry.ts'
+import { Registry } from '../src/walker/registry.ts'
 import { Rpc } from '../src/walker/rpc.ts'
 import { walk } from '../src/walker/walk.ts'
 
@@ -32,7 +32,7 @@ want.OneStepProverMemory = await get(want.OneStepProofEntry, 'proverMem()')
 want.OneStepProverMath = await get(want.OneStepProofEntry, 'proverMath()')
 want.OneStepProverHostIo = await get(want.OneStepProofEntry, 'proverHostIo()')
 
-const registry = new Registry(await openSource(a.registry!))
+const registry = await Registry.open(a.registry!)
 const w = await walk({ start: INBOX, rpc, registry, source: 'nitro-contracts', outOfScope: Object.keys((await registry.outOfScope('nitro-contracts'))!), blockNumber })
 if (a.out) fs.writeFileSync(a.out, JSON.stringify(w, null, 2))
 let fail = 0

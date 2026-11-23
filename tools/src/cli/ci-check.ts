@@ -2,7 +2,8 @@
 // an id, a repo or an npm package), schema validation, nothing outside the layout, generated files
 // equal what the generator produces, one entry per fingerprint across sources and an entry for
 // every fingerprint a tag or branch file lists, shared code has its owner's entry's role in every
-// other source's contractRoles, no source's data has another source's package code, entries of one
+// other source's contractRoles, no source's data has another source's package code, every proxy
+// that forwards to one implementation lists the EIP-1967 slot getVersion reads, entries of one
 // code length mask the same bytes across sources (so a lookup matches at most one entry), and
 // entries/ and tags/ files are append-only relative to the base commit.
 //   node tools/src/cli/ci-check.ts [--base <rev>]
@@ -59,6 +60,12 @@ try {
   report('packages', repo.foreignCodeProblems(), "no source's entries, tags or branches have another source's package code")
 } catch (e) {
   console.error(`packages: can't check: ${(e as Error).message}`)
+  failed = true
+}
+try {
+  report('proxies', repo.proxySlotProblems(), "every proxy that forwards to one implementation lists the EIP-1967 slot getVersion reads")
+} catch (e) {
+  console.error(`proxies: can't check: ${(e as Error).message}`)
   failed = true
 }
 

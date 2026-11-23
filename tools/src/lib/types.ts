@@ -2,8 +2,12 @@ export type Hex = `0x${string}`
 
 /** Input files (entries, tags, branches) and config. */
 export const SCHEMA_VERSION = 1
-/** Generated views (`registry/by-length/`, `registry/index.json`), combined across sources since layout v2. */
-export const VIEW_SCHEMA_VERSION = 2
+/**
+ * Generated views (`registry/by-length/`, `registry/index.json`): 2 since they combine every
+ * source (layout v2), 3 since by-length entries carry `version`, `isSingleImplementationProxy` and
+ * `fingerprintMask`.
+ */
+export const VIEW_SCHEMA_VERSION = 3
 
 /**
  * Bytes of runtime code that are filled in at deploy time, so they are zeroed before hashing: a
@@ -122,7 +126,34 @@ export interface BranchFile {
   contracts: Record<string, Hex>
 }
 
-export type ByLengthEntry = Entry & { tags: string[] }
+/** Bytes of runtime code: `[offset, length]`. */
+export type ByteRange = [offset: number, length: number]
+
+/**
+ * An entry as the by-length view lists it: the entry file, the tags of its own source's tag files,
+ * and three fields worked out when the view is generated, so that a lookup and `getVersion` need
+ * nothing else.
+ */
+export type ByLengthEntry = Entry & {
+  /** Its source's tags whose builds produced the code, in semver order. */
+  tags: string[]
+  /**
+   * What `getVersion` reports for this code: its first release tag, else its first tag (a
+   * prerelease), else a manual entry's `label`, else `<ref>@<first 12 hex digits of commit>`.
+   */
+  version: string
+  /**
+   * A proxy that forwards every call to one implementation: one implementation slot, or a beacon.
+   * `getVersion` reports its implementation instead of the proxy. False for logic, proxy admins and
+   * two-slot proxies (RollupProxy, AdminFallbackProxy).
+   */
+  isSingleImplementationProxy: boolean
+  /**
+   * The bytes the fingerprint zeroes, sorted by offset: each of `maskedRanges` at every offset, and
+   * the trailing CBOR metadata. `fingerprint = keccak256(code with each range zeroed)`.
+   */
+  fingerprintMask: ByteRange[]
+}
 
 /**
  * Generated lookup shard (`registry/by-length/<codeLength>.json`): every entry of that length, of

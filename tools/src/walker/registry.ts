@@ -1,13 +1,13 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { keccak256 } from 'viem'
 import { remoteRefCommits } from '../lib/exec.ts'
-import { matches } from '../lib/fingerprint.ts'
+import { zeroRanges } from '../lib/fingerprint.ts'
 import { hexToBytes } from '../lib/hex.ts'
 import { INDEX_PATH, byLengthPath, outOfScopePath } from '../lib/layout.ts'
-import { isPrerelease } from '../lib/semver.ts'
-import { VIEW_SCHEMA_VERSION, type ByLengthEntry, type ByLengthFile, type IndexFile } from '../lib/types.ts'
-import { readImplementations, reportsImplementation } from './proxy.ts'
+import { VIEW_SCHEMA_VERSION, type ByLengthEntry, type ByLengthFile, type Hex, type IndexFile } from '../lib/types.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT, beaconImplementation, slotAddress } from './proxy.ts'
 import type { Rpc } from './rpc.ts'
 
 /** Where registry files come from. Every implementation reads one fixed snapshot. */
@@ -105,40 +105,44 @@ export function resolveRemote(url: string, ref: string): string {
   return sha
 }
 
-/**
- * A version string for an entry: its first release tag (tags are in semver order), else its first
- * prerelease tag, else `<ref>@<first 12 hex digits of commit>` for code in no tag (built only as a
- * release or hotfix branch head, e.g. `release-3.3.0@abcdef012345`). A manual entry with no tag
- * gives its label.
- */
-export function versionOf(entry: ByLengthEntry): string {
-  const releases = entry.tags.filter(t => !isPrerelease(t))
-  if (releases.length) return releases[0]
-  if (entry.tags.length) return entry.tags[0]
-  if (entry.label !== undefined) return entry.label
-  if (entry.ref === null || entry.commit === null) return entry.contracts[0] // the schema requires a label here
-  return `${entry.ref}@${entry.commit.slice(0, 12)}`
-}
-
-/** What `Registry.getVersion` reports: a version (see `versionOf`) and the repo it is a version of. */
+/** What `Registry.getVersion` reports: an entry's `version`, and the repo it is a version of. */
 export interface ContractVersion {
   version: string
   /** The matched entry's repo (`owner/repo`). Tag names overlap across repos, so a version alone is ambiguous. */
   repo: string
 }
 
-function contractVersion(entry: ByLengthEntry): ContractVersion {
-  return { version: versionOf(entry), repo: entry.repo }
-}
-
 /** A registry snapshot: every source's entries, looked up together. */
 export class Registry {
   readonly source: RegistrySource
-  /** Reads in progress or done: the index, each shard, and every shard together. */
+  /** The code lengths present, and per source its repo and getters. Read once, by `open`. */
+  readonly index: IndexFile
+  /** Reads in progress or done: each shard, and every shard together. */
   private cache = new Map<string, Promise<unknown>>()
 
-  constructor(source: RegistrySource) {
+  private constructor(source: RegistrySource, index: IndexFile) {
     this.source = source
+    this.index = index
+  }
+
+  /**
+   * Opens a snapshot, given as a spec (see `openSource`; by default this repo's `main`, resolved to
+   * a commit once) or a source, and reads its index. A snapshot in a format this client doesn't
+   * read throws here, so no lookup can answer wrongly, or null for everything: one with no index
+   * (a commit of this repo from before layout v2, or not a registry), or whose views have another
+   * `schemaVersion` (a commit from before by-length entries had `version`,
+   * `isSingleImplementationProxy` and `fingerprintMask`, or one newer than this client).
+   */
+  static async open(spec: string | RegistrySource = 'github:OffchainLabs/contract-registry@main'): Promise<Registry> {
+    const source = typeof spec === 'string' ? await openSource(spec) : spec
+    const text = await source.read(INDEX_PATH)
+    if (!text) throw new Error(`${source.describe()} is not a registry snapshot this client can read: it has no ${INDEX_PATH} (a commit from before layout v2, or not a registry)`)
+    const index = JSON.parse(text) as IndexFile
+    if (index.schemaVersion !== VIEW_SCHEMA_VERSION) {
+      const fix = index.schemaVersion < VIEW_SCHEMA_VERSION ? 'an older snapshot: open a later commit of the registry' : 'a newer snapshot: update this client'
+      throw new Error(`${source.describe()}: ${INDEX_PATH} has schemaVersion ${index.schemaVersion}, but this client reads ${VIEW_SCHEMA_VERSION} (${fix})`)
+    }
+    return new Registry(source, index)
   }
 
   /**
@@ -154,38 +158,19 @@ export class Registry {
     return p
   }
 
-  /** Opens a snapshot (see `openSource`); by default this repo's `main`, resolved to a commit once. */
-  static async open(spec = 'github:OffchainLabs/contract-registry@main'): Promise<Registry> {
-    return new Registry(await openSource(spec))
-  }
-
-  /**
-   * The code lengths present, and per source its repo and getters. Read once (a failed read is
-   * retried by the next call). A snapshot without it (the old layout, or not a registry at all)
-   * throws, so lookups can't quietly answer null for everything.
-   */
-  index(): Promise<IndexFile> {
-    return this.once('index', () => this.source.read(INDEX_PATH).then(t => {
-      if (!t) throw new Error(`${this.source.describe()} is not a layout-v2 registry snapshot: it has no ${INDEX_PATH}`)
-      const ix = JSON.parse(t) as IndexFile
-      if (ix.schemaVersion !== VIEW_SCHEMA_VERSION) throw new Error(`${this.source.describe()}: ${INDEX_PATH} has schemaVersion ${ix.schemaVersion}; this client reads ${VIEW_SCHEMA_VERSION}`)
-      return ix
-    }))
-  }
-
   /** Every entry of one code length, of every source: one small static fetch, and none for a length the index doesn't list. */
   byLength(len: number): Promise<ByLengthEntry[]> {
-    return this.once(`by-length/${len}`, () => this.index().then(async ix => {
-      if (!ix.codeLengths.includes(len)) return []
+    if (!this.index.codeLengths.includes(len)) return Promise.resolve([])
+    return this.once(`by-length/${len}`, async () => {
       const t = await this.source.read(byLengthPath(len))
       if (!t) throw new Error(`${this.source.describe()}: ${INDEX_PATH} lists code length ${len}, but ${byLengthPath(len)} is missing`)
       return (JSON.parse(t) as ByLengthFile).entries
-    }))
+    })
   }
 
   /** Every entry (fetches every shard; only needed to find the closest entry for unknown code). */
   all(): Promise<ByLengthEntry[]> {
-    return this.once('all', () => this.index().then(async ix => (await Promise.all(ix.codeLengths.map(l => this.byLength(l)))).flat()))
+    return this.once('all', async () => (await Promise.all(this.index.codeLengths.map(l => this.byLength(l)))).flat())
   }
 
   /** A source's out-of-scope getters (signature -> reason), or null if the snapshot has none for it. */
@@ -195,45 +180,37 @@ export class Registry {
   }
 
   /**
-   * The lookup (§5.5): the entry of the code's length that passes the match rule, or null. Reads
-   * the index, then the length's shard if the index lists that length. At most one entry can
-   * pass, because publish and CI require entries of one length to mask the same bytes, in every
-   * source, apart from reviewed pairs (see `rangeConflicts`). `decodeImmutables(code, entry)`
-   * reads the matched code's immutables.
+   * The lookup (§5.5): the entry of the code's length whose `fingerprint` is the keccak256 of the
+   * code with the entry's `fingerprintMask` zeroed, or null. Fetches the length's shard if the
+   * index lists that length. At most one entry can match, because publish and CI require entries
+   * of one length to mask the same bytes, in every source, apart from reviewed pairs (see
+   * `rangeConflicts`). `decodeImmutables(code, entry)` reads the matched code's immutables.
    */
   async lookup(code: Uint8Array): Promise<ByLengthEntry | null> {
-    return (await this.byLength(code.length)).find(e => matches(code, e)) ?? null
+    return (await this.byLength(code.length)).find(e => keccak256(zeroRanges(code, e.fingerprintMask)) === e.fingerprint) ?? null
   }
 
   /**
-   * The version of the contract at `address` (see `versionOf`) and the repo it is a version of,
-   * or null. A proxy with one implementation slot reports its implementation, whichever repo that
-   * comes from (null if the slot is zero or its code missing or unknown). So does a beacon proxy:
-   * it reads its beacon slot, then calls the beacon's `implementation()` (null if the slot is
-   * zero, the call reverts, or the implementation's code is missing or unknown). Everything else
-   * the registry knows reports its own code: logic, proxy admins, and proxies with two slots
-   * (RollupProxy, AdminFallbackProxy), whose own version can lag the logic behind them.
-   *
-   * Unknown code may be a proxy the registry doesn't have (e.g. Arbitrum One's, older than the
-   * registry's first tag), so it is probed as `readImplementations` says. If its secondary slot is
-   * set, it's a two-slot proxy, with no version of its own: null. Otherwise it reports the
-   * implementation at the EIP-1967 slot, as a one-slot proxy does, or, if that slot is zero, the
-   * implementation of the beacon in the beacon slot; so it gives null unless that is code the
-   * registry knows.
+   * The `version` and `repo` of the entry the code at `address` matches, or null. A
+   * single-implementation proxy (one implementation slot, or a beacon proxy) reports its
+   * implementation instead, whichever repo that comes from; so does unknown code, which may be a
+   * proxy the registry doesn't have (e.g. Arbitrum One's, older than the registry's first tag).
+   * Either way the implementation is the address in EIP-1967's implementation slot or, if that is
+   * zero, what the beacon in EIP-1967's beacon slot returns, and gives null unless it is code the
+   * registry knows. Publish and CI require every single-implementation proxy's entry to list that
+   * slot. Unknown code whose secondary slot is set is a two-slot proxy (an old RollupProxy), with
+   * no version of its own: null, not the version of the admin logic in its EIP-1967 slot.
    *
    * `rpc.call` is only used to ask a beacon for its implementation; it must throw an
    * `ExecutionError` when the call reverts (any other error is passed on).
    */
   async getVersion(rpc: Pick<Rpc, 'getCode' | 'getStorageAt' | 'call'>, address: string, block = 'latest'): Promise<ContractVersion | null> {
+    const slot = async (s: Hex) => slotAddress(await rpc.getStorageAt(address, s, block))
     const entry = await this.lookup(hexToBytes(await rpc.getCode(address, block)))
-    if (entry && !reportsImplementation(entry)) return contractVersion(entry)
-    const impls = await readImplementations(rpc, address, entry, block)
-    // Only unknown code gives a secondary here. An unknown two-slot proxy (an old RollupProxy)
-    // gives null, not the version of the admin logic in its EIP-1967 slot.
-    if (impls.some(i => i.role === 'secondaryImplementation')) return null
-    const impl = impls.find(i => i.role === 'implementation')
-    if (!impl) return null
-    const implEntry = await this.lookup(hexToBytes(await rpc.getCode(impl.address, block)))
-    return implEntry && contractVersion(implEntry)
+    if (entry && !entry.isSingleImplementationProxy) return { version: entry.version, repo: entry.repo }
+    if (!entry && await slot(SECONDARY_IMPLEMENTATION_SLOT)) return null
+    const impl = await slot(EIP1967_IMPLEMENTATION_SLOT) ?? await beaconImplementation(rpc, await slot(EIP1967_BEACON_SLOT), block)
+    const implEntry = impl && await this.lookup(hexToBytes(await rpc.getCode(impl, block)))
+    return implEntry ? { version: implEntry.version, repo: implEntry.repo } : null
   }
 }

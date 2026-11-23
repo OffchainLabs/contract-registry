@@ -6,6 +6,7 @@ import * as path from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { DataRepo, SourceData } from '../src/lib/datarepo.ts'
 import type { Entry, TagFile } from '../src/lib/types.ts'
+import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/proxy.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const CLI = path.join(ROOT, 'tools/src/cli/ci-check.ts')
@@ -331,5 +332,30 @@ test('ci-check: same-length entries of two sources that mask different bytes fai
     assert.ok(ok.ok, `listed in ${listedIn}\n${ok.out}`)
     assert.match(ok.out, /ranges: ok/)
   }
+  t.close()
+})
+
+test('ci-check: a proxy that forwards to one implementation must list the EIP-1967 slot getVersion reads', () => {
+  const t = setup()
+  const OTHER = `0x${'ab'.repeat(32)}` as const
+  const proxy = (n: number, extra: Partial<Entry>): Entry => ({ ...entry(n), role: 'proxy', ...extra })
+  t.data.writeEntry(proxy(1, { implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] }))
+  t.data.writeEntry(proxy(2, { beaconSlot: EIP1967_BEACON_SLOT }))
+  t.data.writeEntry(proxy(3, { implementationSlots: [OTHER, SECONDARY_IMPLEMENTATION_SLOT] })) // getVersion reads no slot of a known two-slot proxy
+  t.views()
+  const ok = t.check()
+  assert.ok(ok.ok, ok.out)
+  assert.match(ok.out, /proxies: ok \(every proxy that forwards to one implementation lists the EIP-1967 slot getVersion reads\)/)
+
+  t.data.writeEntry(proxy(4, { implementationSlots: [OTHER] }))
+  t.data.writeEntry(proxy(5, { beaconSlot: OTHER }))
+  t.views()
+  const bad = t.check()
+  assert.ok(!bad.ok)
+  for (const line of [
+    `proxies: registry/nitro-contracts/entries/${fp(4)}.json: src/X4.sol:X4 is a proxy that forwards to one implementation, but its implementation slot is ${OTHER}, not EIP-1967's ${EIP1967_IMPLEMENTATION_SLOT}. getVersion reads only EIP-1967's slots for such a proxy`,
+    `proxies: registry/nitro-contracts/entries/${fp(5)}.json: src/X5.sol:X5 is a proxy that forwards to one implementation, but its beacon slot is ${OTHER}, not EIP-1967's ${EIP1967_BEACON_SLOT}.`,
+    'proxies: 2 problem(s)',
+  ]) assert.ok(bad.out.includes(line), `${line}\n---\n${bad.out}`)
   t.close()
 })

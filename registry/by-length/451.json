@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 451,
   "entries": [
     {
@@ -52,6 +52,22 @@
       "commit": "2695e7b3e3f460531e2b77fed48a60561c54d90e",
       "tags": [
         "v3.2.0"
+      ],
+      "version": "v3.2.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          74,
+          32
+        ],
+        [
+          195,
+          32
+        ],
+        [
+          439,
+          12
+        ]
       ]
     }
   ]

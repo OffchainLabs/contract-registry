@@ -3,11 +3,11 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { describeRole, entryFromBuild, generateViews, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
+import { describeRole, entryFromBuild, generateViews, proxySlotProblem, roleOf, SourceData, type SourceInputs } from '../src/lib/datarepo.ts'
 import { loadSourceConfig } from '../src/lib/config.ts'
 import { kindOf, SchemaValidator, validateDataRepo } from '../src/lib/schema.ts'
 import { EIP1967_BEACON_SLOT, EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT } from '../src/walker/walk.ts'
-import type { BuiltContract, Entry, RoleConfig, TagFile } from '../src/lib/types.ts'
+import type { BuiltContract, ByLengthEntry, Entry, RoleConfig, TagFile } from '../src/lib/types.ts'
 import { keccak256, toFunctionSelector, toHex } from 'viem'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
@@ -38,9 +38,9 @@ test('a fingerprint produced by several tags lists all of them, in release order
   const shard = JSON.parse(views.get('registry/by-length/100.json')!)
   assert.deepEqual(shard.entries.map((e: any) => [e.fingerprint, e.tags]), [[fp(1), ['v3.2.0-beta.0', 'v3.2.0', 'v3.10.0']], [fp(2), []]])
   assert.deepEqual(Object.keys(shard), ['schemaVersion', 'codeLength', 'entries'], 'no top-level repo: each entry has its own')
-  assert.equal(shard.schemaVersion, 2)
+  assert.equal(shard.schemaVersion, 3)
   assert.deepEqual(JSON.parse(views.get('registry/index.json')!), {
-    schemaVersion: 2, codeLengths: [100, 200], sources: { 'nitro-contracts': { repo: NITRO, getters: [getter('bridge()')] } },
+    schemaVersion: 3, codeLengths: [100, 200], sources: { 'nitro-contracts': { repo: NITRO, getters: [getter('bridge()')] } },
   })
 })
 
@@ -77,6 +77,75 @@ test('combined views: one shard per length across sources, tags from the entry\'
   assert.deepEqual(v.validate('index', index), [])
 })
 
+test('by-length entries get version, isSingleImplementationProxy and fingerprintMask from their files', () => {
+  const BRANCH_COMMIT = 'abcdef0123456789abcdef0123456789abcdef01'
+  const manual = { ref: null, commit: null, label: 'Arbitrum One Bridge (patched v3.0.0)' }
+  const lib = { name: '<library address>', type: 'address', offsets: [1], length: 20 }
+  const imm = { name: 'maxDataSize', type: 'uint256', offsets: [72, 40], length: 32 }
+  const es = [
+    entry(1, 100), // a release after a prerelease: the release
+    entry(2, 100), // prereleases only: the first
+    entry(3, 100, { ref: 'release-3.5.0', commit: BRANCH_COMMIT }), // built only as a branch head
+    entry(4, 100, manual), // a manual entry: its label
+    entry(5, 100, { ...manual, ref: 'hotfix-3.0.1', commit: BRANCH_COMMIT }), // a manual entry with a ref: still its label
+    entry(6, 100, manual), // a manual entry a tag contains: the tag
+    entry(7, 100, { contracts: [TUP], role: 'proxy', implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] }),
+    entry(8, 100, { contracts: [BEACON_PROXY], role: 'proxy', beaconSlot: EIP1967_BEACON_SLOT }),
+    entry(9, 100, { role: 'proxy', implementationSlots: [EIP1967_IMPLEMENTATION_SLOT, SECONDARY_IMPLEMENTATION_SLOT] }), // RollupProxy
+    entry(10, 100, { contracts: [ADMIN], role: 'proxy-admin' }),
+    // Masks: a library's own address and an immutable at two offsets, out of order, with and without CBOR metadata.
+    entry(11, 200, { maskedRanges: [imm, lib], cborMetadataLength: 12 }),
+    entry(12, 200, { maskedRanges: [imm, lib], cborMetadataLength: 0 }),
+    entry(13, 300, { cborMetadataLength: 0 }),
+  ]
+  const views = generateViews(nitro(es, [
+    tag('v3.2.0-beta.0', { 'src/X1.sol:X1': fp(1) }), tag('v3.2.0', { 'src/X1.sol:X1': fp(1) }), tag('v3.10.0', { 'src/X1.sol:X1': fp(1) }),
+    tag('v3.4.0-rc.1', { 'src/X2.sol:X2': fp(2) }), tag('v3.4.0-beta.0', { 'src/X2.sol:X2': fp(2) }),
+    tag('v3.0.0', { 'src/X6.sol:X6': fp(6) }),
+    tag('v1.0.0', { [TUP]: fp(7), [BEACON_PROXY]: fp(8), 'src/X9.sol:X9': fp(9), [ADMIN]: fp(10) }),
+  ]))
+  const rows = [100, 200, 300].flatMap(len => JSON.parse(views.get(`registry/by-length/${len}.json`)!).entries as ByLengthEntry[])
+  const of = (n: number) => rows.find(e => e.fingerprint === fp(n))!
+  assert.deepEqual(es.map((_, i) => of(i + 1).version), [
+    'v3.2.0', 'v3.4.0-beta.0', 'release-3.5.0@abcdef012345', 'Arbitrum One Bridge (patched v3.0.0)', 'Arbitrum One Bridge (patched v3.0.0)', 'v3.0.0',
+    'v1.0.0', 'v1.0.0', 'v1.0.0', 'v1.0.0', `release-1.0.0@${commit(11).slice(0, 12)}`, `release-1.0.0@${commit(12).slice(0, 12)}`, `release-1.0.0@${commit(13).slice(0, 12)}`,
+  ])
+  assert.deepEqual(es.map((_, i) => of(i + 1).isSingleImplementationProxy), [false, false, false, false, false, false, true, true, false, false, false, false, false])
+  assert.deepEqual(of(1).fingerprintMask, [[88, 12]], 'the CBOR metadata: the last cborMetadataLength bytes')
+  assert.deepEqual(of(11).fingerprintMask, [[1, 20], [40, 32], [72, 32], [188, 12]], 'every offset of every range, sorted by offset, then the CBOR metadata')
+  assert.deepEqual(of(12).fingerprintMask, [[1, 20], [40, 32], [72, 32]], 'cborMetadataLength 0: no CBOR range')
+  assert.deepEqual(of(13).fingerprintMask, [], 'nothing masked')
+  // The derived fields follow the entry's own fields; maskedRanges and cborMetadataLength stay.
+  const keys = Object.keys(of(11))
+  assert.deepEqual(keys.slice(keys.indexOf('commit') + 1), ['tags', 'version', 'isSingleImplementationProxy', 'fingerprintMask'])
+  assert.deepEqual([of(11).maskedRanges, of(11).cborMetadataLength], [[imm, lib], 12])
+  const v = new SchemaValidator(ROOT)
+  for (const len of [100, 200, 300]) assert.deepEqual(v.validate('by-length', JSON.parse(views.get(`registry/by-length/${len}.json`)!)), [])
+  // The schema requires them, and a mask item is an [offset, length] pair.
+  const shard = JSON.parse(views.get('registry/by-length/200.json')!)
+  for (const field of ['version', 'isSingleImplementationProxy', 'fingerprintMask']) {
+    const { [field]: _, ...without } = shard.entries[0]
+    assert.notDeepEqual(v.validate('by-length', { ...shard, entries: [without] }), [], `without ${field}`)
+  }
+  assert.notDeepEqual(v.validate('by-length', { ...shard, entries: [{ ...shard.entries[0], fingerprintMask: [[1, 20, 3]] }] }), [], 'a triple')
+  assert.notDeepEqual(v.validate('by-length', { ...shard, entries: [{ ...shard.entries[0], fingerprintMask: [[1, 0]] }] }), [], 'a zero length')
+})
+
+test('a single-implementation proxy must list the EIP-1967 slot getVersion reads; other entries may list any', () => {
+  const OTHER = `0x${'ab'.repeat(32)}` as const
+  const proxy = (extra: Partial<Entry>) => entry(1, 100, { contracts: [TUP], role: 'proxy', ...extra })
+  assert.equal(proxySlotProblem(proxy({ implementationSlots: [EIP1967_IMPLEMENTATION_SLOT] })), null)
+  assert.equal(proxySlotProblem(proxy({ beaconSlot: EIP1967_BEACON_SLOT })), null)
+  assert.equal(proxySlotProblem(proxy({ implementationSlots: [OTHER, SECONDARY_IMPLEMENTATION_SLOT] })), null, 'getVersion reads no slot of a known two-slot proxy')
+  assert.equal(proxySlotProblem(entry(1, 100)), null)
+  assert.equal(proxySlotProblem(proxy({ implementationSlots: [OTHER] })),
+    `${TUP} is a proxy that forwards to one implementation, but its implementation slot is ${OTHER}, not EIP-1967's ${EIP1967_IMPLEMENTATION_SLOT}. ` +
+    "getVersion reads only EIP-1967's slots for such a proxy, so it would not find this one's implementation. List EIP-1967's implementation slot in contractRoles, or make getVersion read this slot.")
+  assert.match(proxySlotProblem(proxy({ beaconSlot: OTHER }))!, new RegExp(`its beacon slot is ${OTHER}, not EIP-1967's ${EIP1967_BEACON_SLOT}\\.`))
+  assert.match(proxySlotProblem(proxy({ beaconSlot: EIP1967_IMPLEMENTATION_SLOT }))!, /its beacon slot is 0x3608/, "a beacon proxy's slot must be the beacon slot")
+  assert.match(proxySlotProblem(proxy({ implementationSlots: [EIP1967_BEACON_SLOT] }))!, /its implementation slot is 0xa3f0/)
+})
+
 test('generation is deterministic regardless of input order', () => {
   const es = [entry(1, 100), entry(2, 100), entry(3, 200)]
   const ts = [tag('v1.0.0', { 'src/X1.sol:X1': fp(1) }), tag('v1.1.0', { 'src/X2.sol:X2': fp(2) })]
@@ -105,8 +174,10 @@ test('schemas accept generated files and manual entries, and reject a manual ent
   const index = JSON.parse(views.get('registry/index.json')!)
   assert.deepEqual(v.validate('by-length', shard), [])
   assert.deepEqual(v.validate('index', index), [])
-  // The views are version 2; the layout-v1 shapes are rejected.
+  // The views are version 3; version 2 (no derived fields) and the layout-v1 shapes are rejected.
   assert.notDeepEqual(v.validate('by-length', { ...shard, schemaVersion: 1 }), [])
+  assert.notDeepEqual(v.validate('by-length', { ...shard, schemaVersion: 2 }), [])
+  assert.notDeepEqual(v.validate('index', { ...index, schemaVersion: 2 }), [])
   assert.notDeepEqual(v.validate('by-length', { ...shard, repo: NITRO }), [], 'no top-level repo')
   assert.notDeepEqual(v.validate('index', { schemaVersion: 1, repo: NITRO, codeLengths: [100], getters: [] }), [])
   assert.notDeepEqual(v.validate('index', { ...index, sources: { 'by-length': index.sources['nitro-contracts'] } }), [], 'a reserved source id')

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contract-registry/schema/by-length.schema.json",
-  "title": "Generated lookup shard (registry/by-length/<codeLength>.json): every entry of that length, of every source, sorted by fingerprint, as in its entries/ file (repo, role, implementationSlots, beaconSlot and packages included), each with the tags of its own source's tag files whose builds produced it. Never hand-edited.",
+  "title": "Generated lookup shard (registry/by-length/<codeLength>.json): every entry of that length, of every source, sorted by fingerprint, as in its entries/ file (repo, role, implementationSlots, beaconSlot and packages included), each with the tags of its own source's tag files whose builds produced it, and three fields worked out from those files so that a lookup and getVersion need nothing else: version, isSingleImplementationProxy and fingerprintMask. Never hand-edited.",
   "type": "object",
   "required": ["schemaVersion", "codeLength", "entries"],
   "additionalProperties": false,
@@ -13,8 +13,29 @@
       "minItems": 1,
       "items": {
         "$ref": "common.schema.json#/$defs/entry",
-        "properties": { "tags": { "type": "array", "uniqueItems": true, "items": { "type": "string" } } },
-        "required": ["tags"],
+        "properties": {
+          "tags": { "type": "array", "uniqueItems": true, "items": { "type": "string" }, "description": "The tags of the entry's own source whose builds produced the code, in semver order" },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What getVersion reports for this code: its first release tag (tags are in semver order), else its first tag (a prerelease), else a manual entry's label, else <ref>@<first 12 hex digits of commit> (code built only as a release or hotfix branch head, e.g. release-3.3.0@abcdef012345)"
+          },
+          "isSingleImplementationProxy": {
+            "type": "boolean",
+            "description": "True for a proxy that forwards every call to one implementation: a proxy with exactly one implementationSlots item, or a beacon proxy (beaconSlot). getVersion reports its implementation's version instead of its own, reading EIP-1967's implementation slot and, if that is zero, asking the beacon in EIP-1967's beacon slot; publish, add-entry and ci-check require such an entry to list exactly that slot. False for logic, proxy admins and two-slot proxies (RollupProxy, AdminFallbackProxy)."
+          },
+          "fingerprintMask": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [{ "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 1 }],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "The bytes that vary between copies of the same version, as [offset, length] pairs sorted by offset: set by the deployment (immutables, linked libraries' addresses, a library's own address) or by the build (the CBOR metadata). Every offset of every maskedRanges item with its length, plus [codeLength - cborMetadataLength, cborMetadataLength] when cborMetadataLength > 0. fingerprint = keccak256(code with every [offset, length] in fingerprintMask zeroed)."
+          }
+        },
+        "required": ["tags", "version", "isSingleImplementationProxy", "fingerprintMask"],
         "unevaluatedProperties": false
       }
     }

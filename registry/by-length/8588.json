@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "codeLength": 8588,
   "entries": [
     {
@@ -69,7 +69,15 @@
       "commit": null,
       "label": "classic-2021-aeweth",
       "notes": "Arbitrum One aeWETH logic (WETH 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1), deployed 2021-06-24. Built from token-bridge-contracts 6171a34ad26234cbdbb097143acd2186a5d66e34 (the same commit as arbitrum-classic 7a7ef13284a5c9548be8d40823df762213412387, arb-bridge-peripherals; Hardhat, solc 0.6.11, 100 runs). The executable code matches; the metadata hash does not, probably because the source was reformatted before commit.",
-      "tags": []
+      "tags": [],
+      "version": "classic-2021-aeweth",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          8535,
+          53
+        ]
+      ]
     },
     {
       "schemaVersion": 1,
@@ -140,6 +148,14 @@
         "v1.0.1-beta.0",
         "v1.0.1-beta.1",
         "v1.0.1-beta.2"
+      ],
+      "version": "v1.0.1-beta.0",
+      "isSingleImplementationProxy": false,
+      "fingerprintMask": [
+        [
+          8535,
+          53
+        ]
       ]
     }
   ]

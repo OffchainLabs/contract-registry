@@ -14,7 +14,9 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   [Across sources](#across-sources)), tag files and branch files (a deleted branch's file is
   removed; its entries stay), checks that entries of one code length mask the same bytes, in every source (so no code can
   match two; a conflict fails the whole run, and its alert says how to review the pair and list it
-  in `reviewedRangePairs`), regenerates the views, deploys test chains from each new
+  in `reviewedRangePairs`), checks that every proxy that forwards to one implementation lists
+  EIP-1967's implementation or beacon slot, the one `getVersion` reads (otherwise the whole run
+  fails; `add-entry` refuses such an entry too), regenerates the views, deploys test chains from each new
   tag and changed head in the check's range and walks them (see [Test chains](#test-chains)), and
   lands everything as one commit.
   It checks that each new tag equals `v` + `package.json` version at its commit; a mismatch is
@@ -34,7 +36,8 @@ Everything runs here ("pull" model); the source repos need no CI or credentials.
   `index.json`); generated files match their inputs; one entry per fingerprint across sources,
   and an entry for every fingerprint a tag or branch file lists; shared code's role agrees with
   its owner's entry in every source's `contractRoles`; no source's entries, tags or branches have
-  another source's package code; the range invariant across sources (with
+  another source's package code; every proxy that forwards to one implementation lists the
+  EIP-1967 slot `getVersion` reads; the range invariant across sources (with
   every source's `reviewedRangePairs`); `entries/` and `tags/` files are append-only. Append-only compares content with the base, so a file moved into
   `registry/` passes, and a changed or deleted one fails wherever it moved.
 

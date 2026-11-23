@@ -30,7 +30,7 @@ function entry(c: Hex, contract: string, extra: Partial<Entry> = {}): Entry {
   }
 }
 
-function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {}, others: SourceInputs[] = [], extraFiles: Record<string, string> = {}): Registry {
+function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {}, others: SourceInputs[] = [], extraFiles: Record<string, string> = {}): Promise<Registry> {
   const entries = [
     entry(C.rollupProxy, 'src/rollup/RollupProxy.sol:RollupProxy', { role: 'proxy', implementationSlots: [EIP1967, SECONDARY], ...overrides.rollupProxy }),
     entry(C.proxy, OZ_TUP, { role: 'proxy', implementationSlots: [EIP1967], packages: { [OZ_TUP]: '@openzeppelin/contracts@4.7.3' }, ...overrides.proxy }),
@@ -47,7 +47,7 @@ function registry(overrides: Partial<Record<keyof typeof C, Partial<Entry>>> = {
   const v2 = [C.adminLogic, C.userLogic, C.bridgeLogic, C.legacyLogic, C.plain].map(fp).concat([keccak256('0x01'), keccak256('0x02')])
   const files = generateViews([{ id: 'nitro-contracts', repo: REPO, entries, tags: [tag('v1.0.0', v1), tag('v2.0.0', v2)] }, ...others])
   for (const [rel, content] of Object.entries(extraFiles)) files.set(rel, content)
-  return new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
+  return Registry.open({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
 }
 
 /** A second source, `other`, whose one logic entry (code F, tag v7.0.0) has the getter `foreign()`. */
@@ -100,7 +100,7 @@ const names = (id: WalkNode['code']) => (id?.status === 'matched' ? `${id.match.
 
 test('walker: proxies are followed through the slots their entries list; unknown code is probed', async () => {
   const c = chain()
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: [] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: await registry(), source: 'nitro-contracts', outOfScope: [] })
 
   const rollup = node(w, ROLLUP)
   assert.equal(names(rollup.code), 'RollupProxy proxy')
@@ -138,7 +138,7 @@ test('walker: proxies are followed through the slots their entries list; unknown
 
 test('test-chain check: proxies must still match the commit; a slot the walk skipped is reported', async () => {
   const c = chain()
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: [] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: await registry(), source: 'nitro-contracts', outOfScope: [] })
   // This commit's build has new proxy code, so the deployed v1.0.0 proxies and admin don't match it.
   const logicOnly = new Set([C.adminLogic, C.userLogic, C.bridgeLogic, C.legacyLogic, C.plain].map(fp))
   const problems = evaluate(w, logicOnly)
@@ -153,21 +153,21 @@ test('test-chain check: proxies must still match the commit; a slot the walk ski
 
   // A proxy whose entry lists too few slots: the walk misses the secondary, and the guard says so.
   const c2 = chain()
-  const w2 = await walk({ start: ROLLUP, rpc: c2.rpc as unknown as Rpc, registry: registry({ rollupProxy: { implementationSlots: [EIP1967] } }), source: 'nitro-contracts', outOfScope: [] })
+  const w2 = await walk({ start: ROLLUP, rpc: c2.rpc as unknown as Rpc, registry: await registry({ rollupProxy: { implementationSlots: [EIP1967] } }), source: 'nitro-contracts', outOfScope: [] })
   assert.equal(node(w2, ROLLUP).secondaryImplementation, undefined)
   assert.ok((await unreadSlots(w2, c2.rpc)).some(p => p.includes(`at ${node(w2, ROLLUP).address} holds ${word(USER_LOGIC)} in implementation slot ${SECONDARY}`)))
 })
 
 test('walker: an entry listing more slots than it can report fails the walk', async () => {
   const c = chain()
-  const reg = registry({ proxy: { implementationSlots: [EIP1967, SECONDARY, `0x${'ab'.repeat(32)}`] } })
+  const reg = await registry({ proxy: { implementationSlots: [EIP1967, SECONDARY, `0x${'ab'.repeat(32)}`] } })
   await assert.rejects(walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: reg, source: 'nitro-contracts', outOfScope: [] }), /lists 3 implementation slots; this walker reads at most two/)
 })
 
 test("walker: unknown code is probed with the walk's own source's getters; a match reports its entry's repo", async () => {
   // The other source's entry has a getter nitro-contracts' entries don't, which the unknown proxy at LEGACY answers.
   const FOREIGN = addr(0x20)
-  const reg = registry({}, [other()])
+  const reg = await registry({}, [other()])
   const run = (source: string) => {
     const c = chain()
     const call = c.rpc.call
@@ -197,7 +197,7 @@ test("walker: the source defaults to the start's logic: its implementation's mat
     c.rpc.getStorageAt = async (a: string, slot: string) => (a.toLowerCase() === PROXY_TO_F && slot === EIP1967 ? word(F_LOGIC) : getStorageAt(a, slot))
     return walk({ start, rpc: c.rpc as unknown as Rpc, registry: reg, outOfScope: [] })
   }
-  const two = registry({}, [other()])
+  const two = await registry({}, [other()])
   assert.equal((await run(two, ROLLUP)).source, 'nitro-contracts', 'a known proxy with nitro-contracts logic')
   assert.equal((await run(two, PLAIN)).source, 'nitro-contracts', 'logic: its own code')
   assert.equal((await run(two, LEGACY)).source, 'nitro-contracts', 'unknown code: the implementation at its EIP-1967 slot')
@@ -206,14 +206,14 @@ test("walker: the source defaults to the start's logic: its implementation's mat
   assert.deepEqual(w.summary.tags, ['v7.0.0'])
   await assert.rejects(run(two, NOTHING), /can't tell which source the walk belongs to: nothing at 0x0{38}23, its code or an implementation behind it, matches an entry; pass the source \(one of nitro-contracts, other\)/)
   await assert.rejects(run(two, addr(0x24)), /0x0{38}24 has no code; pass the source/)
-  assert.equal((await run(registry(), NOTHING)).source, 'nitro-contracts', 'nothing matches, but the registry has only one source')
+  assert.equal((await run(await registry(), NOTHING)).source, 'nitro-contracts', 'nothing matches, but the registry has only one source')
 })
 
 test("walker: the out-of-scope list defaults to the source's list in the registry", async () => {
   const list = JSON.stringify({ schemaVersion: 1, repo: REPO, getters: { 'legacy()': 'test' } })
-  const w = await walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: registry({}, [], { 'config/nitro-contracts/out-of-scope-getters.json': list }) })
+  const w = await walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: await registry({}, [], { 'config/nitro-contracts/out-of-scope-getters.json': list }) })
   assert.deepEqual([w.source, w.outOfScope, node(w, LEGACY).inScope], ['nitro-contracts', ['legacy()'], false])
-  await assert.rejects(walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: registry() }), /no out-of-scope list for nitro-contracts \(config\/nitro-contracts\/out-of-scope-getters\.json\); pass one/)
+  await assert.rejects(walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: await registry() }), /no out-of-scope list for nitro-contracts \(config\/nitro-contracts\/out-of-scope-getters\.json\); pass one/)
 })
 
 test('walker: out-of-scope leaves are identified, implementations included, but never expanded', async () => {
@@ -221,7 +221,7 @@ test('walker: out-of-scope leaves are identified, implementations included, but 
   const called: string[] = []
   const call = c.rpc.call
   c.rpc.call = async (to: string, data: string) => { called.push(to.toLowerCase()); return call(to, data) }
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: ['bridge()'] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: await registry(), source: 'nitro-contracts', outOfScope: ['bridge()'] })
 
   // BRIDGE, a known proxy, is a leaf: its code and implementation are identified.
   const bridge = node(w, BRIDGE)
@@ -235,7 +235,7 @@ test('walker: out-of-scope leaves are identified, implementations included, but 
   assert.deepEqual(w.summary, { tags: ['v2.0.0'], matchedInScope: 3, unknownInScope: 0, untaggedInScope: [], otherRepoInScope: [] }, 'leaves are not counted')
 
   // An unknown leaf behind a proxy is probed like any unknown code, but gets no closest entry.
-  const w2 = await walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: registry(), source: 'nitro-contracts', outOfScope: ['legacy()'] })
+  const w2 = await walk({ start: ROLLUP, rpc: chain().rpc as unknown as Rpc, registry: await registry(), source: 'nitro-contracts', outOfScope: ['legacy()'] })
   const legacy = node(w2, LEGACY)
   assert.deepEqual([legacy.inScope, names(legacy.code), names(legacy.implementation?.code), names(legacy.secondaryImplementation?.code)], [false, 'unknown', 'Outbox logic', 'RollupUserLogic logic'])
   assert.deepEqual(legacy.code?.status === 'unknown' && [legacy.code.closest, legacy.code.answeredGetters], [null, []])
@@ -249,7 +249,7 @@ test("walker: the summary intersects the walk's own repo's logic; other repos' c
   c.rpc.call = async (to: string, data: string) => (to.toLowerCase() + data === PLAIN + foreign.selector ? word(FOREIGN) : call(to, data))
   const getCode = c.rpc.getCode
   c.rpc.getCode = async (a: string) => (a.toLowerCase() === FOREIGN ? F : getCode(a))
-  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: registry({ plain: { getters: [foreign] } }, [other()]), source: 'nitro-contracts', outOfScope: [] })
+  const w = await walk({ start: ROLLUP, rpc: c.rpc as unknown as Rpc, registry: await registry({ plain: { getters: [foreign] } }, [other()]), source: 'nitro-contracts', outOfScope: [] })
   const f = node(w, FOREIGN)
   assert.equal(f.inScope && f.code?.status === 'matched' && f.code.match.repo, OTHER)
   assert.deepEqual(w.summary.tags, ['v2.0.0'], "the other repo's v7.0.0 logic doesn't empty the intersection")
@@ -263,7 +263,7 @@ test('walker: warnings and their via lists come out in one order, whatever the R
   // LEGACY and PLAIN both reach SHARED, whose unknown code gives an unknown-code warning.
   const SHARED = addr(0x30)
   const shared = getter('shared()')
-  const reg = registry({
+  const reg = await registry({
     userLogic: { getters: [getter('b()'), getter('a()')] },
     legacyLogic: { getters: [getter('c()'), shared] },
     plain: { getters: [shared, getter('d()')] },
@@ -308,7 +308,7 @@ const L1GW = addr(0x46), L1GW_LOGIC = addr(0x47), U = addr(0x48), FAR = addr(0x4
  * on another chain), unknown code (U) that answers l2Weth(), and a beacon proxy whose beacon's
  * implementation() reverts (BROKEN).
  */
-function tokenBridge() {
+async function tokenBridge() {
   const tbEntry = (c: Hex, contract: string, extra: Partial<Entry> = {}) => entry(c, contract, { repo: TB, ...extra })
   const entries = [
     tbEntry(T.l2Gateway, 'contracts/tokenbridge/arbitrum/gateway/L2WethGateway.sol:L2WethGateway', { getters: ['token()', 'clone()', 'beacon()', 'l2Weth()', 'l1Gateway()', 'unknown()', 'broken()'].map(getter) }),
@@ -323,7 +323,7 @@ function tokenBridge() {
     { id: 'token-bridge-contracts', repo: TB, entries, tags: [tagOf(TB, 'v1.0.0', entries)] },
     { id: 'oz', repo: OZ, entries: [beaconProxy], tags: [tagOf(OZ, 'v4.0.0', [beaconProxy])] },
   ])
-  const reg = new Registry({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
+  const reg = await Registry.open({ describe: () => 'memory', read: async rel => files.get(rel) ?? null })
 
   const codes: Record<string, Hex> = {
     [GW]: T.l2Gateway, [TOKEN]: T.beaconProxy, [BCN]: T.beacon, [TOKEN_LOGIC]: T.token, [CLONE]: T.unknown, [WETH]: T.weth,
@@ -364,7 +364,7 @@ function tokenBridge() {
 }
 
 test("walker: a beacon proxy's implementation is its beacon's implementation(); unknown code is probed at the beacon slot", async () => {
-  const tb = tokenBridge()
+  const tb = await tokenBridge()
   const w = await tb.run()
 
   const token = node(w, TOKEN)
@@ -409,12 +409,12 @@ test("walker: a beacon proxy's implementation is its beacon's implementation(); 
 })
 
 test("walker: a beacon proxy belongs to the source of its beacon's implementation", async () => {
-  const w = await tokenBridge().run({ start: TOKEN, source: null })
+  const w = await (await tokenBridge()).run({ start: TOKEN, source: null })
   assert.deepEqual([w.source, w.repo], ['token-bridge-contracts', TB], "the proxy's own code is the oz source's")
 })
 
 test('walker: Contract.getter() keys apply only on nodes with a matched piece of that contract; getter() keys everywhere', async () => {
-  const tb = tokenBridge()
+  const tb = await tokenBridge()
   const inScope = (w: WalkResult, a: string) => node(w, a).inScope
   const answered = (w: WalkResult, a: string) => { const c = node(w, a).code; return c?.status === 'unknown' ? c.answeredGetters : null }
 

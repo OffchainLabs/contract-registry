@@ -259,6 +259,25 @@ test('add-entry: refuses without a source or a label, with a label that is a pub
   }
 })
 
+test("add-entry: refuses a proxy that forwards to one implementation through a slot getVersion doesn't read", async () => {
+  const t = await setup()
+  try {
+    const other = `0x${'ab'.repeat(32)}`
+    const cfgFile = path.join(t.dir, 'config/nitro-contracts/sources.json')
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'))
+    cfg.contractRoles[TUP] = { role: 'proxy', implementationSlots: [other] }
+    fs.writeFileSync(cfgFile, JSON.stringify(cfg))
+    t.commit('a non-standard slot')
+    const r = await t.run([...t.standardJson, '--contract', TUP, '--address', A.tup, '--label', 'a proxy one-off'])
+    assert.equal(r.status, 1)
+    assert.ok(r.stderr.includes(`${TUP} is a proxy that forwards to one implementation, but its implementation slot is ${other}, not EIP-1967's ${EIP1967}.`), r.stderr)
+    assert.match(r.stderr, /Nothing written\./)
+    assert.equal(t.changes(), '')
+  } finally {
+    t.close()
+  }
+})
+
 test('add-entry: --ref and --commit are recorded only if the ref points at that commit in the source repo and the checkout is that commit, unchanged', async () => {
   const t = await setup()
   try {
