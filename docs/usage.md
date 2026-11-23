@@ -32,38 +32,8 @@ source's range.
 
 ### How `getVersion` works
 
-`getVersion` does this. `version`, `isSingleImplementationProxy` and `fingerprintMask` are fields of
-each entry in `registry/by-length/`, worked out when the registry is published (see
-[Data format](data-format.md#fields-of-the-by-length-view)), so a lookup needs nothing else.
-
-```
-EIP1967_IMPLEMENTATION_SLOT   = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
-SECONDARY_IMPLEMENTATION_SLOT = 0x2b1dbce74324248c222f0ec2d5ed7bd323cfc425b336f0253c5ccfda7265546d
-EIP1967_BEACON_SLOT           = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50
-
-getVersion(rpc, address) -> { version, repo } | null:
-  # slot(s): the address in storage slot s of `address` (its last 20 bytes, if the other 12 are zero), or null
-  entry = lookup(rpc.getCode(address))
-  if entry and not entry.isSingleImplementationProxy: return { entry.version, entry.repo }
-  if not entry and slot(SECONDARY_IMPLEMENTATION_SLOT): return null   # unknown two-slot proxy
-  impl = slot(EIP1967_IMPLEMENTATION_SLOT) or beaconImplementation(slot(EIP1967_BEACON_SLOT))
-  implEntry = impl and lookup(rpc.getCode(impl))
-  return implEntry and { implEntry.version, implEntry.repo }
-
-beaconImplementation(beacon) -> address | null:
-  # eth_call implementation() (0x5c60da1b); a revert or a non-address result gives null
-  return beacon and address in rpc.call(beacon, 0x5c60da1b)
-
-lookup(code) -> entry | null:
-  if len(code) not in index.codeLengths: return null      # index.json, read once
-  for entry in registry/by-length/<len(code)>.json .entries:
-    masked = copy of code
-    for [offset, length] in entry.fingerprintMask: zero masked[offset : offset + length]
-    if keccak256(masked) == entry.fingerprint: return entry
-  return null
-```
-
-The choices it makes:
+`getVersion`'s pseudocode is in the [README](../README.md#how-getversion-works). The choices it
+makes:
 
 - A proxy that forwards every call to one implementation (`isSingleImplementationProxy`) reports
   its implementation's version and repo: a proxy with one implementation slot
